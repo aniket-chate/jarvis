@@ -239,8 +239,9 @@ class CapabilityExecuteRequest(BaseModel):
 async def health_check():
     """System health check and integration availability audit."""
     ollama_health = await ollama.check_health()
+    ollama_online = bool(ollama_health.get("online") or ollama_health.get("status") == "healthy")
     return {
-        "status": "healthy" if ollama_online else "degraded",
+        "status": "healthy" if ollama_online and not ollama_warming else "degraded",
         "active_persona": settings.active_persona_name,
         "hardware_target": settings.hardware.get("target_gpu", "RTX 2050"),
         "vram_budget_mb": settings.hardware.get("vram_budget_mb", 4096),
@@ -359,7 +360,31 @@ async def execute_capability(
     cap_id = req.capability or req.action
     params = dict(req.parameters or {})
     domain = cap_id.split(".", 1)[0]
-    decision = policy_kernel.evaluate(domain=domain, action=req.action, parameters=params)
+
+    # Prevent a confused-deputy path where a caller selects one capability
+    # but executes an unrelated operation on the selected provider.
+    provider = capability_intelligence.select_provider(cap_id)
+    if not provider:
+        raise HTTPException(status_code=404, detail=f"Capability '{cap_id}' is not registered")
+    supported = set(getattr(provider.metadata, "supported_capabilities", []) or [])
+    if req.action not in supported:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Action '{req.action}' is not supported by provider '{provider.provider_id}'",
+        )
+
+    confirmation_token = params.pop("confirmation_token", None)
+    request_id = params.get("request_id")
+    if confirmation_token:
+        pending = policy_kernel.confirm_token(confirmation_token, request_id=request_id)
+        if not pending:
+            raise HTTPException(status_code=403, detail="Invalid, expired, or already-used confirmation token")
+        if pending.action_name != req.action or pending.action_domain != domain:
+            raise HTTPException(status_code=403, detail="Confirmation token does not match requested action")
+        params.update(pending.parameters)
+        params["confirmed"] = True
+
+    decision = policy_kernel.evaluate(domain=domain, action=req.action, parameters=params, request_id=request_id)
     if not decision.allowed:
         raise HTTPException(
             status_code=403,
@@ -371,9 +396,18 @@ async def execute_capability(
             },
         )
 
-    provider = capability_intelligence.select_provider(cap_id)
-    if not provider or not provider.is_available():
-        raise HTTPException(status_code=503, detail=f"Live provider unavailable for capability '{cap_id}'")
+    if not provider.is_available():
+        readiness = getattr(provider, "get_readiness", lambda: "UNAVAILABLE")()
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "PROVIDER_UNAVAILABLE",
+                "capability": cap_id,
+                "provider_id": provider.provider_id,
+                "readiness": readiness,
+            },
+        )
+
     result = provider.execute(req.action, params)
     return {
         "status": result.status,
@@ -1303,16 +1337,13 @@ async def websocket_gateway(
                         t_llm_complete = time.time()
                         logger.info("[LLM_COMPLETE] [request_id=%s, response_id=%s] LLM generation complete (%d chars) in %.1fms", req_id, resp_id, len(final_resp), (t_llm_complete - t_received) * 1000)
 
-                        # Update Continuous Learning Engine for live Core LLM turn
-                        try:
-                            from orchestrator.learning import learning_engine
-                            learning_engine.record_feedback(
-                                action="core_llm_agent",
-                                reward=1.0 if len(final_resp) > 0 else -0.5,
-                                context=f"query:{query[:30]}"
-                            )
-                        except Exception as rl_err:
-                            logger.debug("[Server] RL feedback recording warning: %s", rl_err)
+                        # Do not self-reward merely because an LLM returned text.
+                        # Correctness and task success must come from an explicit verifier,
+                        # user feedback, or an observed external-state transition.
+                        logger.debug(
+                            "[Server] Skipping automatic RL reward for conversational turn; "
+                            "no independent success signal is available."
+                        )
 
                         # Immediately finalize the authoritative response on UI so UI and TTS stay perfectly in sync
                         resp_payload = {

@@ -153,6 +153,13 @@ class OrchestratorCore:
 
             first_agent = plan.steps[0].agent_type if plan.steps else "core_llm"
             perm_state = getattr(plan.steps[0], "permission_state", "allow") if plan.steps else "allow"
+            provider_used = "unknown"
+            for _step in plan.steps:
+                _result = getattr(_step, "result", None)
+                if isinstance(_result, dict):
+                    provider_used = _result.get("provider") or _result.get("provider_used") or provider_used
+                    if provider_used != "unknown":
+                        break
             audit_store.record_interaction(
                 InteractionRecord(
                     query=event.raw_input or plan.goal,
@@ -160,7 +167,7 @@ class OrchestratorCore:
                     intent=getattr(plan, "intent", "general") or "task",
                     agent_called=first_agent,
                     permission_state=perm_state,
-                    provider_used="ollama",
+                    provider_used=provider_used,
                     action_result={"response": str(final_response)[:300], "status": exec_summary["status"]},
                     success=(exec_summary["status"] in ["success", "completed"] and verification.get("verified", True)),
                     metadata={"plan_id": plan.plan_id},

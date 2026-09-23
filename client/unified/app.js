@@ -231,7 +231,7 @@
 
     const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
-    const wsUrl = `${wsProtocol}//${host}/ws?token=${encodeURIComponent(GATEWAY_TOKEN)}&device_id=${encodeURIComponent(DEVICE_ID)}`;
+    const wsUrl = `${wsProtocol}//${host}/ws?device_id=${encodeURIComponent(DEVICE_ID)}`;
 
     try {
       if (!GATEWAY_TOKEN) { console.error("[JARVIS] Gateway token is not configured."); return; }

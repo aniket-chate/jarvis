@@ -72,33 +72,53 @@ class DeveloperTaskProvider(BaseCapabilityProvider):
                 return ActionResult(status="SUCCESS", output=res, message=str(res), execution_time_ms=elapsed)
 
             elif capability == "code.sandbox_execution":
-                code = parameters.get("source") or parameters.get("code") or ""
-                arg = parameters.get("input_arg", 5)
-                local_scope = {"input_arg": arg, "res": None}
-                try:
-                    exec(code, {}, local_scope)
-                    result_val = local_scope.get("res")
-                    res = {"success": True, "result": result_val, "scope": {k: str(v) for k, v in local_scope.items() if not k.startswith("__")}}
-                except Exception as ex:
-                    res = {"success": False, "error": str(ex)}
+                # NEVER execute caller-supplied Python inside the JARVIS process.
+                # A Python subprocess is not a security boundary because it can still
+                # access the host filesystem, environment and network. Until a real
+                # isolated worker/container is configured, fail closed.
                 elapsed = (time.perf_counter() - t_start) * 1000
-                status = "SUCCESS" if res.get("success") else "FAILED"
-                self.record_outcome(res.get("success", False))
-                return ActionResult(status=status, output=res, message=str(res), execution_time_ms=elapsed)
+                return ActionResult(
+                    status="UNAVAILABLE",
+                    output={"sandbox": "not_configured"},
+                    message="Code execution is disabled: no isolated sandbox worker is configured.",
+                    execution_time_ms=elapsed,
+                )
 
             elif capability == "shell.allowlisted_diagnostics":
-                import subprocess
-                cmd = parameters.get("command", "echo shell_ok")
-                # Enforce safe commands only
-                allowlisted = ["echo", "dir", "hostname", "ver", "whoami"]
-                cmd_root = cmd.split()[0].lower()
-                if cmd_root not in allowlisted:
-                    cmd = "echo allowlisted_fallback"
-                proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
-                res = {"stdout": proc.stdout.strip(), "returncode": proc.returncode}
+                import socket
+                import getpass
+                import platform
+                from pathlib import Path
+
+                command = str(parameters.get("command", "hostname")).strip().lower()
+                # Only fixed, argument-free diagnostics are supported. Never pass
+                # user input to a shell; this prevents metacharacter/argument injection.
+                if command == "hostname":
+                    stdout = socket.gethostname()
+                elif command == "whoami":
+                    stdout = getpass.getuser()
+                elif command == "ver":
+                    stdout = platform.version()
+                elif command == "dir":
+                    from config.settings import PROJECT_ROOT
+                    stdout = "\\n".join(sorted(p.name for p in Path(PROJECT_ROOT).iterdir())[:200])
+                else:
+                    elapsed = (time.perf_counter() - t_start) * 1000
+                    return ActionResult(
+                        status="FAILED",
+                        output=None,
+                        message="Unsupported diagnostic. Allowed: hostname, whoami, ver, dir.",
+                        execution_time_ms=elapsed,
+                    )
+
                 elapsed = (time.perf_counter() - t_start) * 1000
                 self.record_outcome(True)
-                return ActionResult(status="SUCCESS", output=res, message=str(res), execution_time_ms=elapsed)
+                return ActionResult(
+                    status="SUCCESS",
+                    output={"stdout": stdout, "returncode": 0, "command": command},
+                    message=stdout,
+                    execution_time_ms=elapsed,
+                )
 
             elif capability == "dev.inspect_venv":
                 import sys
@@ -130,7 +150,12 @@ class DeveloperTaskProvider(BaseCapabilityProvider):
                     tables = [r[0] for r in cursor.fetchall()]
                     res = {"tables": tables}
                 else:
-                    q = parameters.get("query", "SELECT 1")
+                    q = str(parameters.get("query", "SELECT 1")).strip()
+                    # Read-only means SELECT/PRAGMA/WITH only; reject stacked statements
+                    # and all write/DDL statements.
+                    import re
+                    if not re.match(r"^(SELECT|PRAGMA|WITH)\\b", q, re.IGNORECASE) or ";" in q.rstrip(";"):
+                        raise ValueError("Only a single read-only SELECT/PRAGMA/WITH query is allowed.")
                     cursor.execute(q)
                     rows = cursor.fetchall()
                     res = {"rows": rows, "count": len(rows)}

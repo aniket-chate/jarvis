@@ -1,0 +1,26 @@
+name: JARVIS Security QA
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  security-qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-asyncio fastapi pydantic python-dotenv pyyaml numpy scikit-learn joblib httpx websockets psutil
+      - name: Run security regressions
+        env:
+          GATEWAY_AUTH_TOKEN: ci-test-token
+        run: pytest -q tests/test_security_regressions.py
+      - name: Run truthful 50-capability readiness QA
+        env:
+          GATEWAY_AUTH_TOKEN: ci-test-token
+        run: pytest -q tests/test_real_world_all_50_routed.py

@@ -9,6 +9,7 @@ Hosts the Mobile Thin Client static web app.
 import os
 import io
 import time
+import hmac
 import uuid
 import base64
 import asyncio
@@ -62,10 +63,14 @@ app = FastAPI(
 # Enable CORS for local network and Tailscale mesh
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        origin.strip() for origin in os.getenv(
+            "JARVIS_CORS_ORIGINS", "http://localhost,http://127.0.0.1"
+        ).split(",") if origin.strip()
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-JARVIS-Token"],
 )
 
 ollama = OllamaClient()
@@ -147,16 +152,17 @@ def verify_gateway_token(
     request: Request,
     x_jarvis_token: Optional[str] = Header(None, alias="X-JARVIS-Token"),
     authorization: Optional[str] = Header(None),
-    token: Optional[str] = Query(None),
 ) -> str:
     """Validates the incoming client token against GATEWAY_AUTH_TOKEN.
     
     Accepts:
     1. Header: X-JARVIS-Token: <token>
     2. Header: Authorization: Bearer <token>
-    3. Query parameter: ?token=<token>
     """
     configured_token = settings.gateway_auth_token
+    if not configured_token:
+        logger.error("[Gateway Auth] GATEWAY_AUTH_TOKEN is not configured; protected API is fail-closed.")
+        raise HTTPException(status_code=503, detail="Gateway authentication is not configured.")
 
     provided_token = None
     if x_jarvis_token:
@@ -167,20 +173,13 @@ def verify_gateway_token(
             provided_token = parts[1]
         else:
             provided_token = authorization.strip()
-    elif token:
-        provided_token = token
-
-    if not provided_token or (provided_token != configured_token and provided_token != "jarvis-gateway-token-2026-auth"):
+    if not provided_token or not hmac.compare_digest(provided_token, configured_token):
         logger.warning(
             "[Gateway Auth] Rejected unauthorized request from %s to %s",
             request.client.host if request.client else "unknown",
             request.url.path,
         )
-        raise HTTPException(
-            status_code=401,
-            detail="Unauthorized: Invalid or missing JARVIS Gateway authentication token.",
-        )
-
+        raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing JARVIS Gateway token.")
     return provided_token
 
 
@@ -241,7 +240,7 @@ async def health_check():
     """System health check and integration availability audit."""
     ollama_health = await ollama.check_health()
     return {
-        "status": "healthy",
+        "status": "healthy" if ollama_online else "degraded",
         "active_persona": settings.active_persona_name,
         "hardware_target": settings.hardware.get("target_gpu", "RTX 2050"),
         "vram_budget_mb": settings.hardware.get("vram_budget_mb", 4096),
@@ -249,7 +248,6 @@ async def health_check():
         "ollama_warm": ollama_warm,
         "ollama_warming": ollama_warming,
         "auth_enforced": True,
-        "tailscale_ip": "100.91.155.75",
         "skills": {
             "web_search": settings.search_available,
             "google_oauth": settings.google_oauth_configured,
@@ -354,13 +352,29 @@ async def execute_capability(
     req: CapabilityExecuteRequest,
     _token: str = Depends(verify_gateway_token),
 ):
-    """Directly executes an operation via CapabilityIntelligence provider routing."""
+    """Compatibility capability endpoint with mandatory safety evaluation."""
     from capabilities.intelligence import capability_intelligence
+    from safety.policy_kernel import policy_kernel
+
     cap_id = req.capability or req.action
+    params = dict(req.parameters or {})
+    domain = cap_id.split(".", 1)[0]
+    decision = policy_kernel.evaluate(domain=domain, action=req.action, parameters=params)
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "status": "BLOCKED",
+                "reason": decision.reason,
+                "confirmation_token": decision.confirmation_token,
+                "confirmation_prompt": decision.confirmation_prompt,
+            },
+        )
+
     provider = capability_intelligence.select_provider(cap_id)
-    if not provider:
-        raise HTTPException(status_code=404, detail=f"No provider found registered for capability '{cap_id}'")
-    result = provider.execute(req.action, req.parameters or {})
+    if not provider or not provider.is_available():
+        raise HTTPException(status_code=503, detail=f"Live provider unavailable for capability '{cap_id}'")
+    result = provider.execute(req.action, params)
     return {
         "status": result.status,
         "action": req.action,
@@ -428,7 +442,7 @@ async def list_skills_endpoint(_token: str = Depends(verify_gateway_token)):
 # -------------------------------------------------------------------------
 @app.get("/api/runtime/status")
 @app.get("/api/v1/runtime/status")
-async def runtime_status_endpoint():
+async def runtime_status_endpoint(_token: str = Depends(verify_gateway_token)):
     """Returns granular, real-time subsystem statuses across JARVIS for the HUD."""
     from capabilities.intelligence import capability_intelligence
     from safety.policy_kernel import policy_kernel
@@ -454,8 +468,13 @@ async def runtime_status_endpoint():
     sec_status = "Secure" if policy_kernel is not None else "Degraded"
 
     # 6. Memory & World Model
-    mem_count = len(memory_manager.get_all_memories())
-    memory_status = "Active" if mem_count >= 0 else "Unavailable"
+    try:
+        mem_count = len(memory_manager.get_all_memories())
+        memory_status = "Active"
+    except Exception as exc:
+        logger.warning("[Runtime Status] Memory health check failed: %s", exc)
+        mem_count = 0
+        memory_status = "Unavailable"
 
     # Provider-Level Granular Health Mapping
     gemini_key = getattr(settings, "gemini_api_key", None)
@@ -509,7 +528,7 @@ async def runtime_status_endpoint():
 
 @app.get("/api/capabilities/available")
 @app.get("/api/v1/capabilities/available")
-async def available_capabilities_endpoint():
+async def available_capabilities_endpoint(_token: str = Depends(verify_gateway_token)):
     """Lists registered capabilities available for HUD quick actions."""
     from capabilities.contracts.registry_50 import contract_registry_50
     from capabilities.intelligence import capability_intelligence
@@ -531,7 +550,7 @@ async def available_capabilities_endpoint():
 
 @app.get("/api/context/today")
 @app.get("/api/v1/context/today")
-async def today_context_endpoint():
+async def today_context_endpoint(_token: str = Depends(verify_gateway_token)):
     """Fetches real scheduled events, alarms, and tasks for today."""
     from capabilities.intelligence import capability_intelligence
     today_items = []
@@ -595,7 +614,7 @@ async def today_context_endpoint():
 
 @app.get("/api/context/recent_files")
 @app.get("/api/v1/context/recent_files")
-async def recent_files_endpoint():
+async def recent_files_endpoint(_token: str = Depends(verify_gateway_token)):
     """Fetches real recent files within authorized workspace/data/docs scope."""
     recent = []
     scan_dirs = [PROJECT_ROOT / "docs", PROJECT_ROOT / "workspace", PROJECT_ROOT / "data"]
@@ -642,7 +661,7 @@ async def recent_files_endpoint():
 
 @app.get("/api/context/location")
 @app.get("/api/v1/context/location")
-async def location_context_endpoint():
+async def location_context_endpoint(_token: str = Depends(verify_gateway_token)):
     """Returns honest location from World Model / device / timezone with precision."""
     local_now = datetime.now()
     offset = local_now.astimezone().utcoffset()
@@ -846,19 +865,35 @@ async def synthesize_tts_endpoint(
 @app.websocket("/api/v1/ws")
 async def websocket_gateway(
     websocket: WebSocket,
-    token: Optional[str] = Query(None),
     device_id: Optional[str] = Query(None),
 ):
-    """Real-time duplex WebSocket connection for mobile thin client and remote devices."""
+    """Real-time duplex WebSocket endpoint authenticated before acceptance."""
     configured_token = settings.gateway_auth_token
-
-    # Authenticate token before accepting if provided in query string; if token is empty, allow initial connect for client-side auth message handshake
-    if token and (token != configured_token and token != "jarvis-gateway-token-2026-auth" and token != "default_user"):
-        logger.warning("[WebSocket Auth] Rejected unauthenticated connection attempt (bad query token)")
-        await websocket.close(code=4401, reason="Unauthorized: Invalid gateway token")
+    if not configured_token:
+        await websocket.close(code=1011, reason="Gateway authentication is not configured")
         return
 
-    await websocket.accept()
+    provided_token = None
+    authorization = websocket.headers.get("authorization")
+    if authorization:
+        parts = authorization.strip().split()
+        provided_token = parts[1] if len(parts) == 2 and parts[0].lower() == "bearer" else authorization.strip()
+
+    requested_protocols = websocket.headers.get("sec-websocket-protocol", "")
+    selected_protocol = None
+    for protocol in [p.strip() for p in requested_protocols.split(",") if p.strip()]:
+        if protocol.startswith("jarvis-auth."):
+            provided_token = protocol[len("jarvis-auth."):]
+            selected_protocol = protocol
+            break
+
+    if not provided_token or not hmac.compare_digest(provided_token, configured_token):
+        logger.warning("[WebSocket Auth] Rejected unauthorized connection from %s", websocket.client.host if websocket.client else "unknown")
+        await websocket.close(code=4401, reason="Unauthorized")
+        return
+
+    await websocket.accept(subprotocol=selected_protocol)
+
     client_ip = websocket.client.host if websocket.client else "127.0.0.1"
     active_device_id = device_id or f"client_{int(time.time())}"
     logger.info("[WebSocket] Authorized client connected from %s (device_id=%s)", client_ip, active_device_id)
@@ -887,9 +922,12 @@ async def websocket_gateway(
 
             if msg_type == "auth":
                 # Android native client authentication handshake
-                auth_token = data.get("token") or token or ""
+                auth_token = data.get("token") or ""
+                if not auth_token or not hmac.compare_digest(auth_token, configured_token):
+                    await websocket.close(code=4401, reason="Unauthorized")
+                    return
                 custom_id = data.get("device_id") or active_device_id
-                user_id = data.get("user_id") or "default_user"
+                user_id = data.get("user_id") or "owner"
                 gateway_registry.register_device(
                     device_id=custom_id,
                     name=data.get("device_name", "Android Native Client"),

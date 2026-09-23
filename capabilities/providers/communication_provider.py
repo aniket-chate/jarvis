@@ -104,7 +104,14 @@ class CommunicationHubProvider(BaseCapabilityProvider):
         return False
 
     def is_available(self) -> bool:
-        return True
+        """Return true only when at least one real delivery backend is configured."""
+        if self._custom_backend is not None:
+            return True
+        try:
+            from skills.google_gmail import gmail_skill
+            return bool(getattr(gmail_skill, "is_configured", False))
+        except Exception:
+            return False
 
     def execute(
         self,
@@ -143,11 +150,17 @@ class CommunicationHubProvider(BaseCapabilityProvider):
                 )
 
             elapsed = (time.perf_counter() - t0) * 1000
-            self.record_outcome(True)
+            success = bool(res.get("success", True)) if isinstance(res, dict) else True
+            operation_status = str(res.get("status", "")).upper() if isinstance(res, dict) else ""
+            is_pending = operation_status in {"PENDING_APPROVAL", "IDENTITY_REJECTED", "DEVICE_UNAVAILABLE", "NOT_CONFIGURED"}
+            action_status = "PENDING_APPROVAL" if operation_status == "PENDING_APPROVAL" else (
+                "FAILED" if (not success and not is_pending) else operation_status or ("SUCCESS" if success else "FAILED")
+            )
+            self.record_outcome(action_status == "SUCCESS")
             return ActionResult(
-                status="SUCCESS",
+                status=action_status,
                 output=res,
-                message="Communication operation completed.",
+                message=str(res.get("message") if isinstance(res, dict) else "Communication operation completed."),
                 execution_time_ms=elapsed,
             )
         except Exception as e:
@@ -403,14 +416,32 @@ class CommunicationHubProvider(BaseCapabilityProvider):
                 "error": "Sending message blocked pending user confirmation.",
             }
 
+        if not recipient:
+            raise ValueError("Recipient is required to send a message.")
+
+        face_embedding = params.get("face_embedding")
+        auth = identity_agent.verify_two_gate_authorization(
+            action_name="send_sms",
+            face_embedding=face_embedding,
+            explicit_user_confirmed=user_confirmed,
+        )
+        if not auth.get("authorized"):
+            return {
+                "success": False,
+                "status": "IDENTITY_REJECTED",
+                "error": auth.get("reason", "Identity authentication failed for sensitive message transmission."),
+            }
+
+        if not self._custom_backend:
+            return {
+                "success": False,
+                "status": "NOT_CONFIGURED",
+                "error": "No real SMS/chat delivery backend is configured. Message was not sent.",
+            }
+
         msg_id = f"msg_{uuid.uuid4().hex[:10]}"
-        if self._custom_backend:
-            send_res = self._custom_backend.send_message(recipient=recipient, body=body)
-            success = bool(send_res.get("success", True))
-        else:
-            # Safe simulated sandbox dispatch
-            send_res = {"success": True, "delivered_channel": "sandbox_sms"}
-            success = True
+        send_res = self._custom_backend.send_message(recipient=recipient, body=body)
+        success = bool(send_res.get("success", False))
 
         status_str = "SENT" if success else "FAILED"
         self._outbox_ledger[msg_id] = {

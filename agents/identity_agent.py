@@ -50,20 +50,18 @@ class IdentityAgent:
             except Exception as e:
                 logger.error("[IdentityAgent] Error loading profile: %s", str(e))
 
-        # Initialize default registered owner profile with baseline 128-d vector
-        rng = np.random.RandomState(42)
-        base_emb = rng.randn(128).astype(np.float32)
-        base_emb /= np.linalg.norm(base_emb)
-
+        # Fail closed. A synthetic embedding is not biometric enrollment and must
+        # never be accepted as an owner identity.
         self.owner_profile = {
-            "name": "Owner",
-            "registered": True,
+            "name": None,
+            "registered": False,
             "embedding_dim": 128,
-            "face_embedding": [round(float(v), 4) for v in base_emb.tolist()],
+            "face_embedding": [],
         }
-        with open(self.profile_path, "w", encoding="utf-8") as f:
-            json.dump(self.owner_profile, f, indent=2)
-        logger.info("[IdentityAgent] Initialized default owner profile at %s", self.profile_path)
+        logger.warning(
+            "[IdentityAgent] No enrolled owner profile found. Sensitive actions requiring "
+            "biometric identity will remain locked until real enrollment is completed."
+        )
 
     def match_face(self, query_embedding: List[float]) -> Tuple[bool, float]:
         """Calculates cosine similarity between query embedding and owner embedding.

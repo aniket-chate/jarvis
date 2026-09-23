@@ -78,13 +78,14 @@ class Settings:
         self.google_client_id: Optional[str] = os.getenv("GOOGLE_OAUTH_CLIENT_ID") or None
         self.google_client_secret: Optional[str] = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") or None
         self.tailscale_auth_key: Optional[str] = os.getenv("TAILSCALE_AUTH_KEY") or None
-        self.gateway_auth_token: str = os.getenv("GATEWAY_AUTH_TOKEN") or "jarvis-gateway-token-2026-auth"
+        self.gateway_auth_token: Optional[str] = os.getenv("GATEWAY_AUTH_TOKEN") or None
         self.whatsapp_business_api_key: Optional[str] = os.getenv("WHATSAPP_BUSINESS_API_KEY") or None
         self.home_assistant_token: Optional[str] = os.getenv("HOME_ASSISTANT_TOKEN") or None
         # Cloud LLM fallback keys (strictly accessed through settings, never os.getenv directly in modules)
         self.openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY") or None
         self.gemini_api_key: Optional[str] = os.getenv("GEMINI_API_KEY") or None
         self.groq_api_key: Optional[str] = os.getenv("GROQ_API_KEY") or None
+        self.openrouter_api_key: Optional[str] = os.getenv("OPENROUTER_API_KEY") or None
         self.llm_provider: str = os.getenv("JARVIS_LLM_PROVIDER") or "ollama"
         self.llm_fallback_enabled: bool = os.getenv("JARVIS_LLM_FALLBACK_ENABLED", "true").lower() == "true"
 
@@ -191,7 +192,8 @@ class Settings:
         self.openai_available = bool(self.openai_api_key)
         self.gemini_available = bool(self.gemini_api_key)
         self.groq_available = bool(self.groq_api_key)
-        self.cloud_llm_fallback_available = self.openai_available or self.gemini_available or self.groq_available
+        self.openrouter_available = bool(self.openrouter_api_key)
+        self.cloud_llm_fallback_available = self.openai_available or self.gemini_available or self.groq_available or self.openrouter_available
 
     def check_secrets(self) -> Dict[str, Any]:
         """Startup routine reporting which keys are present and which modules are active vs disabled.
@@ -212,6 +214,7 @@ class Settings:
                 "OPENAI_API_KEY": bool(self.openai_api_key),
                 "GEMINI_API_KEY": bool(self.gemini_api_key),
                 "GROQ_API_KEY": bool(self.groq_api_key),
+                "OPENROUTER_API_KEY": bool(self.openrouter_api_key),
             },
             "modules_status": {
                 "web_search": "ACTIVE" if self.search_available else "DISABLED",
@@ -221,7 +224,7 @@ class Settings:
                 "whatsapp_business": "ACTIVE" if self.whatsapp_available else "DISABLED",
                 "tailscale_mesh": "ACTIVE" if self.tailscale_configured else "DISABLED (Using local network / Tailscale IP)",
                 "cloud_llm_fallback": "ACTIVE" if self.cloud_llm_fallback_available else "DISABLED (Local Ollama / Rule-Based only)",
-                "device_gateway_auth": "ENFORCED",
+                "device_gateway_auth": "ENFORCED" if self.gateway_auth_token else "DISABLED (GATEWAY_AUTH_TOKEN missing)",
             },
         }
 

@@ -8,7 +8,7 @@
 
 // State
 let gatewayUrl = window.location.origin;
-let authToken = "jarvis-gateway-token-2026-auth";
+let authToken = "";
 let deviceName = "Mobile Phone";
 let activePersona = "Jarvis";
 let ws = null;
@@ -90,13 +90,14 @@ function connectWebSocket() {
     try { ws.close(); } catch (e) {}
   }
 
-  const wsUrl = gatewayUrl.replace(/^http/, "ws") + `/ws?token=${encodeURIComponent(authToken)}`;
+  const wsUrl = gatewayUrl.replace(/^http/, "ws") + "/ws";
   console.log(`[JARVIS Mobile] Connecting to WebSocket: ${wsUrl}`);
   connBadge.textContent = "CONNECTING...";
   connBadge.className = "badge";
 
   try {
-    ws = new WebSocket(wsUrl);
+    if (!authToken) { connBadge.textContent = "AUTH TOKEN REQUIRED"; connBadge.className = "badge badge-offline"; return; }
+    ws = new WebSocket(wsUrl, [`jarvis-auth.${authToken}`]);
 
     ws.onopen = () => {
       console.log("[JARVIS Mobile] WebSocket connected successfully");

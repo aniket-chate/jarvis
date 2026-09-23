@@ -265,6 +265,57 @@ class GeminiProvider(BaseAIProvider):
             raise RuntimeError(f"Gemini API error {resp.status_code}: {resp.text[:200]}")
 
 
+class OpenRouterProvider(BaseAIProvider):
+    """OpenRouter OpenAI-compatible gateway provider."""
+
+    name: str = "openrouter"
+
+    def __init__(self, model: str = "openai/gpt-4o-mini", timeout: float = 8.0):
+        self.model = model
+        self.timeout = timeout
+
+    def is_available(self) -> bool:
+        return bool(settings.openrouter_api_key)
+
+    def generate(
+        self,
+        prompt: str,
+        system_prompt: str,
+        persona: str = "Jarvis",
+        temperature: float = 0.7,
+    ) -> str:
+        api_key = settings.openrouter_api_key
+        if not api_key:
+            raise RuntimeError("OPENROUTER_API_KEY not configured in settings")
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost",
+            "X-Title": "JARVIS Personal Assistant",
+        }
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": temperature,
+            "max_tokens": 1024,
+        }
+        with httpx.Client(timeout=self.timeout) as client:
+            resp = client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+            if resp.status_code == 200:
+                data = resp.json()
+                text = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                if text:
+                    return text
+                raise RuntimeError("OpenRouter returned an empty response")
+            if resp.status_code == 429:
+                raise RuntimeError("OpenRouter rate limit exceeded (HTTP 429)")
+            raise RuntimeError(f"OpenRouter API error {resp.status_code}: {resp.text[:200]}")
+
+
 class OpenAIProvider(BaseAIProvider):
     """OpenAI Cloud Provider."""
 
@@ -332,11 +383,13 @@ class MultiProviderAIRouter:
         self.groq_provider = GroqProvider(timeout=cloud_timeout)
         self.gemini_provider = GeminiProvider(timeout=cloud_timeout)
         self.openai_provider = OpenAIProvider(timeout=cloud_timeout)
+        self.openrouter_provider = OpenRouterProvider(timeout=cloud_timeout)
         self.rule_based_provider = RuleBasedAIProvider()
 
         self.cloud_providers: List[BaseAIProvider] = [
             self.groq_provider,
             self.gemini_provider,
+            self.openrouter_provider,
             self.openai_provider,
         ]
 
@@ -370,14 +423,14 @@ class MultiProviderAIRouter:
         # Build cascade based on requested primary
         cascade: List[BaseAIProvider] = []
         if primary_name == "groq":
-            cascade = [self.groq_provider, self.gemini_provider, self.ollama_provider, self.rule_based_provider]
+            cascade = [self.groq_provider, self.gemini_provider, self.openrouter_provider, self.ollama_provider, self.rule_based_provider]
         elif primary_name == "gemini":
-            cascade = [self.gemini_provider, self.groq_provider, self.ollama_provider, self.rule_based_provider]
+            cascade = [self.gemini_provider, self.groq_provider, self.openrouter_provider, self.ollama_provider, self.rule_based_provider]
         elif primary_name == "openai":
-            cascade = [self.openai_provider, self.groq_provider, self.gemini_provider, self.ollama_provider, self.rule_based_provider]
+            cascade = [self.openai_provider, self.groq_provider, self.gemini_provider, self.openrouter_provider, self.ollama_provider, self.rule_based_provider]
         else:
             # Default: Ollama primary -> Cloud fallback -> Rule-based
-            cascade = [self.ollama_provider, self.groq_provider, self.gemini_provider, self.rule_based_provider]
+            cascade = [self.ollama_provider, self.gemini_provider, self.groq_provider, self.openrouter_provider, self.rule_based_provider]
 
         return cascade
 
@@ -427,7 +480,7 @@ class MultiProviderAIRouter:
                 continue
 
             # Attempt generation
-            tier_num = 1 if provider.name == "ollama" else (2 if provider.name in ("groq", "gemini", "openai") else 3)
+            tier_num = 1 if provider.name == "ollama" else (2 if provider.name in ("groq", "gemini", "openai", "openrouter") else 3)
             logger.info("[AI.Router] [%s] Attempting generation via provider '%s' (Tier %d, Task: '%s')", p_name, provider.name, tier_num, task)
 
             try:

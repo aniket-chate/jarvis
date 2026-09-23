@@ -1,0 +1,28 @@
+<resources>
+    <color name="jarvis_bg">#0D1117</color>
+    <color name="jarvis_card_bg">#161B22</color>
+    <color name="jarvis_card_border">#30363D</color>
+    
+    <color name="jarvis_cyan">#00E5FF</color>
+    <color name="jarvis_blue">#1F6FEB</color>
+    <color name="jarvis_blue_light">#58A6FF</color>
+    
+    <color name="status_green">#3FB950</color>
+    <color name="status_yellow">#D29922</color>
+    <color name="status_red">#F85149</color>
+    
+    <color name="text_primary">#F0F6FC</color>
+    <color name="text_secondary">#8B949E</color>
+    <color name="text_muted">#6E7681</color>
+    
+    <color name="user_bubble_bg">#1F6FEB</color>
+    <color name="jarvis_bubble_bg">#21262D</color>
+    <color name="confirmation_bg">#2D1F0E</color>
+    <color name="confirmation_border">#D29922</color>
+    
+    <!-- Voice Colors -->
+    <color name="mic_listening">#F85149</color>
+    <color name="mic_speaking">#00E5FF</color>
+    <color name="mic_idle">#58A6FF</color>
+    <color name="voice_bar_bg">#161B22</color>
+</resources>

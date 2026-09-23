@@ -1,0 +1,27 @@
+{
+  "project": "JARVIS",
+  "version": "0.1.0-prebuild",
+  "wakewords": [
+    "jarvis",
+    "friday",
+    "ultron",
+    "omi"
+  ],
+  "llm": {
+    "provider": "ollama",
+    "preferred_model": "qwen2.5:3b",
+    "vision_model": "moondream"
+  },
+  "search": {
+    "provider": "tavily"
+  },
+  "integrations": {
+    "google": {
+      "calendar": true,
+      "gmail": true
+    },
+    "networking": {
+      "tailscale": true
+    }
+  }
+}

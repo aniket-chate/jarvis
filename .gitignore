@@ -1,0 +1,40 @@
+# Environment variables and secrets
+.env
+*.env
+*.env.local
+
+# Google Cloud OAuth credentials and tokens
+credentials/
+*.json
+!config/*.json
+token.json
+client_secret*.json
+
+# Models - ONNX wake word weights
+models/wakewords/*.onnx
+*.onnx
+
+# Python virtual environment and bytecode cache
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Runtime databases
+data/jarvis_memory.db
+
+# Ephemeral test screenshots
+workspace/screenshots/open_*.png
+workspace/screenshots/screen_inspect_*.png
+workspace/screenshots/web_*.png
+
+# Temporary and log files
+*.log
+scratch/
+
+# OS specific files
+.DS_Store
+Thumbs.db

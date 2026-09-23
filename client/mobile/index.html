@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>JARVIS Mobile Gateway Thin Client</title>
+  <link rel="stylesheet" href="/mobile/style.css?v=2.1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Header & Device Status -->
+    <header class="header">
+      <div class="header-brand">
+        <div class="reactor-core">
+          <div class="reactor-ring"></div>
+          <div class="reactor-center"></div>
+        </div>
+        <div>
+          <h1 class="brand-title">J.A.R.V.I.S.</h1>
+          <p class="brand-sub">Mobile Thin Client // Layer 6 Mesh</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <span id="conn-badge" class="badge badge-offline">DISCONNECTED</span>
+        <button id="btn-settings" class="btn-icon" title="Gateway Settings">⚙️</button>
+      </div>
+    </header>
+
+    <!-- Mesh Node Telemetry Bar -->
+    <section class="telemetry-bar">
+      <div class="telemetry-item">
+        <span class="telemetry-label">Host Node</span>
+        <span id="node-host" class="telemetry-value">100.91.155.75 (Tailscale)</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">Active Persona</span>
+        <span id="active-persona-label" class="telemetry-value text-cyan">Jarvis</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">Mesh Devices</span>
+        <span id="active-device-count" class="telemetry-value text-green">2 Live</span>
+      </div>
+    </section>
+
+    <!-- Settings / Auth Modal -->
+    <div id="settings-modal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Gateway Configuration</h3>
+          <button id="btn-close-settings" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <label class="input-label" for="setting-gateway-url">Gateway Server URL</label>
+          <input type="text" id="setting-gateway-url" class="text-input" placeholder="http://100.91.155.75:8000">
+          
+          <label class="input-label" for="setting-auth-token">Gateway Auth Token</label>
+          <input type="password" id="setting-auth-token" class="text-input" placeholder="Enter GATEWAY_AUTH_TOKEN">
+          
+          <label class="input-label" for="setting-device-name">This Device Name</label>
+          <input type="text" id="setting-device-name" class="text-input" placeholder="My Android / iPhone">
+          
+          <button id="btn-save-settings" class="btn-primary">Save & Connect</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Mesh Devices Drawer / Card -->
+    <section class="devices-card">
+      <div class="devices-card-header">
+        <span class="section-title">Connected Devices (Registry)</span>
+        <button id="btn-refresh-devices" class="btn-text">Refresh</button>
+      </div>
+      <div id="device-list" class="device-chips">
+        <div class="device-chip online">
+          <span class="chip-dot"></span>
+          <span class="chip-name">Host PC (maxxi)</span>
+          <span class="chip-type">[PC Brain]</span>
+        </div>
+        <div class="device-chip online">
+          <span class="chip-dot"></span>
+          <span class="chip-name">Mobile Phone</span>
+          <span class="chip-type">[This Device]</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cross-Device Remote Casting Banner (Active when cast received) -->
+    <section id="cast-player-card" class="cast-card hidden">
+      <div class="cast-card-header">
+        <div class="cast-title-group">
+          <span class="cast-icon">📡</span>
+          <div>
+            <div class="cast-label">REMOTE CAST ACTIVE FROM PC</div>
+            <div id="cast-media-title" class="cast-media-title">SoundHelix Song 1</div>
+          </div>
+        </div>
+        <button id="btn-close-cast" class="btn-close">&times;</button>
+      </div>
+      <audio id="remote-audio-player" controls class="cast-audio-control"></audio>
+    </section>
+
+    <!-- Persona Selector Tabs -->
+    <section class="persona-bar">
+      <button class="persona-tab active" data-persona="Jarvis">
+        <span class="p-name">Jarvis</span>
+        <span class="p-tone">Calm & Formal</span>
+      </button>
+      <button class="persona-tab" data-persona="Friday">
+        <span class="p-name">Friday</span>
+        <span class="p-tone">Warm & Dynamic</span>
+      </button>
+      <button class="persona-tab" data-persona="Ultron">
+        <span class="p-name">Ultron</span>
+        <span class="p-tone">Sardonic & Powerful</span>
+      </button>
+      <button class="persona-tab" data-persona="Omi">
+        <span class="p-name">Omi</span>
+        <span class="p-tone">Concise & Minimal</span>
+      </button>
+    </section>
+
+    <!-- Main Chat & Interaction Stream -->
+    <main id="chat-stream" class="chat-container">
+      <div class="message message-system">
+        <div class="msg-bubble">
+          <strong>JARVIS Brain Connected.</strong> Zero AI workload runs locally on this mobile device. All Ollama Qwen2.5 LLM, Moondream VLM, and Piper TTS processes are hosted on the primary workstation GPU/CPU.
+        </div>
+      </div>
+    </main>
+
+    <!-- Audio Speech Player (Hidden auto-playing audio) -->
+    <audio id="tts-player" class="hidden"></audio>
+
+    <!-- Image Preview Thumbnail (When photo taken) -->
+    <div id="camera-preview-bar" class="camera-preview-bar hidden">
+      <img id="camera-preview-img" src="" alt="Captured Image">
+      <div class="camera-preview-info">
+        <span>Image attached for Moondream VLM</span>
+        <button id="btn-remove-image" class="btn-remove-img">&times;</button>
+      </div>
+    </div>
+
+    <!-- Hidden Native Camera / File Input -->
+    <input type="file" id="camera-input" accept="image/*" capture="environment" class="hidden">
+
+    <!-- Bottom Input Controls -->
+    <footer class="footer-bar">
+      <button id="btn-camera" class="btn-media" title="Take photo for Moondream">
+        📷
+      </button>
+      <button id="btn-mic" class="btn-media" title="Hold/Tap to Speak">
+        🎙️
+      </button>
+      <div class="input-wrapper">
+        <input type="text" id="query-input" placeholder="Message JARVIS, or 'play song on my phone'..." autocomplete="off">
+      </div>
+      <button id="btn-send" class="btn-send" title="Send Command">
+        ➤
+      </button>
+    </footer>
+  </div>
+
+  <script src="/mobile/app.js"></script>
+</body>
+</html>

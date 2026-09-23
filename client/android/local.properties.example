@@ -1,0 +1,7 @@
+﻿## Portable local.properties template for JARVIS Native Android Client
+# Define your local Android SDK path below or set the ANDROID_HOME / ANDROID_SDK_ROOT environment variable.
+# Example Windows: sdk.dir=C\:\\Users\\<your-username>\\AppData\\Local\\Android\\Sdk
+# Example Linux:   sdk.dir=/home/<your-username>/Android/Sdk
+# Example macOS:   sdk.dir=/Users/<your-username>/Library/Android/sdk
+#
+# Note: settings.gradle.kts will also auto-detect standard SDK paths if this file is omitted.

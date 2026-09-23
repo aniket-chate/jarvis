@@ -1,0 +1,64 @@
+# ==============================================================================
+# JARVIS SYSTEM & MODULE VERSION MANIFEST
+# ==============================================================================
+release_name: "JARVIS Personal Assistant Architecture"
+version: "3.0.0"
+build_date: "2026-09-10"
+target_hardware: "NVIDIA GeForce RTX 2050 (4GB VRAM), Intel i5-13420H, 16GB RAM"
+
+layers:
+  layer_1_perception:
+    version: "1.0.0"
+    status: "active"
+    components:
+      - "voice_input (sounddevice)"
+      - "text_input"
+      - "vision_input (OpenCV)"
+      - "file_input"
+      - "sensor_input"
+      - "speech_processing (faster-whisper)"
+      - "vision_processing (Moondream bridge)"
+      - "context_awareness"
+      - "event_listener (openWakeWord multi-persona)"
+      - "identity_capture"
+
+  layer_2_orchestrator:
+    version: "2.0.0"
+    status: "active"
+    components:
+      - "task_planner (decomposes user requests into dependency trees)"
+      - "agent_router (data-driven registry lookup)"
+      - "execution_manager (retries with exponential backoff)"
+      - "memory_manager (short-term session & persistent long-term)"
+      - "safety_guardrails (rate limiting & destructive protection)"
+      - "verifier (outcome checking & feedback synthesis)"
+      - "continuous_learning (frequency & preference heuristic analyzer)"
+
+  layer_3_logic:
+    version: "3.0.0"
+    status: "active"
+    components:
+      - "identity_agent (Two-Independent-Gates rule & cosine similarity)"
+      - "permission_checks (filesystem, app, calendar, message, money gates)"
+      - "content_filtering (malicious execution & leak interception)"
+      - "privacy_protection (outbound PII sanitization)"
+      - "core_llm_agent (persona-aware Ollama Qwen2.5 3B wrapper)"
+      - "vision_agent (Moondream 1.6B VLM wrapper)"
+      - "web_agent (Tavily/Brave search & page scraper)"
+      - "news_agent (topic-based news extractor)"
+      - "file_document_agent (sandboxed in workspace/)"
+      - "calendar_agent (Google Calendar API)"
+      - "system_control_agent (safe OS volume, lock, battery, processes)"
+      - "browser_automation_agent (Playwright browser automation)"
+      - "cast_agent (pychromecast & peer client router)"
+      - "smart_home_agent (Home Assistant integration)"
+      - "communication_agent (Gmail draft-first & Android SMS intent)"
+      - "call_agent (Android OS capability probe & consent disclosure)"
+      - "personal_knowledge_base (local persistent document storage)"
+
+models:
+  core_llm: "qwen2.5:3b (4-bit quantized via Ollama)"
+  vision_llm: "moondream:latest (1.6B VLM via Ollama)"
+  asr_engine: "faster-whisper (base model, CPU execution)"
+  tts_engine: "piper-tts (CPU execution, multi-persona voices)"
+  wakeword_engine: "openWakeWord (jarvis, friday, ultron, omi)"

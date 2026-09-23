@@ -1,0 +1,110 @@
+# ==============================================================================
+# JARVIS CENTRAL CONFIGURATION
+# Hardware Target: Intel i5-13420H, 16GB RAM, NVIDIA RTX 2050 (4GB VRAM)
+# ==============================================================================
+
+# Multi-Persona Configuration
+# Whichever wake word fires sets the active persona for that session.
+assistant_personas:
+  - name: Jarvis
+    wake_model: jarvis.onnx
+    tone: "calm, formal, precise, addresses the user respectfully"
+    voice: "en_GB-alan-medium"
+  - name: Friday
+    wake_model: friday.onnx
+    tone: "warm, casual, quick, slightly informal"
+    voice: "en_GB-alan-medium"
+  - name: Ultron
+    wake_model: ultron.onnx
+    tone: "dry, blunt, faintly sardonic -- still fully helpful and safe, no menace"
+    voice: "en_GB-alan-medium"
+  - name: Omi
+    wake_model: omi.onnx
+    tone: "friendly, minimal, low-key"
+    voice: "en_GB-alan-medium"
+
+active_persona: Jarvis
+
+# Regional & Locale Settings (India)
+locale:
+  timezone: "Asia/Kolkata"
+  timezone_label: "IST"
+  timezone_offset: "+05:30"
+  country: "India"
+  country_code: "+91"
+  currency: "INR"
+  currency_symbol: "₹"
+  date_format: "DD-MM-YYYY"
+  search_region: "in"
+
+
+# Hardware Budget & Execution Allocation
+# Keep GPU-resident models (Core LLM + Vision) under 4GB VRAM.
+# Wake words, ASR, and Piper TTS run strictly on CPU.
+hardware:
+  target_gpu: "NVIDIA GeForce RTX 2050 (4GB VRAM)"
+  vram_budget_mb: 4096
+  core_llm: "qwen2.5:3b"
+  vision_llm: "moondream:latest"
+  cpu_threads: 6
+  asr_device: "cpu"
+  tts_device: "cpu"
+  wakeword_device: "cpu"
+
+# Core LLM & Vision Service (Ollama)
+ollama:
+  host: "http://127.0.0.1:11434"
+  timeout_seconds: 90
+  retry_limit: 1
+
+# Web Search
+search:
+  primary: "tavily"
+  backup: "brave"
+  max_results: 5
+
+# Voice Pipeline Settings (CPU only)
+voice:
+  tts_engine: "piper"
+  tts_fallback: "pyttsx3"
+  piper_model_dir: "models/piper"
+  asr_engine: "whisper"
+  whisper_model: "base"
+  wakeword_dir: "models/wakewords"
+  fallback_wakeword: "hey_jarvis"
+
+# Skills and External Integrations
+integrations:
+  google_calendar:
+    enabled: true
+  google_gmail:
+    enabled: true
+  home_assistant:
+    enabled: false
+    url: "http://homeassistant.local:8123"
+  chromecast:
+    enabled: true
+  tailscale:
+    enabled: true
+  browser_automation:
+    enabled: true
+  identity_gate:
+    enabled: true
+    face_recognition: true
+  whatsapp_business:
+    enabled: false
+
+# Task-Based Multi-Provider Routing Policy
+ai_routing:
+  default_provider: "ollama"
+  task_routes:
+    conversation: "ollama"
+    persona_chat: "ollama"
+    memory: "ollama"                 # INVIOLABLE: code enforces local Ollama only
+    identity: "ollama"               # INVIOLABLE: code enforces local Ollama only
+    knowledge_base: "ollama"         # INVIOLABLE: code enforces local Ollama only
+    browser_reasoning: "groq"
+    parameter_extraction: "groq"
+    vision_heavy: "gemini"
+    long_document: "gemini"
+

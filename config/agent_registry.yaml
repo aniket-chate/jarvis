@@ -1,0 +1,125 @@
+# ==============================================================================
+# JARVIS AGENT REGISTRY SPECIFICATION
+# Data-driven registry mapping agent types to capabilities and trigger patterns
+# ==============================================================================
+
+agents:
+  web_agent:
+    name: "Web Search Agent"
+    description: "General web search, factual verification, and online lookups"
+    capabilities: ["web_search", "information_retrieval"]
+    trigger_keywords: ["search", "google", "look up", "browse", "find out", "who is", "what is"]
+
+  news_agent:
+    name: "News Agent"
+    description: "Breaking news headlines, current world events, and sports updates"
+    capabilities: ["news_retrieval", "headline_summary"]
+    trigger_keywords: ["news", "headlines", "latest updates", "breaking news", "current events"]
+
+  browser_automation_agent:
+    name: "Browser Automation Agent"
+    description: "Autonomous web browsing, online form filling, navigation, media playback"
+    capabilities: ["browser_automation", "form_filling", "web_navigation"]
+    trigger_keywords: ["open website", "play video on youtube", "fill form", "navigate to", "log into website"]
+
+  web_action_agent:
+    name: "Web Action Agent (Astra Loop)"
+    description: "General computer-use web agent: live page observation, interactive navigation, form entry, route calculation, media control across any website"
+    capabilities: ["live_page_observation", "autonomous_navigation", "site_interaction", "route_extraction", "media_control"]
+    trigger_keywords: ["on linkedin", "on internshala", "on snapchat", "on facebook", "route to", "search on"]
+
+  file_agent:
+    name: "File Management Agent"
+    description: "Read, write, search, organize, and summarize local files"
+    capabilities: ["file_io", "document_parsing", "file_search"]
+    trigger_keywords: ["read file", "save file", "write file", "open document", "search folder", "list files"]
+
+  app_agent:
+    name: "Application Control Agent"
+    description: "Launch, focus, switch, and terminate local desktop applications"
+    capabilities: ["app_launch", "app_control", "window_management"]
+    trigger_keywords: ["open app", "launch", "close app", "switch to app", "start program"]
+
+  communication_agent:
+    name: "Communication Agent"
+    description: "Draft emails, compose SMS, send chat messages"
+    capabilities: ["email_drafting", "sms_send", "message_dispatch"]
+    trigger_keywords: ["send email", "draft email", "send message", "text", "sms", "compose mail"]
+
+  cast_agent:
+    name: "Cast & Media Agent"
+    description: "Discover Google Cast / Chromecast devices and stream media"
+    capabilities: ["chromecast_streaming", "device_casting", "media_playback"]
+    trigger_keywords: ["cast to tv", "stream to chromecast", "play on speaker", "cast screen"]
+
+  smart_home_agent:
+    name: "Smart Home & IoT Agent"
+    description: "Query and toggle Home Assistant entities, lights, switches, and thermostats"
+    capabilities: ["home_assistant_control", "iot_query", "lighting_control"]
+    trigger_keywords: ["turn on lights", "turn off lights", "set temperature", "smart switch", "lock door"]
+
+  system_control_agent:
+    name: "System Control Agent"
+    description: "Host system volume, battery telemetry, disk space, time, and power controls"
+    capabilities: ["system_telemetry", "volume_control", "power_management", "time_query"]
+    trigger_keywords: ["time", "date", "battery", "storage", "disk space", "volume", "mute", "unmute"]
+
+  image_gen_agent:
+    name: "Image Generation Agent"
+    description: "Local Stable Diffusion or hosted image generation from text prompts"
+    capabilities: ["image_generation", "visual_synthesis"]
+    trigger_keywords: ["generate image", "create picture", "draw", "render image", "paint"]
+
+  calendar_agent:
+    name: "Calendar & Schedule Agent"
+    description: "Inspect upcoming schedule, create events, manage reminders"
+    capabilities: ["calendar_read", "event_scheduling", "meeting_management"]
+    trigger_keywords: ["calendar", "schedule", "upcoming events", "meetings", "reminders", "agenda"]
+
+  call_agent:
+    name: "Voice Call Agent"
+    description: "Initiate voice/video calls via phone gateway or VoIP"
+    capabilities: ["call_initiation", "voip_dialing"]
+    trigger_keywords: ["call", "dial", "phone call", "voice call"]
+
+  identity_agent:
+    name: "Identity & Security Agent"
+    description: "Webcam facial verification, speaker matching, privileged access gate"
+    capabilities: ["face_verification", "speaker_id", "security_auth"]
+    trigger_keywords: ["verify identity", "authenticate me", "who am i", "security check"]
+
+  weather_agent:
+    name: "Weather Forecast Agent"
+    description: "Live weather conditions, temperature, and forecasts via Open-Meteo"
+    capabilities: ["weather_forecast", "temperature_query", "weather_lookup"]
+    trigger_keywords: ["weather", "temperature", "forecast", "rain", "climate", "hot outside", "cold outside"]
+
+  wikipedia_agent:
+    name: "Wikipedia Knowledge Agent"
+    description: "Factual encyclopedia lookup, history, and scientific definitions via Wikipedia"
+    capabilities: ["wikipedia_lookup", "concept_definition", "encyclopedic_summary"]
+    trigger_keywords: ["wikipedia", "define", "history of", "tell me about", "who was", "biography"]
+
+  scheduler_agent:
+    name: "Scheduler & Alarm Agent"
+    description: "In-app precision alarms, reminders, and scheduled power actions via APScheduler"
+    capabilities: ["set_alarm", "set_reminder", "cancel_alarm", "list_alarms"]
+    trigger_keywords: ["alarm", "timer", "remind me", "schedule shutdown"]
+
+  dev_tool_agent:
+    name: "Developer Support Agent"
+    description: "Allowlisted Git operations, Regex generation, JSON formatting, and shell refusal gate"
+    capabilities: ["git_status", "git_diff", "git_commit", "git_branch", "generate_regex", "format_json"]
+    trigger_keywords: ["git status", "git diff", "git commit", "git branch", "regex", "format json", "run shell"]
+
+  vision_ocr_agent:
+    name: "Camera OCR & Document Scanning Agent"
+    description: "Offline native Windows OCR document scanning and Knowledge Base indexing"
+    capabilities: ["ocr_scan", "document_text_extraction", "receipt_scanning"]
+    trigger_keywords: ["scan document", "read text from image", "ocr", "scan receipt", "scan whiteboard"]
+
+  notification_triage_agent:
+    name: "Notification Triage Agent"
+    description: "Read-only desktop notification triage and summarization from Windows Action Center"
+    capabilities: ["triage_notifications", "summarize_notifications", "notification_alerts"]
+    trigger_keywords: ["notifications", "triage notifications", "unread alerts", "check notifications"]

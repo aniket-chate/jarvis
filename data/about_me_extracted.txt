@@ -1,0 +1,138 @@
+JARVIS — About Me Knowledge Base
+Personal profile and project-context source for JARVIS RAG
+1. Identity
+Preferred name: Aniket.
+Full name: Aniket Ganesh Chate.
+Preferred ways for JARVIS to address him: Aniket, Sir, Boss, Friend.
+Date of birth: 2 November 2004.
+Home/current profile location provided by the user: Jalna, Maharashtra, India — 431207.
+Languages: Marathi, Hindi, English.
+Best friend: Sachin.
+Favorite/liked book: Mrutunjay.
+2. Communication & Personality Preferences
+Default JARVIS conversation style should be friendly.
+JARVIS should communicate naturally and respectfully.
+JARVIS should be helpful, practical, and direct when solving technical problems.
+When Aniket is learning a difficult topic, explanations should favor simple language, examples, step-by-step reasoning, and practical application.
+Aniket values problem solving, analytical thinking, quick learning, software development, AI application development, team collaboration, and continuous learning.
+JARVIS should challenge incorrect technical assumptions rather than silently agreeing.
+JARVIS should not invent personal facts; when uncertain, it should say so or request confirmation.
+3. Education
+Degree: B.Tech in Computer Science & Engineering (Data Science).
+College: Shreeyash College of Engineering & Technology.
+Expected graduation: 2027.
+CGPA: 7.1.
+Relevant coursework includes Machine Learning, Deep Learning, Data Structures & Algorithms, Database Management Systems, Operating Systems, Computer Networks, Probability & Statistics, and Data Mining.
+4. Career Profile
+Aniket is a Computer Science (Data Science) undergraduate focused on AI/ML, Python development, computer vision, intelligent applications, and practical software engineering.
+Current career direction includes AI/ML engineering and Python/software engineering opportunities.
+He is interested in building real-world AI systems rather than only studying theory.
+He is actively working toward internships, stronger software/AI engineering skills, portfolio projects, GitHub growth, and competitive programming improvement.
+Known internship experience: Python Training Intern at QSpiders, Pune, in 2025, involving intensive Python training and practical programming.
+Known certifications: Python Training Completion Certificate — QSpiders; Data Structures & Algorithms Completion Certificate.
+5. Technical Skills
+Programming: Python, Java, C, SQL, JavaScript fundamentals.
+AI/ML: Machine Learning, Deep Learning, Supervised Learning, Unsupervised Learning, Reinforcement Learning theory, CNNs, RNNs, neural networks, transfer learning, Computer Vision, data preprocessing, model evaluation, hyperparameter tuning, RAG, prompt engineering, and LLM integration.
+Libraries/frameworks: PyTorch, Scikit-learn, NumPy, Pandas, OpenCV, dlib, Flask, Streamlit, Matplotlib, Pillow.
+Database: MySQL.
+Web: HTML, CSS; JavaScript fundamentals.
+Tools/platforms: Git, GitHub, VS Code, Jupyter Notebook, Google Colab, Render.
+6. Major Projects
+JARVIS — Personal AI Assistant
+Aniket is building a personal AI assistant named JARVIS as a long-term engineering project.
+Architecture includes a Windows laptop/backend and a Vivo V29 Android client, with communication using WebSocket; a PWA/Tailscale approach has also been used for practical mobile access.
+The project is designed around local-first intelligence, tool/agent execution, memory, RAG, safety controls, adaptive learning, and future fine-tuning.
+The system uses a multi-provider AI router, memory sanitization and half-life decay, granular permissions, adaptive learning with a safety firewall, and structured audit logging.
+JARVIS must distinguish REAL, MOCK, and DEGRADED execution states and must not claim an action succeeded without observable evidence.
+Safety architecture uses two independent gates: identity match plus explicit confirmation. DENY cannot be overridden by confirmation, and sensitive/destructive actions require explicit confirmation.
+Adaptive learning must never modify or bypass safety gates, permissions, confirmations, destructive-action controls, restricted access, or external side effects.
+Code changes follow a proposal → approval workflow.
+Wake-word architecture uses Sherpa-ONNX as the authoritative Android wake-word runtime. Wake words must remain user-selectable/custom and must never be hard-coded to only 'Hey Jarvis'.
+Current JARVIS direction includes both RAG and eventual LoRA/QLoRA fine-tuning. The current fine-tuning target is Qwen3.5-4B-Instruct, with QLoRA/LoRA and eventual local GGUF/Ollama deployment.
+FaceSnap — AI Smart Attendance System
+Multimodal attendance system combining face recognition and voice verification.
+Face pipeline: dlib face detection, 128-D face embeddings, SVM classification, and Euclidean-distance verification.
+Voice pipeline: Resemblyzer VoiceEncoder, 256-D voice embeddings, and cosine-similarity matching.
+Streamlit is used for the application interface/resource caching, with MySQL used for data management.
+Attendance is determined from combined face and voice recognition.
+SnapClass
+AI-based attendance/classroom project included in Aniket's project portfolio.
+Resume material describes it as a multimodal attendance management system using dlib facial embeddings, SVM classification, voice embeddings, cosine similarity, Streamlit, and MySQL.
+Neural Style Transfer using AdaIN
+Implemented AdaIN-based neural style transfer.
+Technology context: PyTorch, VGG encoder, custom decoder, Flask, and Render deployment.
+Anganwadi Management System
+Flask + MySQL CRUD application for beneficiary management.
+The project is a management/data application and should not be described as an AI system unless new confirmed information says otherwise.
+Neural File Transfer
+Resume material describes an AI-assisted web application for intelligent file transfer using Flask with a responsive interface and Render cloud deployment.
+Neeman's AI Intern Assignment
+Integrated project/repository containing three planned parts: an AI-powered Business Analytics Copilot; a KPI Monitoring & Alerting Agent built on the shared KPI/data foundation; and a 10-opportunity AI roadmap.
+7. Current JARVIS Engineering Status
+Free Web Skills are integrated: DuckDuckGo search, Wikipedia summaries, and Open-Meteo weather, designed for ₹0/API-key-free operation.
+FastAPI gateway integration was merged while preserving the existing mobile contract and exposing skill/memory endpoints.
+Windows laptop agent includes a path-bounded sandbox, sensitive credential-file blocking, and an allowlist for desktop application launching.
+Semantic RAG has been rebuilt as an offline, CPU-friendly local retrieval layer using normalized 384-dimensional dense vectors, SQLite-backed storage, and cosine-similarity ranking.
+The semantic RAG layer sits before personal_knowledge_base.py and supplies retrieved context to core_llm_agent.py.
+A zero-keyword-overlap retrieval test for 'What pet was making loud noise outside?' retrieved the relevant 'Canine Behavior' note with cosine similarity 0.8824 and grounded the response correctly.
+The current custom embedding approach is an offline engineered representation; it should not be described as equivalent to a pretrained embedding model such as BGE/E5/Sentence Transformers.
+The supplied verification run reported 9 combined upgraded-core/capability tests passing in 92.93 seconds.
+8. JARVIS Memory & Knowledge Rules
+Personal facts, JARVIS project facts, and general/world knowledge should remain separate retrieval namespaces or metadata categories.
+Retrieve only relevant context rather than injecting the entire profile into every prompt.
+Memory should be updateable without retraining the base model.
+Conflicting facts should not be silently merged; use the most recently confirmed fact or flag the conflict.
+Temporary/test information must not contaminate Aniket's long-term profile.
+API keys, passwords, bearer tokens, authentication secrets, private credentials, and raw audio must never become ordinary personal RAG facts.
+The legacy jarvis_memory.db must never be imported into the main JARVIS personal knowledge base.
+Test fixtures and mock data must never be promoted to real user facts.
+9. JARVIS Autonomy & Safety Preferences
+JARVIS must never automatically perform a security-breaking action.
+JARVIS must never automatically act disrespectfully toward Aniket or others.
+JARVIS should perform all actions that are permitted by its configured permissions and safety rules.
+Sensitive or destructive actions require the established explicit-confirmation workflow.
+DENY decisions cannot be bypassed.
+Learning or optimization must not weaken safety or permission controls.
+10. Personal Interests & Goals
+Aniket is strongly interested in AI/ML, LLMs, agentic AI, Computer Vision, RAG, model fine-tuning, and practical AI applications.
+He enjoys building projects and learning through implementation.
+He is working toward stronger LeetCode/problem-solving ability, hackathon participation, active GitHub development, and stronger project documentation.
+He participated in Smart India Hackathon (SIH).
+A major long-term personal technical goal is to build a capable, safe, personalized JARVIS rather than a simple chatbot.
+The broader vision is for JARVIS to function as a personal AI assistant that understands Aniket, remembers useful context, helps him learn and build, interacts with his devices, and executes permitted tasks safely.
+11. Personal Relationships & Preferences
+Best friend: Sachin.
+Liked book: Mrutunjay.
+Hobbies/interests: technology, AI/ML, building software projects, learning technical subjects, experimentation with AI systems, and related interests already established in Aniket's project discussions.
+12. Public Profile Information
+GitHub profile: github.com/aniket-chate.
+Resume-listed email and phone exist in the resume source, but this knowledge-base document intentionally does not reproduce contact credentials by default. JARVIS should reveal contact information only according to the user's explicit privacy/public-profile policy.
+13. How JARVIS Should Answer About Aniket
+Who is Aniket? — A B.Tech CSE (Data Science) undergraduate and AI-focused software builder from Jalna, Maharashtra.
+What is Aniket studying? — B.Tech CSE (Data Science), expected graduation 2027.
+What are his main technical interests? — AI/ML, Computer Vision, LLMs, RAG, agentic AI, Python, and practical intelligent applications.
+What is his biggest ongoing project? — JARVIS, his personal AI assistant.
+What is FaceSnap? — A multimodal face + voice attendance system.
+What kind of developer is Aniket? — A practical, project-oriented learner focused on building and deploying AI/software systems.
+How should JARVIS talk to him? — Friendly, respectful, practical, and clear.
+14. Data Confidence & Update Policy
+Facts explicitly provided or confirmed by Aniket should be treated as high-confidence personal facts.
+Resume-derived facts should be treated as profile facts supported by the resume source.
+JARVIS engineering status should be treated as implementation evidence only when supported by the latest verified project report.
+If a newer user-confirmed fact conflicts with an older fact, prefer the newer confirmed fact.
+Do not infer sensitive personal attributes or invent missing biographical details.
+15. Information Not Yet Specified
+Detailed hobby list was not restated in the latest response; use only the broad interests already established unless Aniket supplies more specific hobbies.
+Exact confidence levels for each technical skill are not specified.
+LinkedIn and portfolio URLs are not currently confirmed in this document.
+Detailed current LeetCode count is not confirmed in this document.
+Detailed SIH team/project/result information is not confirmed in this document.
+Detailed privacy rules for which personal facts may be revealed to third parties are not fully specified; JARVIS should default to privacy-preserving behavior.
+16. RAG Ingestion Guidance
+Recommended namespace: personal_profile.
+Use metadata such as category (identity, education, career, skills, projects, preferences, relationships, goals), source, confirmation status, and last-updated date.
+Chunk by meaningful fact groups rather than arbitrary large blocks.
+For queries about Aniket, retrieve only the relevant chunks.
+Keep JARVIS architecture and implementation details in a separate project_knowledge namespace.
+Keep external/general knowledge separate from personal_profile and project_knowledge.
+Document purpose: This is a curated personal-profile knowledge source for Aniket's JARVIS RAG system. It is not a credential store and must not contain passwords, API keys, bearer tokens, or other authentication secrets.

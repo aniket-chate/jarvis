@@ -10,7 +10,7 @@
 
   // Configuration & Gateway State
   const GATEWAY_URL = window.location.origin;
-  const GATEWAY_TOKEN = localStorage.getItem("jarvis_gateway_token") || "jarvis-gateway-token-2026-auth";
+  const GATEWAY_TOKEN = localStorage.getItem("jarvis_gateway_token") || "";
   const DEVICE_ID = localStorage.getItem("jarvis_device_id") || `web_hud_${Math.random().toString(36).substring(2, 9)}`;
 
   let activePersona = "Jarvis";
@@ -234,7 +234,8 @@
     const wsUrl = `${wsProtocol}//${host}/ws?token=${encodeURIComponent(GATEWAY_TOKEN)}&device_id=${encodeURIComponent(DEVICE_ID)}`;
 
     try {
-      ws = new WebSocket(wsUrl);
+      if (!GATEWAY_TOKEN) { console.error("[JARVIS] Gateway token is not configured."); return; }
+      ws = new WebSocket(wsUrl, [`jarvis-auth.${GATEWAY_TOKEN}`]);
     } catch (err) {
       console.warn("[WebSocket] Link initialization error:", err);
       setConnectionStatus(false);

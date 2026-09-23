@@ -109,7 +109,7 @@ class CommunicationHubProvider(BaseCapabilityProvider):
             return True
         try:
             from skills.google_gmail import gmail_skill
-            return bool(getattr(gmail_skill, "is_available", lambda: False)())
+            return bool(getattr(gmail_skill, "is_configured", False))
         except Exception:
             return False
 

@@ -1337,16 +1337,13 @@ async def websocket_gateway(
                         t_llm_complete = time.time()
                         logger.info("[LLM_COMPLETE] [request_id=%s, response_id=%s] LLM generation complete (%d chars) in %.1fms", req_id, resp_id, len(final_resp), (t_llm_complete - t_received) * 1000)
 
-                        # Update Continuous Learning Engine for live Core LLM turn
-                        try:
-                            from orchestrator.learning import learning_engine
-                            learning_engine.record_feedback(
-                                action="core_llm_agent",
-                                reward=1.0 if len(final_resp) > 0 else -0.5,
-                                context=f"query:{query[:30]}"
-                            )
-                        except Exception as rl_err:
-                            logger.debug("[Server] RL feedback recording warning: %s", rl_err)
+                        # Do not self-reward merely because an LLM returned text.
+                        # Correctness and task success must come from an explicit verifier,
+                        # user feedback, or an observed external-state transition.
+                        logger.debug(
+                            "[Server] Skipping automatic RL reward for conversational turn; "
+                            "no independent success signal is available."
+                        )
 
                         # Immediately finalize the authoritative response on UI so UI and TTS stay perfectly in sync
                         resp_payload = {

@@ -463,44 +463,32 @@ class CommunicationHubProvider(BaseCapabilityProvider):
         }
 
     def _notify_user(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Dispatches user notification locally or via targeted mesh device."""
+        """Record a notification request without falsely claiming device delivery."""
         title = params.get("title", "JARVIS Notification")
         message = self._quarantine_text(str(params.get("message", "Alert")))
         target_device = params.get("target_device") or params.get("device_id")
 
-        if target_device:
-            dev = gateway_registry.find_device(target_device)
-            if not dev or not dev.is_alive():
-                return {
-                    "success": False,
-                    "target_device": target_device,
-                    "status": "DEVICE_UNAVAILABLE",
-                    "error": f"Target device '{target_device}' is unavailable or offline.",
-                }
-            dispatch_res = {
-                "success": True,
-                "target_device_id": dev.device_id,
-                "status": "delivered_to_device",
-            }
-        else:
-            dispatch_res = {"success": True, "status": "delivered_locally"}
-
         nid = f"notif_{uuid.uuid4().hex[:8]}"
-        self._outbox_ledger[nid] = {
+        record = {
             "notification_id": nid,
             "title": title,
             "message": message,
             "timestamp": time.time(),
-            "status": "DELIVERED",
+            "target_device": target_device,
+            "status": "RECORDED",
         }
+        self._outbox_ledger[nid] = record
 
         return {
-            "success": True,
+            "success": False,
             "notification_id": nid,
             "title": title,
-            "status": "DELIVERED",
+            "status": "NOT_DELIVERED",
             "target_device": target_device,
-            "dispatch": dispatch_res,
+            "message": (
+                "Notification request recorded, but no delivery backend was invoked. "
+                "Use the device gateway dispatch path for actual cross-device delivery."
+            ),
         }
 
     def _get_history(self, params: Dict[str, Any]) -> Dict[str, Any]:

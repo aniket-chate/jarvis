@@ -51,10 +51,9 @@ const btnSaveSettings = document.getElementById("btn-save-settings");
 // Initialize Configuration
 function initConfig() {
   const params = new URLSearchParams(window.location.search);
-  if (params.has("token")) {
-    authToken = params.get("token");
-    localStorage.setItem("jarvis_token", authToken);
-  } else if (localStorage.getItem("jarvis_token")) {
+  // Authentication tokens are never accepted from URL query parameters.
+  // Configure the token once through the settings UI or local storage.
+  if (localStorage.getItem("jarvis_token")) {
     authToken = localStorage.getItem("jarvis_token");
   }
 

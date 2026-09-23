@@ -10,7 +10,7 @@
 
   // Configuration & Gateway State
   const GATEWAY_URL = window.location.origin;
-  const GATEWAY_TOKEN = localStorage.getItem("jarvis_gateway_token") || "";
+  let GATEWAY_TOKEN = localStorage.getItem("jarvis_gateway_token") || "";
   const DEVICE_ID = localStorage.getItem("jarvis_device_id") || `web_hud_${Math.random().toString(36).substring(2, 9)}`;
 
   let activePersona = "Jarvis";
@@ -234,7 +234,12 @@
     const wsUrl = `${wsProtocol}//${host}/ws?device_id=${encodeURIComponent(DEVICE_ID)}`;
 
     try {
-      if (!GATEWAY_TOKEN) { console.error("[JARVIS] Gateway token is not configured."); return; }
+      if (!GATEWAY_TOKEN) {
+        const entered = window.prompt("Enter your JARVIS Gateway token. It is stored only in this browser.");
+        if (!entered) { console.error("[JARVIS] Gateway token is not configured."); return; }
+        GATEWAY_TOKEN = entered.trim();
+        localStorage.setItem("jarvis_gateway_token", GATEWAY_TOKEN);
+      }
       ws = new WebSocket(wsUrl, [`jarvis-auth.${GATEWAY_TOKEN}`]);
     } catch (err) {
       console.warn("[WebSocket] Link initialization error:", err);

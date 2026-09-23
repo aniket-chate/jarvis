@@ -880,9 +880,6 @@ async def websocket_gateway(
         await websocket.close(code=1011, reason="Gateway authentication is not configured")
         return
 
-    # Browser clients cannot set arbitrary Authorization headers, so the
-    # authenticated subprotocol is supported. Native clients may use the
-    # Authorization header. Query-string tokens are deliberately rejected.
     provided_token = None
     authorization = websocket.headers.get("authorization")
     if authorization:
@@ -903,6 +900,7 @@ async def websocket_gateway(
         return
 
     await websocket.accept(subprotocol=selected_protocol)
+
     client_ip = websocket.client.host if websocket.client else "127.0.0.1"
     active_device_id = device_id or f"client_{int(time.time())}"
     logger.info("[WebSocket] Authorized client connected from %s (device_id=%s)", client_ip, active_device_id)

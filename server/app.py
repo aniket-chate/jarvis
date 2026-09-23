@@ -152,14 +152,12 @@ def verify_gateway_token(
     request: Request,
     x_jarvis_token: Optional[str] = Header(None, alias="X-JARVIS-Token"),
     authorization: Optional[str] = Header(None),
-    token: Optional[str] = Query(None),
 ) -> str:
     """Validates the incoming client token against GATEWAY_AUTH_TOKEN.
     
     Accepts:
     1. Header: X-JARVIS-Token: <token>
     2. Header: Authorization: Bearer <token>
-    3. Query parameter: ?token=<token>
     """
     configured_token = settings.gateway_auth_token
     if not configured_token:
@@ -175,11 +173,6 @@ def verify_gateway_token(
             provided_token = parts[1]
         else:
             provided_token = authorization.strip()
-    elif token:
-        # Kept only for HTTP backward compatibility. WebSocket authentication
-        # does not accept query-string tokens.
-        provided_token = token
-
     if not provided_token or not hmac.compare_digest(provided_token, configured_token):
         logger.warning(
             "[Gateway Auth] Rejected unauthorized request from %s to %s",

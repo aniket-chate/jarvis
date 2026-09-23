@@ -281,7 +281,13 @@ class SmartHomeIoTProvider(BaseCapabilityProvider):
         self._event_subscribers: List[Callable[[Dict[str, Any]], None]] = []
 
     def is_available(self) -> bool:
-        return True
+        """Live availability only; simulation is not reported as a live provider."""
+        return bool(self.config.is_physical_bridge) or self.backend.__class__.__name__ != "SimulatedIoTBackend"
+
+    def get_readiness(self) -> str:
+        return "PHYSICAL_HARDWARE_VERIFIED" if self.config.is_physical_bridge else (
+            "SIMULATED" if self.backend.__class__.__name__ == "SimulatedIoTBackend" else "LIVE_PROVIDER"
+        )
 
     def get_verification_level(self) -> str:
         """Explicitly distinguishes provider-level simulation from physical hardware verification."""

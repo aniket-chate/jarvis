@@ -91,3 +91,13 @@ def test_learning_does_not_self_reward_non_empty_text():
     source = (ROOT / "server/app.py").read_text(encoding="utf-8")
     assert 'reward=1.0 if len(final_resp) > 0 else -0.5' not in source
     assert "Skipping automatic RL reward for conversational turn" in source
+
+
+def test_notification_provider_does_not_fake_delivery():
+    from capabilities.providers.communication_provider import CommunicationHubProvider
+    result = CommunicationHubProvider().execute(
+        "comm.notify_user",
+        {"message": "test notification"},
+    )
+    assert result.status == "FAILED"
+    assert result.output["status"] == "NOT_DELIVERED"

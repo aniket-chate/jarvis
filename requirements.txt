@@ -21,3 +21,14 @@ sounddevice>=0.4.6
 # Quality & Testing
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+
+
+# Runtime imports used by voice, telemetry, and web form endpoints
+python-multipart>=0.0.9
+psutil>=5.9.0
+faster-whisper>=1.0.0
+pyttsx3>=2.90
+openwakeword>=0.6.0
+piper-tts>=1.2.0
+screeninfo>=0.8.1
+pycaw>=20240210; platform_system == "Windows"

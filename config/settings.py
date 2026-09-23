@@ -195,6 +195,12 @@ class Settings:
         self.openrouter_available = bool(self.openrouter_api_key)
         self.cloud_llm_fallback_available = self.openai_available or self.gemini_available or self.groq_available or self.openrouter_available
 
+        # Gateway tokens are bearer credentials. Reject obviously weak values at
+        # startup instead of allowing a deployment to run with an insecure token.
+        if self.gateway_auth_token and len(self.gateway_auth_token) < 32:
+            logger.error("[Gateway Auth] GATEWAY_AUTH_TOKEN is too short; gateway authentication will remain disabled.")
+            self.gateway_auth_token = None
+
     def check_secrets(self) -> Dict[str, Any]:
         """Startup routine reporting which keys are present and which modules are active vs disabled.
 

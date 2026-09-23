@@ -71,7 +71,7 @@ def test_health_endpoint_defines_ollama_online_before_use():
 def test_capability_gateway_validates_action_provider_and_confirmation_token():
     source = (ROOT / "server/app.py").read_text(encoding="utf-8")
     start = source.index("async def execute_capability(")
-    block = source[start:source.index("\n\n@app.get("/api/personas")", start)]
+    block = source[start:source.index('\n\n@app.get("/api/personas")', start)]
     assert "supported_capabilities" in block
     assert "req.action not in supported" in block
     assert "policy_kernel.confirm_token" in block

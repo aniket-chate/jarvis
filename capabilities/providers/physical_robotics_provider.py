@@ -525,7 +525,13 @@ class PhysicalRoboticsProvider(BaseCapabilityProvider):
         super().__init__(metadata)
 
     def is_available(self) -> bool:
-        return True
+        """Live availability only; the deterministic simulator is test-only."""
+        return bool(self.config.is_physical_bridge) or self.backend.__class__.__name__ != "SimulatedRoboticsBackend"
+
+    def get_readiness(self) -> str:
+        return "PHYSICAL_HARDWARE_VERIFIED" if self.config.is_physical_bridge else (
+            "SIMULATED" if self.backend.__class__.__name__ == "SimulatedRoboticsBackend" else "LIVE_PROVIDER"
+        )
 
     def execute(
         self,

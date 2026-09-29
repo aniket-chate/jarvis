@@ -22,6 +22,7 @@ sounddevice>=0.4.6
 # Quality & Testing
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+pytest-timeout>=2.3.0
 
 
 # Runtime imports used by voice, telemetry, and web form endpoints

@@ -67,10 +67,21 @@ class CapabilityIntelligence:
             logger.warning("[CapabilityIntelligence] No providers registered for capability '%s'", capability)
             return None
 
-        # Filter by availability and exclusion
+        # Filter by availability and exclusion. Simulation providers are never treated as
+        # live by default; they may only be selected when the caller explicitly enters simulation mode.
         available = [p for p in providers if p.is_available()]
         if exclude_provider_ids:
             available = [p for p in available if p.provider_id not in exclude_provider_ids]
+
+        if not available and context and context.get("verification_mode") == "simulation":
+            simulated = [
+                p for p in providers
+                if p.provider_id not in (exclude_provider_ids or [])
+                and getattr(p, "get_readiness", lambda: "")() == "SIMULATED"
+            ]
+            if simulated:
+                available = simulated
+                logger.info("[CapabilityIntelligence] Explicit simulation mode selected simulated provider for '%s'", capability)
 
         if not available:
             logger.warning("[CapabilityIntelligence] All providers for '%s' are currently unavailable or excluded", capability)

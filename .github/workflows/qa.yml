@@ -15,11 +15,32 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install test dependencies
+      - name: Install security test dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pytest pytest-asyncio fastapi httpx pydantic python-dotenv pyyaml numpy
       - name: Compile Python sources
         run: python -m compileall -q .
       - name: Run security regressions
+        env:
+          GATEWAY_AUTH_TOKEN: ci-test-token
         run: pytest -q tests/test_security_regressions.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install runtime and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Compile Python sources
+        run: python -m compileall -q .
+      - name: Run full pytest suite
+        env:
+          GATEWAY_AUTH_TOKEN: ci-test-token
+        run: pytest -q

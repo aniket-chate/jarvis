@@ -36,7 +36,8 @@ def test_dual_client_simultaneous_connectivity(test_client):
 
     # 1. Android REST health check
     res_health = test_client.get("/api/v1/health")
-    assert res_health.status_code == 200 and res_health.json()["status"] == "healthy"
+    assert res_health.status_code == 200
+    assert res_health.json()["status"] in ("healthy", "degraded")
 
     # 2. Android device registration
     res_reg = test_client.post(

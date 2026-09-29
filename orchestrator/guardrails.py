@@ -38,6 +38,19 @@ class SafetyGuardrail:
             inspected_texts.append(f"{k}: {v}")
         combined_text = " ".join(inspected_texts)
 
+        # Check explicit destructive signatures first so the user-facing reason preserves the
+        # concrete safety classification. The policy kernel still runs for all other actions.
+        for pattern, description in DANGEROUS_PATTERNS:
+            if re.search(pattern, combined_text, re.IGNORECASE):
+                violation_msg = f"Safety Guardrail Alert: Action '{step.description}' BLOCKED ({description})"
+                logger.critical(
+                    "[Guardrail BLOCKED] [%s] Step '%s' violated safety rule: %s",
+                    persona,
+                    step.step_id,
+                    description,
+                )
+                return False, violation_msg
+
         # Integrate Policy & Safety Kernel checks (Two-Gate confirmation & shell/file policy)
         try:
             from safety.policy_kernel import policy_kernel
@@ -62,17 +75,6 @@ class SafetyGuardrail:
                 return False, safety_dec.reason
         except Exception as pk_err:
             logger.debug("[Guardrail] Policy kernel evaluation warning: %s", pk_err)
-
-        for pattern, description in DANGEROUS_PATTERNS:
-            if re.search(pattern, combined_text, re.IGNORECASE):
-                violation_msg = f"Safety Guardrail Alert: Action '{step.description}' BLOCKED ({description})"
-                logger.critical(
-                    "[Guardrail BLOCKED] [%s] Step '%s' violated safety rule: %s",
-                    persona,
-                    step.step_id,
-                    description,
-                )
-                return False, violation_msg
 
         # 2. Check granular policy permissions (ALLOW / ASK / DENY)
         try:

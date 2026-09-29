@@ -326,6 +326,7 @@ class ContinuousLearningEngine:
             mem.remember(key=k, value=v, persistent=True)
 
         after_memory = dict(mem.get_all_persistent())
+        changed_keys = [k for k, v in after_memory.items() if before_memory.get(k) != v]
         logger.info("[ContinuousLearning] Committed %d adaptive observations to persistent memory", len(observations))
 
         return {
@@ -334,6 +335,9 @@ class ContinuousLearningEngine:
             "policy_summary": self.policy.to_dict(),
             "before_memory": before_memory,
             "after_memory": after_memory,
+            "new_keys_added": [k for k in changed_keys if k not in before_memory],
+            "keys_updated": [k for k in changed_keys if k in before_memory],
+            "changed_key_count": len(changed_keys),
         }
 
     # -------------------------------------------------------------------------

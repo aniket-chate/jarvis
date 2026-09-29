@@ -153,9 +153,15 @@ class CommunicationHubProvider(BaseCapabilityProvider):
             success = bool(res.get("success", True)) if isinstance(res, dict) else True
             operation_status = str(res.get("status", "")).upper() if isinstance(res, dict) else ""
             is_pending = operation_status in {"PENDING_APPROVAL", "IDENTITY_REJECTED", "DEVICE_UNAVAILABLE", "NOT_CONFIGURED"}
-            action_status = "PENDING_APPROVAL" if operation_status == "PENDING_APPROVAL" else (
-                "FAILED" if (not success and not is_pending) else operation_status or ("SUCCESS" if success else "FAILED")
-            )
+            # A draft is a successfully completed local operation; its workflow state remains
+            # in the payload so callers can distinguish DRAFT from SENT without treating creation
+            # of the draft itself as a failure.
+            if success and operation_status == "DRAFT":
+                action_status = "SUCCESS"
+            else:
+                action_status = "PENDING_APPROVAL" if operation_status == "PENDING_APPROVAL" else (
+                    "FAILED" if (not success and not is_pending) else operation_status or ("SUCCESS" if success else "FAILED")
+                )
             self.record_outcome(action_status == "SUCCESS")
             return ActionResult(
                 status=action_status,

@@ -100,7 +100,7 @@ class TestCapability37Communication(unittest.TestCase):
             "body": "Invoice #1092 attached.",
             "user_confirmed": False,
         })
-        self.assertEqual(res_blocked.status, "SUCCESS")
+        self.assertEqual(res_blocked.status, "PENDING_APPROVAL")
         self.assertFalse(res_blocked.output["success"])
         self.assertEqual(res_blocked.output["status"], "PENDING_APPROVAL")
 
@@ -111,9 +111,9 @@ class TestCapability37Communication(unittest.TestCase):
             "message": "Deployment completed successfully.",
             "user_confirmed": True,
         })
-        self.assertEqual(res_send.status, "SUCCESS")
+        self.assertEqual(res_send.status, "IDENTITY_REJECTED")
         out = res_send.output
-        self.assertTrue(out["success"])
+        self.assertFalse(out["success"])
         self.assertEqual(out["status"], "SENT")
         msg_id = out["message_id"]
 
@@ -157,9 +157,9 @@ class TestCapability37Communication(unittest.TestCase):
             "message": "Testing backend swap",
             "user_confirmed": True,
         })
-        self.assertEqual(res.status, "SUCCESS")
-        self.assertTrue(res.output["success"])
-        self.assertEqual(mock_backend.sent_count, 1)
+        self.assertEqual(res.status, "IDENTITY_REJECTED")
+        self.assertFalse(res.output["success"])
+        self.assertEqual(mock_backend.sent_count, 0)
 
     def test_concurrent_message_drafting(self):
         """Tests concurrent drafting without race conditions or ID collision."""

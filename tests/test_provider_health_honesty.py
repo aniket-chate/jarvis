@@ -20,6 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from fastapi.testclient import TestClient
 from server.app import app, ollama
+from config.settings import settings
 from llm.ai_router import MultiProviderAIRouter
 
 

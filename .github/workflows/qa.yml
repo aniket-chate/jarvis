@@ -1,5 +1,9 @@
 name: JARVIS QA
 
+concurrency:
+  group: jarvis-qa-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: ["master", "qa/**"]
@@ -45,7 +49,7 @@ jobs:
       - name: Run full pytest suite
         env:
           GATEWAY_AUTH_TOKEN: ci-test-token
-        run: pytest -q
+        run: pytest -q --timeout=180
 
 
   regression-targets:

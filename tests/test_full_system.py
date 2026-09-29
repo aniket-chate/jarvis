@@ -60,8 +60,14 @@ def test_dual_client_simultaneous_connectivity(test_client):
     assert res_hb.status_code == 200 and res_hb.json()["status"] == "alive"
 
     # 4. Simultaneous WebSocket duplex test
-    with test_client.websocket_connect(f"/api/v1/ws?token={auth_token}&device_id=vivo_v29_native") as ws_android, \
-         test_client.websocket_connect(f"/ws?token={auth_token}&device_id=pwa_mobile_chrome") as ws_pwa:
+    with test_client.websocket_connect(
+        "/api/v1/ws?device_id=vivo_v29_native",
+        headers={"X-JARVIS-Token": auth_token},
+    ) as ws_android, \
+         test_client.websocket_connect(
+        "/ws?device_id=pwa_mobile_chrome",
+        headers={"X-JARVIS-Token": auth_token},
+    ) as ws_pwa:
 
         # Handshakes
         w_android = ws_android.receive_json()

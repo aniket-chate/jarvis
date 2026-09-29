@@ -91,7 +91,7 @@ class RuleBasedAIProvider(BaseAIProvider):
         # Keep simple arithmetic useful during provider outages. This is deterministic and
         # local-only; it does not execute arbitrary code or evaluate Python expressions.
         import re
-        arithmetic = re.fullmatch(r"\s*(?:hello\s+jarvis[,!]?\s*)?(\d+(?:\.\d+)?)\s*([+\-*/])\s*(\d+(?:\.\d+)?)\s*[?!.]?\s*", lower)
+        arithmetic = re.fullmatch(r"\s*(?:hello\s+jarvis[,!]?[\s]*)?(?:what\s+is\s+)?(\d+(?:\.\d+)?)\s*([+\-*/])\s*(\d+(?:\.\d+)?)\s*[?!.]?\s*", lower)
         if arithmetic:
             left, op, right = float(arithmetic.group(1)), arithmetic.group(2), float(arithmetic.group(3))
             if op == "+": value = left + right

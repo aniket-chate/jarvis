@@ -42,7 +42,7 @@ def test_dual_client_simultaneous_connectivity(test_client):
     # 2. Android device registration
     res_reg = test_client.post(
         "/api/v1/devices/register",
-        headers={"X-JARVIS-Token": auth_token},
+        headers={"Authorization": f"Bearer {auth_token}"},
         json={
             "device_id": "vivo_v29_native",
             "name": "Aniket's Vivo V29",

@@ -62,11 +62,11 @@ def test_dual_client_simultaneous_connectivity(test_client):
     # 4. Simultaneous WebSocket duplex test
     with test_client.websocket_connect(
         "/api/v1/ws?device_id=vivo_v29_native",
-        headers={"X-JARVIS-Token": auth_token},
+        headers={"Authorization": f"Bearer {auth_token}"},
     ) as ws_android, \
          test_client.websocket_connect(
         "/ws?device_id=pwa_mobile_chrome",
-        headers={"X-JARVIS-Token": auth_token},
+        headers={"Authorization": f"Bearer {auth_token}"},
     ) as ws_pwa:
 
         # Handshakes

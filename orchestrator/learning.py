@@ -274,6 +274,14 @@ class ContinuousLearningEngine:
             "exploration_rate": self.policy.exploration_rate,
         }
 
+    def choose_preferred_option(self, candidates: List[str], explore: bool = False) -> Tuple[str, str]:
+        """Select the preferred safe candidate using the learned policy.
+
+        This compatibility API keeps callers out of the policy internals while
+        preserving the hard exclusion of persona/identity actions.
+        """
+        return self.policy.select_action(candidates, explore_override=explore)
+
     def get_status_summary(self) -> Dict[str, Any]:
         """Returns live summary of continuous learning metrics, Q-values, and evidence."""
         with self._lock:

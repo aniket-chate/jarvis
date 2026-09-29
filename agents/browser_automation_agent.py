@@ -380,7 +380,7 @@ class BrowserAutomationAgent:
                 "error": str(e)
             }
 
-    def _play_youtube_fastpath(
+    def _play_youtube_fastpath_impl(
         self,
         song_query: str,
         screenshot_filename: str = "test_youtube_playback.png",
@@ -1598,6 +1598,24 @@ class BrowserAutomationAgent:
                 max_steps=max_steps,
                 screenshot_filename=screenshot_filename
             ))
+
+    def _play_youtube_fastpath(
+        self,
+        song_query: str,
+        screenshot_filename: str = "test_youtube_playback.png",
+        screenshot_60s_filename: Optional[str] = None,
+        play_duration_sec: float = 0.0,
+        headless: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Run the Playwright fast path on its dedicated thread to preserve thread affinity."""
+        return self._run_on_executor(
+            self._play_youtube_fastpath_impl,
+            song_query,
+            screenshot_filename,
+            screenshot_60s_filename,
+            play_duration_sec,
+            headless,
+        )
 
     def play_youtube_song(
         self,

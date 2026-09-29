@@ -288,10 +288,14 @@ class LocalVectorStore:
             q_tokens = set(self.embedder._tokenize(query)) - self.embedder.STOPWORDS
             t_tokens = (set(self.embedder._tokenize(title)) - self.embedder.STOPWORDS) - GENERIC_TITLE_WORDS
             c_tokens = (set(self.embedder._tokenize(content)) - self.embedder.STOPWORDS)
+            tag_tokens = (set(self.embedder._tokenize(" ".join(meta.get("tags", [])))) - self.embedder.STOPWORDS)
             overlap_title = len(q_tokens & t_tokens)
             overlap_content = len(q_tokens & c_tokens)
+            overlap_tags = len(q_tokens & tag_tokens)
             if overlap_title > 0:
                 sim += 0.20 * overlap_title
+            if overlap_tags > 0:
+                sim += 0.15 * min(3, overlap_tags)
             elif overlap_content > 0:
                 sim += 0.03 * min(5, overlap_content)
 

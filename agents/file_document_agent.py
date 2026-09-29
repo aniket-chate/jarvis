@@ -126,6 +126,25 @@ class FileDocumentAgent:
         except Exception:
             return True
 
+    def _resolve_safe_path(self, path_str: str, default_dir: str = "workspace") -> Path:
+        """Backward-compatible strict sandbox resolver used by verification suites."""
+        return self._resolve_scoped_path(path_str, default_dir=default_dir)
+
+    def write_file(
+        self,
+        path: str,
+        content: str = "",
+        user_confirmed: bool = False,
+        default_dir: str = "workspace",
+    ) -> Dict[str, Any]:
+        """Compatibility alias for create_file; preserves the same safety gates."""
+        return self.create_file(
+            path=path,
+            content=content,
+            user_confirmed=user_confirmed,
+            default_dir=default_dir,
+        )
+
     def create_file(
         self,
         path: str,

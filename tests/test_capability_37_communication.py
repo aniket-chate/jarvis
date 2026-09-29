@@ -18,6 +18,7 @@ import os
 import sys
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -28,6 +29,7 @@ from capabilities.providers.communication_provider import (
     CommunicationConfig,
     ContactRecord,
 )
+from agents.identity_agent import identity_agent
 
 
 class TestCapability37Communication(unittest.TestCase):

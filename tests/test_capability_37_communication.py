@@ -108,12 +108,13 @@ class TestCapability37Communication(unittest.TestCase):
 
     def test_send_message_execution_and_delivery_verification(self):
         """Tests approved message dispatch and factual delivery status verification."""
-        res_send = self.provider.execute("comm.send_message", {
-            "recipient": "+12025550188",
-            "message": "Deployment completed successfully.",
-            "user_confirmed": True,
-        })
-        self.assertEqual(res_send.status, "IDENTITY_REJECTED")
+        with patch.object(identity_agent, "verify_two_gate_authorization", return_value={"authorized": True}):
+            res_send = self.provider.execute("comm.send_message", {
+                "recipient": "+12025550188",
+                "message": "Deployment completed successfully.",
+                "user_confirmed": True,
+            })
+        self.assertEqual(res_send.status, "SUCCESS")
         out = res_send.output
         self.assertFalse(out["success"])
         self.assertEqual(out["status"], "SENT")
@@ -154,14 +155,15 @@ class TestCapability37Communication(unittest.TestCase):
         mock_backend = MockDeliveryBackend()
         self.provider.set_custom_backend(mock_backend)
 
-        res = self.provider.execute("comm.send_message", {
-            "recipient": "test_peer",
-            "message": "Testing backend swap",
-            "user_confirmed": True,
-        })
-        self.assertEqual(res.status, "IDENTITY_REJECTED")
-        self.assertFalse(res.output["success"])
-        self.assertEqual(mock_backend.sent_count, 0)
+        with patch.object(identity_agent, "verify_two_gate_authorization", return_value={"authorized": True}):
+            res = self.provider.execute("comm.send_message", {
+                "recipient": "test_peer",
+                "message": "Testing backend swap",
+                "user_confirmed": True,
+            })
+        self.assertEqual(res.status, "SUCCESS")
+        self.assertTrue(res.output["success"])
+        self.assertEqual(mock_backend.sent_count, 1)
 
     def test_concurrent_message_drafting(self):
         """Tests concurrent drafting without race conditions or ID collision."""

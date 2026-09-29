@@ -285,6 +285,20 @@ def ingest_about_me(
     namespaces_used = set()
     categories_used = set()
 
+    # Reconcile only records previously produced by this authoritative importer.
+    # This removes stale chunks from older document revisions without touching user-created notes.
+    authoritative_ids = {chunk["note_id"] for chunk in ABOUT_ME_CHUNKS}
+    stale_ids = [
+        note_id for note_id, meta in target_kb.index.items()
+        if meta.get("source") == SOURCE_NAME and note_id not in authoritative_ids
+    ]
+    for stale_id in stale_ids:
+        try:
+            target_kb.delete_note(stale_id)
+            logger.info("[AboutMeIngest] Removed stale authoritative chunk '%s'", stale_id)
+        except Exception as cleanup_err:
+            logger.warning("[AboutMeIngest] Could not remove stale chunk '%s': %s", stale_id, cleanup_err)
+
     for chunk in ABOUT_ME_CHUNKS:
         res = target_kb.add_note(
             title=chunk["title"],

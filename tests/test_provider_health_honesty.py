@@ -40,7 +40,7 @@ class TestProviderHealthHonesty(unittest.TestCase):
                 "vision_ready": False,
             }
 
-            resp = self.client.get("/api/runtime/status")
+            resp = self.client.get("/api/runtime/status", headers={"X-JARVIS-Token": settings.gateway_auth_token})
             self.assertEqual(resp.status_code, 200)
             data = resp.json()
 
@@ -72,7 +72,7 @@ class TestProviderHealthHonesty(unittest.TestCase):
                 "vision_ready": True,
             }
 
-            resp = self.client.get("/api/runtime/status")
+            resp = self.client.get("/api/runtime/status", headers={"X-JARVIS-Token": settings.gateway_auth_token})
             self.assertEqual(resp.status_code, 200)
             data = resp.json()
 

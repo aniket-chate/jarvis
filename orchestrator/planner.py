@@ -105,6 +105,14 @@ class TaskPlanner:
         try:
             from orchestrator.intent_arbitrator import intent_arbitrator
             structured_intent = intent_arbitrator.arbitrate(text)
+            if structured_intent and structured_intent.needs_clarification:
+                prompt = structured_intent.clarification_prompt or structured_intent.params.get("query") or "Could you clarify that request?"
+                return TaskPlan(
+                    plan_id=plan_id,
+                    goal=text,
+                    steps=[TaskStep(f"{plan_id}_step_1", "Request clarification", "core_llm_agent", {"action": "clarification", "query": prompt})],
+                    active_persona=active_persona,
+                )
             if structured_intent and structured_intent.domain != "chat":
                 # Special Multi-Step Case: Personal + External Synthesis
                 if structured_intent.domain == "synthesis" and structured_intent.action == "personal_and_external_synthesis":
@@ -401,12 +409,27 @@ class TaskPlanner:
                 )
 
         elif d == "communication":
-            return TaskStep(
-                step_id=f"{plan_id}_step_1",
-                description=f"WhatsApp draft: {target}",
-                required_agent_type="communication_agent",
-                inputs={"action": "draft_whatsapp", "recipient": params.get("recipient", ""), "message": params.get("message", ""), "user_confirmed": False}
-            )
+            if act == "draft_email":
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description=f"Email draft: {target}",
+                    required_agent_type="communication_agent",
+                    inputs={"action": "draft_email", "recipient": params.get("recipient", ""), "to": params.get("to", target), "message": params.get("message", ""), "body": params.get("body", ""), "user_confirmed": False},
+                )
+            if act == "draft_message":
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description=f"Message draft: {target}",
+                    required_agent_type="communication_agent",
+                    inputs={"action": "draft_whatsapp", "recipient": params.get("recipient", ""), "message": params.get("message", ""), "user_confirmed": False},
+                )
+            if act == "lookup_contact":
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description=f"Look up contact: {target}",
+                    required_agent_type="communication_agent",
+                    inputs={"action": "lookup_contact", "query": params.get("query", target)},
+                )
 
         elif d == "system":
             if act == "multi_telemetry":

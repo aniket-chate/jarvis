@@ -238,14 +238,14 @@ class IntentArbitrator:
             return StructuredIntent(
                 domain="code",
                 action="explain_code",
-                target="zero_division",
-                params={"code": ref["resolved_target"], "scenario": "b is zero"},
+                target=ref["resolved_target"] or "",
+                params={"code": ref["resolved_target"], "scenario": clean},
             )
 
         if "review this python code" in low or "review this code" in low:
             m_code = re.search(r":\s*(.+)$", clean, re.DOTALL)
             code_text = m_code.group(1).strip() if m_code else clean
-                        return StructuredIntent(
+            return StructuredIntent(
                 domain="code",
                 action="review_code",
                 target="code_snippet",

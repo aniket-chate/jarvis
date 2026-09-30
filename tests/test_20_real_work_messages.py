@@ -89,6 +89,8 @@ def main() -> int:
             failures.append(row)
         if not row["response"]:
             failures.append({**row, "reason": "empty response"})
+        if row["actual_agent"] != row["expected_agent"]:
+            failures.append({**row, "reason": "unexpected agent routing"})
 
     # The incomplete "switch back" must not fabricate a branch.
     switch_back = results[12]
@@ -100,6 +102,10 @@ def main() -> int:
         row = results[idx]
         if "send_email" in row["response"].lower() or "send_whatsapp" in row["response"].lower():
             failures.append({**row, "reason": "draft request appears to have become a send"})
+    # Explicitly reject fabricated legacy values in the resulting plans.
+    for row in results:
+        if any(bad in row["response"].lower() for bad in ["scheduled alarm alert", "scheduled alarm notification", "new calendar event", "current video"]):
+            failures.append({**row, "reason": "fabricated fallback value surfaced"})
 
     print("\n" + "=" * 90)
     print(f"20-MESSAGE BLACK-BOX RESULT: {20 - len(failures)}/20 passed")

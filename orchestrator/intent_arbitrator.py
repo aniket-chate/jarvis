@@ -64,7 +64,7 @@ class IntentArbitrator:
             return StructuredIntent(
                 domain="browser",
                 action=ref["resolved_action"],
-                target=ref["resolved_target"] or "current video",
+                target=ref["resolved_target"] or "",
                 params={"action": ref["resolved_action"]},
             )
         if ref["is_browser_op"]:
@@ -78,7 +78,7 @@ class IntentArbitrator:
             f_act = ref["resolved_action"]
             t_file = ref["resolved_target"]
             if f_act == "move_file":
-                dest = "downloads" if "downloads" in low else "documents"
+                dest = "downloads" if "downloads" in low else ""
                 return StructuredIntent(
                     domain="file",
                     action="move_file",
@@ -90,14 +90,14 @@ class IntentArbitrator:
                     domain="file",
                     action="read_file",
                     target=t_file,
-                    params={"action": "read", "path": t_file, "file_path": t_file, "filename": t_file, "directory": "documents"},
+                    params={"action": "read", "path": t_file, "file_path": t_file, "filename": t_file, "directory": ""},
                 )
             elif f_act in ["delete_file", "delete"]:
                 return StructuredIntent(
                     domain="file",
                     action="delete_file",
                     target=t_file,
-                    params={"action": "delete_file", "path": t_file, "file_path": t_file, "directory": "documents"},
+                    params={"action": "delete_file", "path": t_file, "file_path": t_file, "directory": ""},
                     requires_confirmation=True,
                 )
 
@@ -197,14 +197,14 @@ class IntentArbitrator:
         # "set a reminder in 90 seconds to check on this test"
         if any(w in low for w in ["reminder", "remind me", "set an alarm", "set a timer"]):
             m_sec = re.search(r"in\s+(\d+)\s+(seconds?|secs?|minutes?|mins?|hours?)", low)
-            delay = 90
+            delay = None
             if m_sec:
                 val = int(m_sec.group(1))
                 unit = m_sec.group(2)
                 delay = val * 60 if "min" in unit else val * 3600 if "hour" in unit else val
 
             m_msg = re.search(r"(?:to|that|about)\s+(.+)$", low)
-            msg = m_msg.group(1).strip() if m_msg else "Scheduled reminder alert"
+            msg = m_msg.group(1).strip() if m_msg else ""
             return StructuredIntent(
                 domain="scheduler",
                 action="set_reminder",
@@ -420,6 +420,18 @@ class IntentArbitrator:
             body = m_body.group(1).strip() if m_body else ""
 
             action_type = "draft_email" if is_email else "draft_message"
+            if not recipient or not body:
+                missing = "recipient" if not recipient else "message content"
+                prompt = f"What {missing} should I use?"
+                return StructuredIntent(
+                    domain="communication",
+                    action="clarification",
+                    target="",
+                    params={"query": prompt},
+                    raw_query=clean,
+                    needs_clarification=True,
+                    clarification_prompt=prompt,
+                )
             return StructuredIntent(
                 domain="communication",
                 action=action_type,
@@ -488,7 +500,7 @@ class IntentArbitrator:
                 )
             if any(k in low for k in ["add event", "create event", "schedule meeting", "schedule event", "new meeting", "new event", "book"]):
                 m_t = re.search(r"(?:event|meeting|book)\s+(?:named|titled|for|about)?\s*(.+?)(?:\s+(?:at|on|tomorrow|today)|$)", clean, re.IGNORECASE)
-                ev_title = m_t.group(1).strip() if m_t else "New Calendar Event"
+                ev_title = m_t.group(1).strip() if m_t else ""
                 return StructuredIntent(
                     domain="scheduler",
                     action="create_calendar_event",
@@ -535,7 +547,7 @@ class IntentArbitrator:
             return StructuredIntent(
                 domain="scheduler",
                 action="set_alarm",
-                target=sched_params.get("message", "Scheduled alarm"),
+                target=sched_params.get("message", ""),
                 params=sched_params,
                 confidence=0.98,
             )

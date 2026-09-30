@@ -160,10 +160,23 @@ class CoreLLMAgent:
 
                 sem_matches = kb.semantic_search(query=prompt, top_k=2)
                 valid_matches = [m for m in sem_matches if m.get("score", 0) > 0.12]
+                # Only inject retrieved knowledge when retrieval has positive evidence.
+                # This prevents unrelated prompts (e.g. weather) from inheriting arbitrary
+                # high-scoring local notes produced by the lightweight semantic embedder.
                 if valid_matches:
-                    top_match = valid_matches[0]
-                    retrieved_context = f"{top_match['title']}: {top_match['content']}"
-                    retrieved_notes = valid_matches
+                    retrieval_scores = [float(m.get("score", 0.0)) for m in valid_matches]
+                    score_gap = (
+                        retrieval_scores[0] - retrieval_scores[1]
+                        if len(retrieval_scores) > 1 else retrieval_scores[0]
+                    )
+                    max_score = retrieval_scores[0]
+                    # RRF scores are relative ranking signals; require either a strong
+                    # lexical/semantic match or a clear lead over the next candidate.
+                    retrieval_confident = max_score >= 1.0 or score_gap >= 0.08
+                    if retrieval_confident:
+                        top_match = valid_matches[0]
+                        retrieved_context = f"{top_match['title']}: {top_match['content']}"
+                        retrieved_notes = valid_matches
             except Exception as e:
                 logger.debug("[CoreLLMAgent] RAG retrieval exception: %s", e)
 

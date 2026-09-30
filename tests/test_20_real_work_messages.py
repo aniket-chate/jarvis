@@ -89,6 +89,8 @@ def main() -> int:
             failures.append(row)
         if not row["response"]:
             failures.append({**row, "reason": "empty response"})
+        if row["actual_agent"] != row["expected_agent"]:
+            failures.append({**row, "reason": "unexpected agent routing"})
 
     # The incomplete "switch back" must not fabricate a branch.
     switch_back = results[12]

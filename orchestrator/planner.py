@@ -256,7 +256,12 @@ class TaskPlanner:
                     inputs={"action": "cancel", "alarm_id": params.get("alarm_id", "")}
                 )
             elif act in ["check_conflicts", "create_calendar_event", "get_calendar_events"]:
-                pass
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description=f"Calendar operation: {act}",
+                    required_agent_type="calendar_agent",
+                    inputs={"action": act, **params, "query": text, "calendar_request": params.get("calendar_request", text)}
+                )
             else:
                 delay_raw = params.get("delay_seconds")
                 if delay_raw is None:
@@ -338,7 +343,7 @@ class TaskPlanner:
                     step_id=f"{plan_id}_step_1",
                     description=f"Search for file: {target}",
                     required_agent_type="file_agent",
-                    inputs={"action": "search", "pattern": params.get("pattern", f"*{target}*"), "directory": "workspace"}
+                    inputs={"action": "search", "pattern": params.get("pattern", f"*{target}*"), "directory": params.get("directory", "")}
                 )
 
         elif d == "git":
@@ -391,14 +396,21 @@ class TaskPlanner:
                     step_id=f"{plan_id}_step_1",
                     description="Search GitHub in active browser",
                     required_agent_type="browser_automation_agent",
-                    inputs={"action": "open_url", "query": params.get("url", "https://github.com/search?q=python&type=repositories"), "url": params.get("url")}
+                    inputs={"action": "open_url", "query": params.get("url", target), "url": params.get("url", target)}
+                )
+            elif act == "browser_search":
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description=f"Search the web for: {target}",
+                    required_agent_type="browser_automation_agent",
+                    inputs={"action": "browser_search", "query": params.get("query", target), "site": params.get("site", "")}
                 )
             elif act == "play_youtube":
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
                     description="Play YouTube music",
                     required_agent_type="browser_automation_agent",
-                    inputs={"action": "play_youtube", "song": params.get("song", ""), "query": params.get("song", "")}
+                    inputs={"action": "play_youtube", "song": params.get("song", ""), "query": params.get("song", target)}
                 )
             elif act == "open_url":
                 return TaskStep(

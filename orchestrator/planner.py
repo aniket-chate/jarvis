@@ -267,8 +267,11 @@ class TaskPlanner:
                 pass
             else:
                 delay_raw = params.get("delay_seconds")
-                if delay_raw is None:
-                    return TaskStep(f"{plan_id}_step_1", "Request scheduling time", "core_llm_agent", {"action": "clarification", "query": "When should I schedule it?"})
+                raw_query = str(params.get("raw_query") or text)
+                has_relative_time = bool(re.search(r"\\b\\d+\\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?)\\b", raw_query, re.IGNORECASE))
+                has_clock_time = bool(re.search(r"\\b\\d{1,2}(?::|\\.)\\d{2}\\s*(?:am|pm)?\\b|\\b\\d{1,2}\\s*(?:am|pm)\\b", raw_query, re.IGNORECASE))
+                if delay_raw is None or not (has_relative_time or has_clock_time):
+                    return TaskStep(f"{plan_id}_step_1", "Request scheduling time", "core_llm_agent", {"action": "clarification", "query": "When should I schedule it?", "response": "When should I schedule it?"})
                 delay = int(delay_raw)
                 msg = params.get("message") or target or ""
                 action_name = act if act in ["set_alarm", "set_reminder", "create_alarm"] else "set_alarm"

@@ -8,6 +8,7 @@ Injects long-term profile facts from MemoryManager.
 Guards the 4GB VRAM / 16GB RAM hardware envelope.
 """
 
+import ast
 import json
 import logging
 from typing import Any, Dict, List, Optional
@@ -324,23 +325,21 @@ class CoreLLMAgent:
             }
 
         elif action == "execute_code":
-            input_val = inputs.get("input_arg", 5)
-            import math
-            res = math.factorial(input_val)
-            resp = f"Executed factorial program with input {input_val}. Output: {res}."
+            input_val = inputs.get("input_arg")
+            if input_val is None:
+                resp = "Please provide the input value for the requested code execution."
+                return {"success": True, "response": resp, "output": resp, "persona": persona}
             return {
-                "success": True,
-                "response": resp,
-                "output": resp,
+                "success": False,
+                "error": "Code execution requires an explicit input value.",
+                "response": "Please provide the input value for the requested code execution.",
+                "output": "Please provide the input value for the requested code execution.",
                 "persona": persona,
             }
 
         elif action == "explain_code":
-            resp = (
-                "If b is zero in the function `def divide(a, b): return a / b`, Python raises a "
-                "`ZeroDivisionError: division by zero` exception at runtime. "
-                "To handle this safely, you should check `if b == 0:` before division or wrap the operation in a `try...except ZeroDivisionError:` block."
-            )
+            code = inputs.get("code") or prompt
+            resp = f"Code explanation requested for:\n{code}"
             return {
                 "success": True,
                 "response": resp,
@@ -359,8 +358,11 @@ class CoreLLMAgent:
             }
 
         elif action == "generate_code":
-            code = inputs.get("code") or "def factorial(n):\n    return 1 if n in (0, 1) else n * factorial(n - 1)"
-            resp = f"Here is a compact Python factorial program:\n\n```python\n{code}\n```"
+            code = inputs.get("code")
+            if not code:
+                resp = "What should I generate code for?"
+                return {"success": True, "response": resp, "output": resp, "persona": persona}
+            resp = f"Here is the requested code:\n\n{code}"
             return {
                 "success": True,
                 "response": resp,
@@ -369,6 +371,34 @@ class CoreLLMAgent:
             }
 
         low_prompt = prompt.lower()
+
+        if any(w in low_prompt for w in ["hello", "hi jarvis", "hey jarvis", "greetings", "good morning", "good evening"]):
+            resp = "At your service, sir. All core systems are standing by. How may I assist you?"
+            return {"success": True, "response": resp, "output": resp, "persona": persona}
+
+        if "what can you do" in low_prompt or "what are your capabilities" in low_prompt or "list your capabilities" in low_prompt:
+            resp = (
+                "I can help with browser and web tasks, local files and documents, Git/developer work, "
+                "system telemetry, scheduling and reminders, communication, OCR, and other registered JARVIS skills."
+            )
+            return {"success": True, "response": resp, "output": resp, "persona": persona}
+
+        if re.search(r"\\b(?:what is|calculate|compute)\\b", low_prompt):
+            expression = re.sub(r"^(?:what is|calculate|compute)\\s+", "", low_prompt).strip(" ?")
+            if expression and re.fullmatch(r"[\\d\\s+\\-*/().]+", expression):
+                try:
+                    tree = ast.parse(expression, mode="eval")
+                    allowed = (ast.Expression, ast.BinOp, ast.UnaryOp, ast.Add, ast.Sub, ast.Mult, ast.Div,
+                               ast.FloorDiv, ast.Mod, ast.Pow, ast.USub, ast.UAdd, ast.Constant)
+                    if all(isinstance(node, allowed) for node in ast.walk(tree)) and all(
+                        not isinstance(node, ast.Constant) or isinstance(node.value, (int, float))
+                        for node in ast.walk(tree)
+                    ):
+                        result = eval(compile(tree, "<arithmetic>", "eval"), {"__builtins__": {}}, {})
+                        resp = f"The answer is {result}."
+                        return {"success": True, "response": resp, "output": resp, "persona": persona}
+                except Exception:
+                    pass
         if any(p in low_prompt for p in ["what can you actually do right now", "what can you do right now", "list your capabilities", "what are your capabilities"]):
             resp = (
                 "I am equipped with a multi-agent runtime capable of: "

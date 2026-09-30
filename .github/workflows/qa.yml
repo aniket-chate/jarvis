@@ -27,3 +27,4 @@ jobs:
         run: python tests/test_20_real_work_messages.py
       - name: Run production intent arbitration tests
         run: pytest -q tests/test_intent_arbitrator_production.py
+        # Production contract: normalization, clarification, context-safe confirmation, and generic capability routing.

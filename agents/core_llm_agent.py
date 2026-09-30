@@ -319,7 +319,7 @@ class CoreLLMAgent:
             resp = inputs.get("response") or inputs.get("query") or "Could you clarify what you would like me to do?"
             return {"success": True, "response": resp, "output": resp, "persona": persona}
 
-        if "what can you do" in low_prompt or "what are your capabilities" in low_prompt or "list your capabilities" in low_prompt:
+        if "what can you do" in prompt.lower() or "what are your capabilities" in prompt.lower() or "list your capabilities" in prompt.lower():
             resp = "I can help with browser and web tasks, local files and documents, Git and developer work, system telemetry, scheduling, communication, OCR, and other registered JARVIS skills."
             return {"success": True, "response": resp, "output": resp, "persona": persona}
 

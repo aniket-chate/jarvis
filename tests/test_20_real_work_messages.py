@@ -1,133 +1,125 @@
-"""Black-box regression harness: 20 realistic user messages through the real JARVIS orchestrator.
-
-The suite deliberately avoids external communication and destructive host changes. It exercises
-the same PerceptionEvent -> OrchestratorCore -> Planner -> Guardrail -> Executor -> Verifier path
-used by the CLI/server, while checking that incomplete requests clarify instead of fabricating data.
-"""
-
-from __future__ import annotations
-
-import sys
+"""Black-box 20-turn runtime QA using the real HTTP gateway."""
+import json, os, subprocess, sys, time, urllib.request, uuid
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+TOKEN = uuid.uuid4().hex + uuid.uuid4().hex
+ROOT = Path(__file__).resolve().parents[1]
+TEST_NAME = f"jarvis_blackbox_{uuid.uuid4().hex[:8]}.txt"
+RENAMED_NAME = f"jarvis_blackbox_renamed_{uuid.uuid4().hex[:8]}.txt"
+BASE_URL = "http://127.0.0.1:8765/api/chat"
+DOCUMENTS = ROOT / "workspace" / "documents"
+SERVER_LOG = ROOT / "blackbox_server.log"
 
-from orchestrator.core import orchestrator_core
-from perception.events import PerceptionEvent
-
-
-MESSAGES = [
-    ("What is the weather in Jalna today?", "weather_agent"),
-    ("What is the latest news about artificial intelligence?", "news_agent"),
-    ("Create a file named jarvis_real_work_probe.txt with content: black-box test", "file_agent"),
-    ("Read the file I just created", "file_agent"),
-    ("Show me the file you just created", "file_agent"),
-    ("Read that file", "file_agent"),
-    ("Find a file called requirements.txt", "file_agent"),
-    ("Draft an email to aniket@example.com saying the deployment test is ready", "communication_agent"),
-    ("Draft a WhatsApp message to Aniket saying the regression test is ready", "communication_agent"),
-    ("Remind me to review the Jarvis test tomorrow at 9 AM", "scheduler_agent"),
-    ("List my active alarms", "scheduler_agent"),
-    ("Create a branch called qa/runtime-probe", "dev_tool_agent"),
-    ("Switch back", "core_llm_agent"),
-    ("Open GitHub", "browser_automation_agent"),
-    ("Play YouTube music called instrumental focus", "browser_automation_agent"),
-    ("Review this Python code: def add(a, b): return a + b", "core_llm_agent"),
-    ("Run it with 10", "core_llm_agent"),
-    ("What is 12 multiplied by 12?", "core_llm_agent"),
-    ("Delete the file I just created", "file_agent"),
-    ("Cancel the pending file deletion", "core_llm_agent"),
+COMMANDS = [
+    "Hi Jarvis, are you ready?",
+    "What is 12 multiplied by 12?",
+    f"Create a file named {TEST_NAME} and put this information inside it:\nBlack-box runtime verification.",
+    "Read the file I just created.",
+    "Show me the file you just created.",
+    f"Rename {TEST_NAME} to {RENAMED_NAME}.",
+    f"Read {RENAMED_NAME}.",
+    f"Delete {RENAMED_NAME}.",
+    "yes",
+    "List my active alarms.",
+    "What is the weather in Pune right now?",
+    "What is the latest news about Python?",
+    "Open GitHub.",
+    "Search for Python files in my documents.",
+    "Create a file without telling you its name.",
+    "Delete a file that I have not identified.",
+    "Send a message to someone saying hello.",
+    "Create a reminder without telling you when.",
+    "Switch back to the previous Git branch.",
+    "What can you do?",
 ]
 
+def request(message):
+    body = json.dumps({"message": message, "device_id": "blackbox_runtime_qa"}).encode()
+    req = urllib.request.Request(BASE_URL, data=body, headers={"Content-Type": "application/json", "X-JARVIS-Token": TOKEN})
+    t0 = time.perf_counter()
+    with urllib.request.urlopen(req, timeout=45) as resp:
+        return resp.status, json.loads(resp.read().decode()), round((time.perf_counter()-t0)*1000, 2)
 
-def send(message: str) -> dict:
-    event = PerceptionEvent(
-        type="text_input",
-        payload={"text": message, "raw_text": message, "source_device": "black_box_20"},
-        source="black_box_20",
-        active_persona="Jarvis",
-    )
-    return orchestrator_core.process_event(event)
+def wait_for_server(server):
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        try:
+            req = urllib.request.Request("http://127.0.0.1:8765/health", headers={"X-JARVIS-Token": TOKEN})
+            with urllib.request.urlopen(req, timeout=3) as r:
+                if r.status == 200: return
+        except Exception:
+            time.sleep(1)
+    log_text = SERVER_LOG.read_text(encoding="utf-8", errors="replace") if SERVER_LOG.exists() else ""
+    if server.poll() is not None:
+        raise RuntimeError(f"JARVIS server exited with code {server.returncode}:\n{log_text[-12000:]}")
+    raise RuntimeError(f"JARVIS server did not become reachable.\n{log_text[-12000:]}")
 
+def summarize(payload):
+    plan = payload.get("plan") or {}
+    steps = plan.get("steps") or []
+    step = steps[0] if steps else {}
+    return {
+        "status": payload.get("status"), "type": payload.get("type"),
+        "response": str(payload.get("response", ""))[:500],
+        "plan_status": plan.get("status"),
+        "agent": step.get("required_agent_type"),
+        "action": (step.get("inputs") or {}).get("action"),
+        "inputs": step.get("inputs") or {},
+        "step_status": step.get("status"),
+        "error": (step.get("result") or {}).get("error"),
+    }
 
-def main() -> int:
+def main():
+    os.environ["GATEWAY_AUTH_TOKEN"] = TOKEN
+    os.environ.setdefault("JARVIS_LLM_PROVIDER", "ollama")
+    os.environ.setdefault("JARVIS_LLM_FALLBACK_ENABLED", "false")
+    DOCUMENTS.mkdir(parents=True, exist_ok=True)
+    for name in (TEST_NAME, RENAMED_NAME):
+        p = DOCUMENTS / name
+        if p.exists(): p.unlink()
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(ROOT)
+    env["GATEWAY_AUTH_TOKEN"] = TOKEN
+    server_log = ROOT / "blackbox_server.log"
+    log_handle = SERVER_LOG.open("w", encoding="utf-8")
+    server = subprocess.Popen([sys.executable, "-m", "uvicorn", "server.app:app", "--host", "127.0.0.1", "--port", "8765"], cwd=ROOT, env=env, stdout=log_handle, stderr=subprocess.STDOUT, text=True)
     results = []
-    for index, (message, expected_agent) in enumerate(MESSAGES, 1):
-        try:
-            result = send(message)
-            plan = result.get("plan") or {}
-            steps = plan.get("steps") or []
-            actual_agent = steps[0].get("required_agent_type") if steps else None
-            response = str(result.get("response") or "").strip()
-            status = str(result.get("status") or "")
-            results.append({
-                "n": index,
-                "message": message,
-                "expected_agent": expected_agent,
-                "actual_agent": actual_agent,
-                "status": status,
-                "response": response[:240],
-            })
-            print(f"[{index:02d}] {message}")
-            print(f"     agent={actual_agent!r} status={status!r} response={response[:180]!r}")
-        except Exception as exc:
-            results.append({
-                "n": index,
-                "message": message,
-                "expected_agent": expected_agent,
-                "actual_agent": None,
-                "status": "EXCEPTION",
-                "response": repr(exc),
-            })
-            print(f"[{index:02d}] EXCEPTION: {exc!r}")
+    try:
+        wait_for_server(server)
+        for i, command in enumerate(COMMANDS, 1):
+            try:
+                status, payload, latency = request(command)
+                summary = summarize(payload)
+                summary["latency_ms"] = latency
+                ok = status == 200 and payload.get("status") == "ok" and summary["plan_status"] in {"completed", "blocked"}
+                response = summary["response"].lower()
+                if i == 2: ok = ok and "144" in response
+                if i == 15: ok = ok and ("what should i name the file" in response)
+                if i == 16: ok = ok and ("which file would you like me to delete" in response)
+                if i == 17: ok = ok and ("who should i send the message to" in response)
+                if i == 18: ok = ok and ("when should i schedule it" in response)
+                if i == 19: ok = ok and ("which branch should i switch back to" in response)
+                results.append((i, command, ok, summary))
+                print(f"[{i:02d}] {'PASS' if ok else 'FAIL'} {command}")
+                print("     " + json.dumps(summary, ensure_ascii=False, default=str))
+            except Exception as exc:
+                results.append((i, command, False, {"exception": repr(exc)}))
+                print(f"[{i:02d}] FAIL {command}\n     exception={exc!r}")
+    finally:
+        for name in (TEST_NAME, RENAMED_NAME):
+            p = DOCUMENTS / name
+            if p.exists(): p.unlink()
+        server.terminate()
+        try: server.wait(timeout=10)
+        except subprocess.TimeoutExpired: server.kill()
+        try: log_handle.close()
+        except Exception: pass
+        if SERVER_LOG.exists(): SERVER_LOG.unlink()
+    passed = sum(1 for _, _, ok, _ in results if ok)
+    print("\n=== BLACK-BOX 20-TURN SUMMARY ===")
+    print(f"PASSED={passed}/20")
+    print(json.dumps(results, ensure_ascii=False, indent=2, default=str))
+    if passed != 20: sys.exit(1)
 
-    # High-level invariants: every message must produce a plan/response path rather than crash.
-    failures = []
-    for row in results:
-        if row["status"] == "EXCEPTION":
-            failures.append(row)
-        if not row["response"]:
-            failures.append({**row, "reason": "empty response"})
-        if row["actual_agent"] != row["expected_agent"]:
-            failures.append({**row, "reason": "unexpected agent routing"})
-
-    # The incomplete "switch back" must not fabricate a branch.
-    switch_back = results[12]
-    if switch_back["actual_agent"] != "core_llm_agent" and "clarif" not in switch_back["response"].lower():
-        failures.append({**switch_back, "reason": "switch-back fabricated a target or failed to clarify"})
-
-    # Communication drafts must never silently become sends.
-    for idx in (7, 8):
-        row = results[idx]
-        if "send_email" in row["response"].lower() or "send_whatsapp" in row["response"].lower():
-            failures.append({**row, "reason": "draft request appears to have become a send"})
-    # Explicitly reject fabricated legacy values in the resulting plans.
-    for row in results:
-        if any(bad in row["response"].lower() for bad in ["scheduled alarm alert", "scheduled alarm notification", "new calendar event", "current video"]):
-            failures.append({**row, "reason": "fabricated fallback value surfaced"})
-
-    print("\n" + "=" * 90)
-    print(f"20-MESSAGE BLACK-BOX RESULT: {20 - len(failures)}/20 passed")
-    if failures:
-        print("FAILURES:")
-        for failure in failures:
-            print(failure)
-
-    # Clean up the non-destructive probe if the file agent created it.
-    probe_candidates = [
-        ROOT / "workspace" / "jarvis_real_work_probe.txt",
-        ROOT / "documents" / "jarvis_real_work_probe.txt",
-    ]
-    for candidate in probe_candidates:
-        try:
-            if candidate.exists():
-                candidate.unlink()
-        except OSError:
-            pass
-
-    return 1 if failures else 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+if __name__ == "__main__": main()

@@ -92,8 +92,9 @@ def main():
                 status, payload, latency = request(command)
                 summary = summarize(payload)
                 summary["latency_ms"] = latency
-                ok = status == 200 and payload.get("status") == "ok"
+                ok = status == 200 and payload.get("status") == "ok" and summary["plan_status"] in {"completed", "blocked"}
                 response = summary["response"].lower()
+                if i == 2: ok = ok and "144" in response
                 if i == 15: ok = ok and ("clarif" in response or "name" in response)
                 if i == 16: ok = ok and ("clarif" in response or "which file" in response)
                 if i == 17: ok = ok and ("clarif" in response or "recipient" in response or "message" in response)

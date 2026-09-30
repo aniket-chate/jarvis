@@ -218,6 +218,8 @@ def test_confirmation_is_context_sensitive_and_non_mutating(arb):
         payload={"path": "documents/report.pdf"},
     )
     arb.context.pending = tx
+    candidate = arb._provider_confirmation("yes, do it")
+    assert candidate is not None
     intent = arb.arbitrate("yes, do it")
     assert intent.domain == "file"
     assert intent.action == "confirmed_delete_file"

@@ -216,6 +216,10 @@ class TaskPlanner:
         )
 
     def _build_step_from_intent(self, plan_id: str, intent: Any, text: str) -> Optional[TaskStep]:
+        if getattr(intent, "needs_clarification", False) or getattr(intent, "action", "") == "clarification":
+            params = getattr(intent, "params", {}) or {}
+            prompt = getattr(intent, "clarification_prompt", "") or params.get("response") or params.get("query") or "Could you clarify what you would like me to do?"
+            return TaskStep(f"{plan_id}_step_1", "Request required clarification", "core_llm_agent", {"action": "clarification", "query": prompt, "response": prompt, "system_extra": prompt})
         d = intent.domain
         act = intent.action
         params = intent.params

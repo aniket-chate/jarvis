@@ -764,7 +764,7 @@ class TaskPlanner:
                     inputs={"action": "rename", "path": f_src, "source": f_src, "new_name": f_dest, "destination": f_dest}
                 )
             elif f_act == "create":
-                f_name = file_params.get("filename") or "new_file.txt"
+                f_name = file_params.get("filename") or ""
                 f_content = file_params.get("content", "")
                 f_dir = file_params.get("directory") or "documents"
                 logger.info("[Planner FileOps] Structured file create: name='%s', dir='%s', content_len=%d", f_name, f_dir, len(f_content))
@@ -1030,8 +1030,8 @@ class TaskPlanner:
 
         wa_msg_match = re.search(r"\b(?:send|write)\s+(?:a\s+)?whatsapp(?:\s+message)?\s+(?:to\s+)?([a-zA-Z0-9_\s]+?)\s+(?:saying|that|with text|message)?\s*[:\"']?(.+)[\"']?$", lower)
         if "whatsapp" in lower and any(w in lower for w in ["send", "message", "text", "write"]):
-            recipient = "Contact"
-            msg_body = "Hello from JARVIS"
+            recipient = ""
+            msg_body = ""
             if wa_msg_match:
                 recipient = wa_msg_match.group(1).strip()
                 msg_body = wa_msg_match.group(2).strip().strip('"\'')

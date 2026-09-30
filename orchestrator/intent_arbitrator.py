@@ -8,6 +8,7 @@ import re
 import logging
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Any, Optional, List, Sequence
+from pathlib import Path
 import copy
 import unicodedata
 from orchestrator.context_manager import context_manager
@@ -222,6 +223,8 @@ class IntentArbitrator:
         return IntentCandidate(self._make(text, "file", action, path, {"path": path, "file_path": path, "filename": Path(path).name}, .98, confirmation, "file_reference"), .98)
 
     def _legacy_arbitrate(self, text: str) -> StructuredIntent:
+        clean = text.strip()
+        low = clean.lower()
 
         # 1. Check for Pending Confirmation Response ("yes, do it", "yes", "confirm", "proceed", "no", "cancel")
         if context_manager.has_pending_confirmation():

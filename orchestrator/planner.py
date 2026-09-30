@@ -250,7 +250,10 @@ class TaskPlanner:
             elif act in ["check_conflicts", "create_calendar_event", "get_calendar_events"]:
                 pass
             else:
-                delay = int(params.get("delay_seconds"))
+                delay_raw = params.get("delay_seconds")
+                if delay_raw is None:
+                    return TaskStep(f"{plan_id}_step_1", "Request scheduling time", "core_llm_agent", {"action": "clarification", "query": "When should I schedule it?"})
+                delay = int(delay_raw)
                 msg = params.get("message") or target or ""
                 action_name = act if act in ["set_alarm", "set_reminder", "create_alarm"] else "set_alarm"
                 return TaskStep(

@@ -434,28 +434,15 @@ class IntentArbitrator:
 
             if f_action == "create":
                 is_desktop = (dir_target == "desktop" or "desktop" in low)
-                if is_desktop:
-                    # downstream policy/executor owns confirmation staging: context_manager.stage_confirmation(
-                        action="create_file",
-                        domain="file",
-                        target=target_path,
-                        payload={"directory": dir_target, "filename": filename, "content": content_txt, "path": target_path},
-                    )
-                    return StructuredIntent(
-                        domain="file",
-                        action="stage_file_creation",
-                        target=target_path,
-                        params={"directory": dir_target, "filename": filename, "content": content_txt, "path": target_path},
-                        requires_confirmation=True,
-                    )
-                else:
-                    return StructuredIntent(
-                        domain="file",
-                        action="create_file",
-                        target=target_path,
-                        params={"directory": dir_target, "filename": filename, "content": content_txt, "path": target_path},
-                        requires_confirmation=False,
-                    )
+                return StructuredIntent(
+                    domain="file",
+                    action="create_file",
+                    target=target_path,
+                    params={"directory": dir_target, "filename": filename, "content": content_txt, "path": target_path},
+                    requires_confirmation=is_desktop,
+                    raw_query=clean,
+                    source="legacy",
+                )
             elif f_action == "read":
                 return StructuredIntent(
                     domain="file",

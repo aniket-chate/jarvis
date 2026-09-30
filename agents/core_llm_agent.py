@@ -8,6 +8,7 @@ Injects long-term profile facts from MemoryManager.
 Guards the 4GB VRAM / 16GB RAM hardware envelope.
 """
 
+import ast
 import json
 import logging
 from typing import Any, Dict, List, Optional

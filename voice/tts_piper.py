@@ -10,18 +10,19 @@ import io
 import logging
 import wave
 from pathlib import Path
-from typing import Optional
-
-try:
-    import sounddevice as sd
-except ImportError:
-    sd = None
+from typing import Any, Dict, Optional
 
 import numpy as np
 
 from config.settings import settings, PROJECT_ROOT
 
 logger = logging.getLogger("JARVIS.TTS")
+
+try:
+    import sounddevice as sd
+except (ImportError, OSError) as exc:
+    sd = None
+    logger.warning("[TTS Audio] sounddevice unavailable; audio playback will be disabled: %s", exc)
 
 PIPER_VOICES_DIR = PROJECT_ROOT / "models" / "piper"
 PIPER_VOICES_DIR.mkdir(parents=True, exist_ok=True)
@@ -184,8 +185,11 @@ class PiperTTSEngine:
                     audio_arrays.append(chunk.audio_int16_array)
                 if audio_arrays:
                     data = np.concatenate(audio_arrays)
-                    sd.play(data, samplerate=sr)
-                    sd.wait()
+                    if sd is not None:
+                        sd.play(data, samplerate=sr)
+                        sd.wait()
+                    else:
+                        logger.info("[TTS Audio] Playback skipped because no audio output backend is available.")
                 return
             except Exception as e:
                 logger.warning("[Piper TTS Playback Error] %s; falling back to pyttsx3", str(e))

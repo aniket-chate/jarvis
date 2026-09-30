@@ -208,6 +208,22 @@ class TaskPlanner:
         )
 
     def _build_step_from_intent(self, plan_id: str, intent: Any, text: str) -> Optional[TaskStep]:
+        # Clarification intents are terminal conversational steps: never fall through
+        # to a generic agent that could execute with fabricated parameters.
+        if getattr(intent, "needs_clarification", False) or getattr(intent, "action", "") == "clarification":
+            prompt = (
+                getattr(intent, "clarification_prompt", "")
+                or (getattr(intent, "params", {}) or {}).get("response")
+                or (getattr(intent, "params", {}) or {}).get("query")
+                or "Could you clarify what you would like me to do?"
+            )
+            return TaskStep(
+                step_id=f"{plan_id}_step_1",
+                description="Request required clarification",
+                required_agent_type="core_llm_agent",
+                inputs={"action": "clarification", "query": prompt, "system_extra": prompt, "response": prompt},
+            )
+
         d = intent.domain
         act = intent.action
         params = intent.params
@@ -251,8 +267,11 @@ class TaskPlanner:
                 pass
             else:
                 delay_raw = params.get("delay_seconds")
-                if delay_raw is None:
-                    return TaskStep(f"{plan_id}_step_1", "Request scheduling time", "core_llm_agent", {"action": "clarification", "query": "When should I schedule it?"})
+                raw_query = str(params.get("raw_query") or text)
+                has_relative_time = bool(re.search(r"\\b\\d+\\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?)\\b", raw_query, re.IGNORECASE))
+                has_clock_time = bool(re.search(r"\\b\\d{1,2}(?::|\\.)\\d{2}\\s*(?:am|pm)?\\b|\\b\\d{1,2}\\s*(?:am|pm)\\b", raw_query, re.IGNORECASE))
+                if delay_raw is None or not (has_relative_time or has_clock_time):
+                    return TaskStep(f"{plan_id}_step_1", "Request scheduling time", "core_llm_agent", {"action": "clarification", "query": "When should I schedule it?", "response": "When should I schedule it?"})
                 delay = int(delay_raw)
                 msg = params.get("message") or target or ""
                 action_name = act if act in ["set_alarm", "set_reminder", "create_alarm"] else "set_alarm"
@@ -330,7 +349,7 @@ class TaskPlanner:
                     step_id=f"{plan_id}_step_1",
                     description=f"Search for file: {target}",
                     required_agent_type="file_agent",
-                    inputs={"action": "search", "pattern": params.get("pattern", f"*{target}*"), "directory": "workspace"}
+                    inputs={"action": "search", "pattern": params.get("pattern", f"*{target}*"), "directory": params.get("directory", "workspace")}
                 )
 
         elif d == "git":

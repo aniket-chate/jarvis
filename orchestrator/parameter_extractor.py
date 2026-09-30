@@ -115,7 +115,7 @@ class ParameterExtractor:
             )
             if m_ren:
                 filename = m_ren.group(1).strip()
-                destination = m_ren.group(2).strip()
+                destination = m_ren.group(2).strip().rstrip(".,!?;:")
             elif is_referential:
                 try:
                     from cognitive.world_model import world_model
@@ -126,7 +126,7 @@ class ParameterExtractor:
                     pass
                 m_to = re.search(r"\b(?:to|as)\s+['\"]?([a-zA-Z0-9_.-]+)['\"]?", text, re.IGNORECASE)
                 if m_to:
-                    destination = m_to.group(1).strip()
+                    destination = m_to.group(1).strip().rstrip(".,!?;:")
             if not filename:
                 requires_clarification = True
                 clarification_prompt = "Which file would you like me to rename?"
@@ -228,6 +228,10 @@ class ParameterExtractor:
                 ext_m = re.search(r"\b([a-zA-Z0-9_.-]+\.[a-zA-Z0-9]{1,5})\b", text_clean)
                 if ext_m:
                     filename = ext_m.group(1).strip()
+
+            if not filename:
+                requires_clarification = True
+                clarification_prompt = "What should I name the file?"
 
         elif action == "search":
             m_search = re.search(
@@ -398,7 +402,15 @@ class ParameterExtractor:
                 delay_sec = max(1, int((target_dt - now).total_seconds()))
 
         if target_dt is None:
-            target_dt = now + timedelta(seconds=delay_sec)
+            return {
+                "delay_seconds": None,
+                "message": "",
+                "fire_time": "",
+                "fire_time_iso": "",
+                "requires_clarification": True,
+                "clarification_prompt": "When should I schedule the reminder?",
+                "raw_query": text,
+            }
 
         # Message extraction
         message = ""
@@ -417,8 +429,15 @@ class ParameterExtractor:
                 message = cleaned
 
         if not message:
-            time_str = target_dt.strftime("%H:%M:%S")
-            message = f"Scheduled alarm for {time_str}"
+            return {
+                "delay_seconds": delay_sec,
+                "message": "",
+                "fire_time": target_dt.strftime("%H:%M:%S"),
+                "fire_time_iso": target_dt.isoformat(),
+                "requires_clarification": True,
+                "clarification_prompt": "What should I remind you about?",
+                "raw_query": text,
+            }
 
         params = {
             "delay_seconds": delay_sec,

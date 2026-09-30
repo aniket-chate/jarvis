@@ -461,8 +461,8 @@ class ParameterExtractor:
         m = re.search(r"\b(?:at|around)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b", lower)
         if m:
             time_expression = m.group(1).strip()
-        if "create event" in lower and not title:
-            m = re.search(r"\bevent\s+(.+?)(?=\s+(?:on|at|tomorrow|today|for|with)\b|$)", raw, re.I)
+        if not title:
+            m = re.search(r"\b(?:schedule|book|create|add)\s+(?:a\s+)?(?:meeting|event)?\s*(.+?)(?=\s+(?:on|at|tomorrow|today|for|with|in)\b|$)", raw, re.I)
             if m:
                 title = m.group(1).strip(" .,:;")
         missing = []

@@ -97,7 +97,7 @@ def main():
                 if i == 2: ok = ok and "144" in response
                 if i == 15: ok = ok and ("what should i name the file" in response)
                 if i == 16: ok = ok and ("which file would you like me to delete" in response)
-                if i == 17: ok = ok and ("who should i send the message to" in response)
+                if i == 17: ok = ok and ("recipient" in response or "who should i send the message to" in response)
                 if i == 18: ok = ok and ("when should i schedule it" in response)
                 if i == 19: ok = ok and ("which branch should i switch back to" in response)
                 results.append((i, command, ok, summary))

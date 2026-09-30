@@ -49,7 +49,7 @@ class IntentArbitrator:
     """Side-effect-free semantic classifier with injectable capability providers."""
 
     def __init__(self, context=None, providers=None):
-        self.context = context or context_manager
+        self.context = context if context is not None else context_manager
         self.providers = list(providers) if providers is not None else [
             IntentProvider("confirmation", self._provider_confirmation),
             IntentProvider("weather", self._provider_weather),

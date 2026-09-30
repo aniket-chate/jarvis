@@ -415,7 +415,7 @@ class IntentArbitrator:
             )
 
         # 10. Communication (Email, Messages, WhatsApp)
-        if any(w in low for w in ["whats app", "whatsapp", "send email", "send an email", "draft email", "send message", "draft message", "lookup contact", "find contact"]) or (("send" in low or "message" in low) and "message" in low):
+        if any(w in low for w in ["whats app", "whatsapp", "send email", "send an email", "draft email", "send message", "draft message", "lookup contact", "find contact"]) or ("send" in low and "message" in low) or ("message" in low and " to " in low):
             is_email = "email" in low
             is_contact_lookup = "contact" in low and any(k in low for k in ["lookup", "find", "search", "who is"])
             

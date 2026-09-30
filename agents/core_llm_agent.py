@@ -330,6 +330,13 @@ class CoreLLMAgent:
             resp = inputs.get("response") or "Action cancelled."
             return {"success": True, "response": resp, "output": resp, "persona": persona, "user_cancelled": True}
 
+        if action in {"review_code", "explain_code", "generate_code", "debug_code", "optimize_code", "execute_code"} and inputs.get("code"):
+            try:
+                from orchestrator.context_manager import context_manager
+                context_manager.set_code(str(inputs.get("code")), language=inputs.get("language", "python"))
+            except Exception:
+                logger.debug("Unable to update code context after code operation", exc_info=True)
+
         low_prompt = prompt.lower()
         if any(p in low_prompt for p in ["what can you actually do right now", "what can you do right now", "list your capabilities", "what are your capabilities"]):
             resp = (

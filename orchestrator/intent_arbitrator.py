@@ -56,6 +56,7 @@ class IntentArbitrator:
             IntentProvider("code_followup", self._provider_code_followup),
             IntentProvider("telemetry", self._provider_telemetry),
             IntentProvider("browser", self._provider_browser),
+            IntentProvider("scheduler", self._provider_scheduler),
             IntentProvider("file_reference", self._provider_file_reference),
         ]
 
@@ -199,6 +200,22 @@ class IntentArbitrator:
             if target:
                 return IntentCandidate(self._make(text, "browser", "open_url", target, {"url": target}, .88, source="browser"), .88)
         return None
+
+    def _provider_scheduler(self, text):
+        low = text.lower()
+        if re.search(r"\b(?:show|list|display)\s+(?:my\s+)?(?:active\s+)?alarms?\b", low):
+            return IntentCandidate(self._make(text, "scheduler", "list", "active_alarms", {"action": "list"}, .96, source="scheduler"), .96)
+        if re.search(r"\b(?:cancel|delete|clear|stop)\s+(?:the\s+)?alarm\b", low):
+            return IntentCandidate(self._make(text, "scheduler", "cancel", "alarm", {"action": "cancel"}, .96, source="scheduler"), .96)
+        if not any(k in low for k in ("reminder", "remind me", "set an alarm", "set a timer", "wake me")):
+            return None
+        params = parameter_extractor.extract_schedule_params(text)
+        if params.get("delay_seconds") is None:
+            return IntentCandidate(self._clarify(text, "scheduler", "When should I schedule it?", params, source="scheduler"), .97)
+        if ("remind" in low or "reminder" in low) and not params.get("message"):
+            return IntentCandidate(self._clarify(text, "scheduler", "What should I remind you about?", params, source="scheduler"), .97)
+        action = "set_reminder" if "remind" in low or "reminder" in low else "set_alarm"
+        return IntentCandidate(self._make(text, "scheduler", action, params.get("message", ""), params, .96, source="scheduler"), .96)
 
     def _provider_file_reference(self, text):
         if not re.search(r"\b(?:read|show|open|delete|remove|move|rename)\b", text, re.I):

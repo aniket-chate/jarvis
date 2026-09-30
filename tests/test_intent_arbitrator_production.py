@@ -102,8 +102,9 @@ def test_missing_required_parameters_clarify(arb, query):
 def test_weather_whether_disambiguation_without_location_does_not_fabricate(arb):
     intent = arb.arbitrate("what's the weather")
     assert intent.domain == "info"
-    assert intent.action == "get_weather"
+    assert intent.action == "clarification"
     assert intent.needs_clarification is True
+    assert "location" in intent.clarification_prompt.lower()
     assert not intent.target
 
 

@@ -372,24 +372,45 @@ class IntentArbitrator:
                 params={},
             )
 
-        if "create a temporary branch" in low or "temporary branch" in low or "create branch" in low:
-            # Clean branch extraction without preposition pollution
-            branch_name = ""
-            
+        if "create branch" in low or "temporary branch" in low:
+            m_branch = re.search(r"\b(?:called|named|branch)\s+([A-Za-z0-9._/-]+)\b", clean, re.IGNORECASE)
+            branch_name = m_branch.group(1).strip() if m_branch else ""
+            if not branch_name:
+                return StructuredIntent(
+                    domain="git",
+                    action="create_branch",
+                    target="",
+                    params={},
+                    needs_clarification=True,
+                    clarification_prompt="What should I name the new branch?",
+                    raw_query=clean,
+                )
             return StructuredIntent(
                 domain="git",
                 action="create_branch",
                 target=branch_name,
                 params={"branch_name": branch_name},
+                raw_query=clean,
             )
 
-        if low in ["switch back", "go back to main", "checkout master", "checkout main"]:
-            # Context collision resolution: If git branch was switched, switch git branch back!
+        if low in ["switch back", "go back"]:
+            previous = context_manager.get_previous_git_branch()
+            if not previous:
+                return StructuredIntent(
+                    domain="git",
+                    action="switch_branch",
+                    target="",
+                    params={},
+                    needs_clarification=True,
+                    clarification_prompt="Which branch should I switch back to?",
+                    raw_query=clean,
+                )
             return StructuredIntent(
                 domain="git",
                 action="switch_branch",
-                target=context_manager.get_git_branch(),
-                params={"branch_name": context_manager.get_git_branch()},
+                target=previous,
+                params={"branch_name": previous},
+                raw_query=clean,
             )
 
         # 10. Communication (Email, Messages, WhatsApp)

@@ -710,16 +710,9 @@ class IntentArbitrator:
                 requires_confirmation=True,
             )
 
-        # 11. Multi-Intent Telemetry ("tell me cpu, ram, network status and the time")
-        if all(k in low for k in ["cpu", "ram", "network", "time"]):
-            return StructuredIntent(
-                domain="system",
-                action="multi_telemetry",
-                target="system_overview",
-                params={"metrics": ["cpu", "ram", "network", "time"]},
-            )
+        # Telemetry is handled by the generic provider above.
 
-        # 12. Browser Contextual Search ("search for python" while on GitHub)
+        # 12. Browser contextual search
         browser = context_manager.get_browser()
         if "github.com" in browser.url and re.search(r"\bsearch\s+(?:for\s+)?(.+)$", clean, re.I):
             return StructuredIntent(

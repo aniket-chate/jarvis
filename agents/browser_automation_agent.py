@@ -753,12 +753,6 @@ class BrowserAutomationAgent:
 
         # 6. Proof Screenshot
         page.screenshot(path=str(screenshot_dest))
-        try:
-            art_dir = Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\027db39b-f320-4348-9eff-8b57c946e55e")
-            if art_dir.exists():
-                shutil.copy(screenshot_dest, art_dir / screenshot_name)
-        except Exception:
-            pass
 
         # 7. Record in Action Memory
         action_memory_manager.record_web_session(
@@ -859,12 +853,6 @@ class BrowserAutomationAgent:
         time.sleep(3.0)
         page.screenshot(path=str(screenshot_dest))
 
-        try:
-            art_dir = Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\027db39b-f320-4348-9eff-8b57c946e55e")
-            if art_dir.exists():
-                shutil.copy(screenshot_dest, art_dir / screenshot_name)
-        except Exception:
-            pass
 
         current_url = page.url
         current_title = page.title()
@@ -1172,13 +1160,6 @@ class BrowserAutomationAgent:
 
         # Step 7: Proof screenshot
         page.screenshot(path=str(screenshot_dest))
-        try:
-            import shutil
-            for adir in [Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\c6bb32ea-77a4-490e-800c-743e433883b9"), Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\65337e1e-5d27-4941-8153-1cf1c5997512")]:
-                if adir.exists():
-                    shutil.copy(screenshot_dest, adir / screenshot_name)
-        except Exception:
-            pass
 
         return {
             "success": True,
@@ -1238,13 +1219,6 @@ class BrowserAutomationAgent:
             action_type="open_site"
         )
 
-        try:
-            import shutil
-            for adir in [Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\65337e1e-5d27-4941-8153-1cf1c5997512")]:
-                if adir.exists():
-                    shutil.copy(screenshot_dest, adir / screenshot_name)
-        except Exception:
-            pass
 
         msg = f"Opened {clean_name} ({url}) in browser."
         return {

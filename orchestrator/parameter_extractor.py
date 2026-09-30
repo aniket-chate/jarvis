@@ -164,6 +164,10 @@ class ParameterExtractor:
                 clarification_prompt = "Which file would you like me to move?"
 
         elif action == "create":
+            if not filename:
+                requires_clarification = True
+                clarification_prompt = "What should I name the file?"
+
             # 1. Explicit inline content extraction
             explicit_content_patterns = [
                 r"(?:and\s+)?(?:put|write|save)\s+(?:all\s+)?(?:this|the\s+following)?\s*(?:information|content|text|details|data)?\s*(?:inside|in|into)\s*(?:it|the\s+file)?\s*[:\"']\s*(.+)$",

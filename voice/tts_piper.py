@@ -10,11 +10,11 @@ import io
 import logging
 import wave
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 try:
     import sounddevice as sd
-except ImportError:
+except (ImportError, OSError):
     sd = None
 
 import numpy as np

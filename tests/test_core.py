@@ -88,8 +88,7 @@ class TestJarvisCore(unittest.TestCase):
 
     def test_07_router_persona_and_system(self):
         """Test intent router for system time queries."""
-        loop = asyncio.get_event_loop()
-        res = loop.run_until_complete(router.handle_input("What time is it right now?"))
+        res = asyncio.run(router.handle_input("What time is it right now?"))
         self.assertEqual(res["type"], "system")
         self.assertIn("currently", res["response"])
 
@@ -97,8 +96,7 @@ class TestJarvisCore(unittest.TestCase):
         """Test Ollama resilience policy: handles unreachable server gracefully."""
         client = OllamaClient()
         client.host = "http://127.0.0.1:54321"  # Dummy offline host
-        loop = asyncio.get_event_loop()
-        res = loop.run_until_complete(client.generate_response("Test prompt"))
+        res = asyncio.run(client.generate_response("Test prompt"))
         self.assertIn("unable to connect to my core intelligence engine", res)
 
 

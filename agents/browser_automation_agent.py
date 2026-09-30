@@ -287,11 +287,38 @@ class BrowserAutomationAgent:
         return self._active_page
 
     def _get_llm(self) -> ChatOpenAI:
-        """Returns OpenAI-compatible client bound to local Ollama instance."""
-        return ChatOpenAI(
-            base_url=f"{self.host}/v1",
-            model=self.model_name,
-            api_key="ollama"
+        """Return the best configured Browser-Use LLM without hiding provider failure.
+
+        Ollama remains the preferred local model. If it is unavailable, use an explicitly
+        configured OpenAI-compatible cloud provider so Browser-Use does not get stuck on a
+        dead local endpoint. No credentials are synthesized.
+        """
+        try:
+            import httpx
+            with httpx.Client(timeout=0.6) as client:
+                if client.get(f"{self.host}/api/tags").status_code == 200:
+                    return ChatOpenAI(base_url=f"{self.host}/v1", model=self.model_name, api_key="ollama")
+        except Exception:
+            pass
+
+        groq_key = getattr(settings, "groq_api_key", None)
+        if groq_key:
+            return ChatOpenAI(
+                base_url="https://api.groq.com/openai/v1",
+                model="llama-3.3-70b-versatile",
+                api_key=groq_key,
+            )
+
+        openrouter_key = getattr(settings, "openrouter_api_key", None)
+        if openrouter_key:
+            return ChatOpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                model="openai/gpt-4o-mini",
+                api_key=openrouter_key,
+            )
+
+        raise RuntimeError(
+            "No browser automation LLM is available. Start Ollama or configure GROQ_API_KEY/OPENROUTER_API_KEY."
         )
 
     async def run_natural_language_task_async(
@@ -380,7 +407,7 @@ class BrowserAutomationAgent:
                 "error": str(e)
             }
 
-    def _play_youtube_fastpath(
+    def _play_youtube_fastpath_impl(
         self,
         song_query: str,
         screenshot_filename: str = "test_youtube_playback.png",
@@ -1598,6 +1625,24 @@ class BrowserAutomationAgent:
                 max_steps=max_steps,
                 screenshot_filename=screenshot_filename
             ))
+
+    def _play_youtube_fastpath(
+        self,
+        song_query: str,
+        screenshot_filename: str = "test_youtube_playback.png",
+        screenshot_60s_filename: Optional[str] = None,
+        play_duration_sec: float = 0.0,
+        headless: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Run the Playwright fast path on its dedicated thread to preserve thread affinity."""
+        return self._run_on_executor(
+            self._play_youtube_fastpath_impl,
+            song_query,
+            screenshot_filename,
+            screenshot_60s_filename,
+            play_duration_sec,
+            headless,
+        )
 
     def play_youtube_song(
         self,

@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import tempfile
+import pytest
 
 from config.settings import PROJECT_ROOT, settings
 from llm.ai_router import MultiProviderAIRouter, RuleBasedAIProvider

@@ -11,8 +11,12 @@ import time
 import logging
 import ctypes
 from typing import Dict, Any, Optional
-import win32gui
-import win32process
+try:
+    import win32gui
+    import win32process
+except (ImportError, OSError):
+    win32gui = None
+    win32process = None
 import psutil
 
 from perception.events import PerceptionEvent, event_bus
@@ -34,6 +38,8 @@ class SensorInputChannel:
     def get_active_application(self) -> Dict[str, str]:
         """Detects the currently active foreground window and process name on Windows."""
         try:
+            if win32gui is None or win32process is None:
+                return {"window_title": "Unavailable", "process_name": "unsupported_platform"}
             hwnd = win32gui.GetForegroundWindow()
             if not hwnd:
                 return {"window_title": "None", "process_name": "unknown"}
@@ -58,6 +64,8 @@ class SensorInputChannel:
     def get_system_idle_seconds(self) -> float:
         """Returns the number of seconds since the last user input (mouse/keyboard)."""
         try:
+            if win32gui is None or win32process is None:
+                return 0.0
             lii = LASTINPUTINFO()
             lii.cbSize = ctypes.sizeof(LASTINPUTINFO)
             if ctypes.windll.user32.GetLastInputInfo(ctypes.byref(lii)):

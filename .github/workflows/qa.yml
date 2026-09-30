@@ -1,5 +1,9 @@
 name: JARVIS QA
 
+concurrency:
+  group: jarvis-qa-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: ["master", "qa/**"]
@@ -15,11 +19,55 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install test dependencies
+      - name: Install security test dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pytest pytest-asyncio fastapi httpx pydantic python-dotenv pyyaml numpy
       - name: Compile Python sources
         run: python -m compileall -q .
       - name: Run security regressions
+        env:
+          GATEWAY_AUTH_TOKEN: ci-test-token
         run: pytest -q tests/test_security_regressions.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install OS-level test dependencies
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+      - name: Install runtime and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Compile Python sources
+        run: python -m compileall -q .
+      - name: Run full pytest suite
+        env:
+          GATEWAY_AUTH_TOKEN: ci-test-token
+        run: pytest -q --timeout=180
+
+
+  regression-targets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install OS-level test dependencies
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+      - name: Install runtime and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run targeted regression suites
+        env:
+          GATEWAY_AUTH_TOKEN: ci-test-token
+        run: |
+          pytest -q             tests/test_layer2.py             tests/test_ai_router_policy.py             tests/test_about_me_rag.py             tests/test_provider_health_honesty.py             tests/test_full_system.py             tests/test_upgraded_core.py             tests/test_upgraded_capabilities.py             tests/test_capability_44_smart_home_iot.py             tests/test_capability_37_communication.py

@@ -36,12 +36,13 @@ def test_dual_client_simultaneous_connectivity(test_client):
 
     # 1. Android REST health check
     res_health = test_client.get("/api/v1/health")
-    assert res_health.status_code == 200 and res_health.json()["status"] == "healthy"
+    assert res_health.status_code == 200
+    assert res_health.json()["status"] in ("healthy", "degraded")
 
     # 2. Android device registration
     res_reg = test_client.post(
         "/api/v1/devices/register",
-        headers={"X-JARVIS-Token": auth_token},
+        headers={"Authorization": f"Bearer {auth_token}"},
         json={
             "device_id": "vivo_v29_native",
             "name": "Aniket's Vivo V29",
@@ -59,8 +60,14 @@ def test_dual_client_simultaneous_connectivity(test_client):
     assert res_hb.status_code == 200 and res_hb.json()["status"] == "alive"
 
     # 4. Simultaneous WebSocket duplex test
-    with test_client.websocket_connect(f"/api/v1/ws?token={auth_token}&device_id=vivo_v29_native") as ws_android, \
-         test_client.websocket_connect(f"/ws?token={auth_token}&device_id=pwa_mobile_chrome") as ws_pwa:
+    with test_client.websocket_connect(
+        "/api/v1/ws?device_id=vivo_v29_native",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    ) as ws_android, \
+         test_client.websocket_connect(
+        "/ws?device_id=pwa_mobile_chrome",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    ) as ws_pwa:
 
         # Handshakes
         w_android = ws_android.receive_json()

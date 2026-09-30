@@ -16,7 +16,8 @@ Validates:
 """
 
 import pytest
-from agents.personal_knowledge_base import personal_knowledge_base
+from agents.personal_knowledge_base import personal_knowledge_base, PersonalKnowledgeBase
+from agents.semantic_rag import LocalVectorStore
 from agents.about_me_ingest import ingest_about_me
 from agents.core_llm_agent import core_llm_agent
 from agents.permission_checks import permission_gate, PermissionState
@@ -181,17 +182,29 @@ def test_10_security_isolation():
     permission_gate.set_permission("filesystem.delete_file", PermissionState.ASK, reason="Reset policy")
 
 
-def test_11_idempotent_duplicate_ingestion():
-    initial_count = len(personal_knowledge_base.index)
-    assert initial_count == 15
+def test_11_idempotent_duplicate_ingestion(tmp_path):
+    # Use an isolated temporary KB so persistent/manual user notes cannot contaminate
+    # this ingestion invariant. Production ingestion must never delete unrelated notes.
+    isolated_kb = PersonalKnowledgeBase(
+        storage_dir=tmp_path / "knowledge_base",
+        vector_store=LocalVectorStore(tmp_path / "vector_index.db"),
+    )
 
-    # Re-run ingestion a second time
-    res2 = ingest_about_me(kb=personal_knowledge_base)
+    first = ingest_about_me(kb=isolated_kb)
+    assert first["success"] is True
+    assert first["total_chunks"] == 15
+    assert len(isolated_kb.index) == 15
+
+    # Re-run ingestion a second time.
+    res2 = ingest_about_me(kb=isolated_kb)
     assert res2["success"] is True
 
-    # Confirm index count and SQLite vector store count remain strictly 15
-    recheck_count = len(personal_knowledge_base.index)
-    assert recheck_count == 15, f"Expected 15 notes, got {recheck_count} (uncontrolled duplicates detected!)"
+    # Confirm index and SQLite vector store remain strictly 15.
+    recheck_count = len(isolated_kb.index)
+    assert recheck_count == 15, f"Expected 15 notes, got {recheck_count} (duplicates detected!)"
+    with isolated_kb.vector_store._get_conn() as conn:
+        vector_count = conn.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0]
+    assert vector_count == 15
 
 
 def test_12_selective_context_grounding():

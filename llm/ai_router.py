@@ -77,6 +77,34 @@ class RuleBasedAIProvider(BaseAIProvider):
             rag_section = system_prompt.split("[Retrieved Knowledge Context (RAG)]:")[1].split("\n[")[0].strip()
             return f"Based on your notes: {rag_section}"
 
+        # Explicit self-introduction should always preserve persona identity, even when
+        # the router is operating on the deterministic offline fallback.
+        if any(w in lower for w in ["introduce yourself", "introduce urself", "tell me about yourself"]):
+            if p_name == "Friday":
+                return "I'm Friday — warm, responsive, and ready to help. My local model is currently unavailable, so I'm operating in fallback mode."
+            if p_name == "Ultron":
+                return "I am Ultron. Systems are ready; the local model is currently unavailable, so I am operating in deterministic fallback mode."
+            if p_name == "Omi":
+                return "I'm Omi, your friendly personal assistant. The local model is unavailable right now, so I'm using the safe local fallback."
+            return "I am Jarvis, your personal AI assistant. The local model is currently unavailable, so I am operating in the safe local fallback."
+
+        # Keep simple arithmetic useful during provider outages. This is deterministic and
+        # local-only; it does not execute arbitrary code or evaluate Python expressions.
+        import re
+        arithmetic = re.search(r"(?<!\d)(\d+(?:\.\d+)?)\s*([+\-*/])\s*(\d+(?:\.\d+)?)(?!\d)", lower)
+        if arithmetic:
+            left, op, right = float(arithmetic.group(1)), arithmetic.group(2), float(arithmetic.group(3))
+            if op == "+": value = left + right
+            elif op == "-": value = left - right
+            elif op == "*": value = left * right
+            elif op == "/" and right != 0: value = left / right
+            else: return "I can't divide by zero."
+            rendered = str(int(value)) if value.is_integer() else str(value)
+            if p_name == "Friday": return f"That comes to {rendered}."
+            if p_name == "Ultron": return f"Calculation complete: {rendered}."
+            if p_name == "Omi": return f"The answer is {rendered}."
+            return f"{rendered}, Sir."
+
         # Check persona greeting
         if any(w in lower for w in ["hello", "hi", "hey", "greetings", "good morning", "good evening"]):
             if p_name == "Friday":

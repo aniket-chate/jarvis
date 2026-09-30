@@ -36,11 +36,47 @@ class CommunicationAgent:
     # =========================================================================
 
     def draft_email(self, to: str, subject: str, body: str) -> Dict[str, Any]:
-        """Creates an email draft in Gmail without sending."""
-        # Sanitize body using privacy protection
-        clean_body = privacy_protection.sanitize_external_query(body, "email_draft", allow_recipient_email=True)
+        """Create an email draft without requiring external delivery authorization.
+
+        A draft is a local, non-delivery operation. When Gmail is authorized, JARVIS
+        also creates the draft in Gmail. When Gmail is unavailable, the request is
+        retained as a local draft so planning/orchestration can complete honestly
+        without pretending that Gmail was reached. Sending always remains gated and
+        requires a real delivery backend.
+        """
+        if not to:
+            return {"success": False, "status": "clarification_needed", "error": "Recipient is required."}
+
+        clean_body = privacy_protection.sanitize_external_query(
+            body, "email_draft", allow_recipient_email=True
+        )
         logger.info("[CommunicationAgent] Creating email draft to '%s', subject: '%s'", to, subject)
-        return self.gmail.create_draft(to=to, subject=subject, body=clean_body)
+
+        gmail_result = self.gmail.create_draft(to=to, subject=subject, body=clean_body)
+        if gmail_result.get("success"):
+            return {
+                **gmail_result,
+                "status": "DRAFT",
+                "is_draft": True,
+                "delivery_backend": "gmail",
+            }
+
+        # Gmail is optional for drafting. Preserve the draft locally without
+        # claiming that it was delivered or persisted in Gmail.
+        local_draft_id = f"local_draft_{__import__('uuid').uuid4().hex[:10]}"
+        return {
+            "success": True,
+            "status": "DRAFT",
+            "is_draft": True,
+            "draft_id": local_draft_id,
+            "to": to,
+            "subject": subject,
+            "body": clean_body,
+            "delivery_backend": "local_outbox",
+            "external_delivery": False,
+            "backend_notice": gmail_result.get("error", "Gmail backend unavailable."),
+            "message": f"Draft prepared locally for '{to}'. It has not been sent.",
+        }
 
     def send_email(
         self,

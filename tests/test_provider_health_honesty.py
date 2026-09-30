@@ -20,6 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from fastapi.testclient import TestClient
 from server.app import app, ollama
+from config.settings import settings
 from llm.ai_router import MultiProviderAIRouter
 
 
@@ -40,7 +41,7 @@ class TestProviderHealthHonesty(unittest.TestCase):
                 "vision_ready": False,
             }
 
-            resp = self.client.get("/api/runtime/status")
+            resp = self.client.get("/api/runtime/status", headers={"X-JARVIS-Token": settings.gateway_auth_token})
             self.assertEqual(resp.status_code, 200)
             data = resp.json()
 
@@ -72,7 +73,7 @@ class TestProviderHealthHonesty(unittest.TestCase):
                 "vision_ready": True,
             }
 
-            resp = self.client.get("/api/runtime/status")
+            resp = self.client.get("/api/runtime/status", headers={"X-JARVIS-Token": settings.gateway_auth_token})
             self.assertEqual(resp.status_code, 200)
             data = resp.json()
 

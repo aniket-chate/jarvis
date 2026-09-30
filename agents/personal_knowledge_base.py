@@ -58,8 +58,19 @@ class PersonalKnowledgeBase:
             logger.error("[PKB] Failed saving index: %s", str(e))
 
     def _sync_vector_store(self) -> None:
-        """Indexes any existing stored notes into the vector store."""
+        """Synchronize the vector store to the authoritative note index and prune stale rows."""
         try:
+            # The JSON index is authoritative. Remove stale vector rows left by prior
+            # ingestion runs before re-upserting current notes. This keeps ingestion idempotent
+            # across process restarts and prevents old documents from surviving forever in SQLite.
+            with self.vector_store._get_conn() as conn:
+                placeholders = ",".join("?" for _ in self.index)
+                if self.index:
+                    conn.execute(f"DELETE FROM embeddings WHERE doc_id NOT IN ({placeholders})", tuple(self.index.keys()))
+                else:
+                    conn.execute("DELETE FROM embeddings")
+                conn.commit()
+
             for note_id, meta in self.index.items():
                 note_file = self.storage_dir / f"{note_id}.json"
                 if note_file.exists():

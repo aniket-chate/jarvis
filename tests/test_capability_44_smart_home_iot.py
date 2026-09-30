@@ -299,13 +299,13 @@ class TestCapability44SmartHomeIoT(unittest.TestCase):
 
         mock_prov = MockIoTProvider()
         capability_intelligence.register_provider(mock_prov)
-        selected = capability_intelligence.select_provider("iot.control_device")
+        selected = capability_intelligence.select_provider("iot.control_device", context={"verification_mode": "simulation"})
         self.assertEqual(selected.provider_id, "provider.iot.mock_adapter")
 
         # Restore
         capability_intelligence.unregister_provider("provider.iot.mock_adapter")
         capability_intelligence.register_provider(self.provider)
-        restored = capability_intelligence.select_provider("iot.control_device")
+        restored = capability_intelligence.select_provider("iot.control_device", context={"verification_mode": "simulation"})
         self.assertEqual(restored.provider_id, "provider.iot.smart_mesh")
 
 

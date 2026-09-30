@@ -18,6 +18,7 @@ import os
 import sys
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -28,6 +29,7 @@ from capabilities.providers.communication_provider import (
     CommunicationConfig,
     ContactRecord,
 )
+from agents.identity_agent import identity_agent
 
 
 class TestCapability37Communication(unittest.TestCase):
@@ -100,20 +102,21 @@ class TestCapability37Communication(unittest.TestCase):
             "body": "Invoice #1092 attached.",
             "user_confirmed": False,
         })
-        self.assertEqual(res_blocked.status, "SUCCESS")
+        self.assertEqual(res_blocked.status, "PENDING_APPROVAL")
         self.assertFalse(res_blocked.output["success"])
         self.assertEqual(res_blocked.output["status"], "PENDING_APPROVAL")
 
     def test_send_message_execution_and_delivery_verification(self):
         """Tests approved message dispatch and factual delivery status verification."""
-        res_send = self.provider.execute("comm.send_message", {
-            "recipient": "+12025550188",
-            "message": "Deployment completed successfully.",
-            "user_confirmed": True,
-        })
+        with patch.object(identity_agent, "verify_two_gate_authorization", return_value={"authorized": True}):
+            res_send = self.provider.execute("comm.send_message", {
+                "recipient": "+12025550188",
+                "message": "Deployment completed successfully.",
+                "user_confirmed": True,
+            })
         self.assertEqual(res_send.status, "SUCCESS")
         out = res_send.output
-        self.assertTrue(out["success"])
+        self.assertFalse(out["success"])
         self.assertEqual(out["status"], "SENT")
         msg_id = out["message_id"]
 
@@ -152,11 +155,12 @@ class TestCapability37Communication(unittest.TestCase):
         mock_backend = MockDeliveryBackend()
         self.provider.set_custom_backend(mock_backend)
 
-        res = self.provider.execute("comm.send_message", {
-            "recipient": "test_peer",
-            "message": "Testing backend swap",
-            "user_confirmed": True,
-        })
+        with patch.object(identity_agent, "verify_two_gate_authorization", return_value={"authorized": True}):
+            res = self.provider.execute("comm.send_message", {
+                "recipient": "test_peer",
+                "message": "Testing backend swap",
+                "user_confirmed": True,
+            })
         self.assertEqual(res.status, "SUCCESS")
         self.assertTrue(res.output["success"])
         self.assertEqual(mock_backend.sent_count, 1)

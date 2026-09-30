@@ -159,6 +159,17 @@ class FileDocumentAgent:
                         "user_confirmed": True
                     }
                 })
+                try:
+                    from orchestrator.context_manager import context_manager
+                    context_manager.stage_confirmation(
+                        action="create_file",
+                        domain="file",
+                        target=str(target_path),
+                        payload={"action": "create_file", "path": str(target_path), "content": content, "user_confirmed": True},
+                        original_request=str(path),
+                    )
+                except Exception:
+                    logger.debug("Unable to stage context confirmation", exc_info=True)
                 logger.warning("[FileDocumentAgent] Blocked create_file outside sandbox pending approval: %s", target_path)
                 return {
                     "success": False,
@@ -352,6 +363,17 @@ class FileDocumentAgent:
                     "user_confirmed": True
                 }
             })
+            try:
+                from orchestrator.context_manager import context_manager
+                context_manager.stage_confirmation(
+                    action="delete_file",
+                    domain="file",
+                    target=str(target),
+                    payload={"action": "delete_file", "path": str(target), "file_path": str(target), "target": str(target), "user_confirmed": True},
+                    original_request=str(file_path),
+                )
+            except Exception:
+                logger.debug("Unable to stage context confirmation", exc_info=True)
             logger.warning("[FileDocumentAgent] Blocked delete_file pending approval: %s", target)
             return {
                 "success": False,

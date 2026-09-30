@@ -347,8 +347,8 @@ class LocalVectorStore:
             sr = semantic_rank[item["doc_id"]]
             lr = lexical_rank[item["doc_id"]]
             rrf_score = (
-                0.65 * (1.0 / (50.0 + sr))
-                + 0.35 * (1.0 / (50.0 + lr))
+                0.35 * (1.0 / (20.0 + sr))
+                + 0.65 * (1.0 / (20.0 + lr))
             )
             # Keep the externally visible score on a useful 0..1-ish scale while
             # retaining enough precision for deterministic ordering.

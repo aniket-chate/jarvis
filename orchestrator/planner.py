@@ -961,8 +961,12 @@ class TaskPlanner:
         )
         if is_alarm_or_timer:
             sched_params = parameter_extractor.extract_schedule_params(text)
-            delay = int(sched_params.get("delay_seconds"))
-            msg = sched_params.get("message") or "Scheduled alarm notification"
+            delay_raw = sched_params.get("delay_seconds")
+            msg = sched_params.get("message") or ""
+            if delay_raw is None or not msg:
+                prompt = sched_params.get("clarification_prompt") or ("When should I schedule it?" if delay_raw is None else "What should I remind you about?")
+                return TaskStep(f"{plan_id}_step_1", "Request scheduler clarification", "core_llm_agent", {"action": "clarification", "query": prompt})
+            delay = int(delay_raw)
             return TaskStep(
                 step_id=f"{plan_id}_step_1",
                 description=f"Set in-app alarm for {delay} seconds",

@@ -114,7 +114,7 @@ class IntentArbitrator:
         low = text.lower()
         if "whether" in low and (re.search(r"\bwhether\s+(?:to|or|or not)\b", low) or re.search(r"\b(?:know|wonder|decide|choose|unsure|doubt)\s+whether\b", low)):
             return None
-        if not re.search(r"\b(?:weather|forecast|temperature|rain|raining)\b", low):
+        if not re.search(r"\b(?:weather|forecast|rain|raining)\b", low):
             return None
         location = ""
         match = re.search(r"\b(?:in|for|at)\s+(.+?)(?:\s+(?:today|tomorrow|tonight|now))?\s*[?!.,]*$", text, re.I)

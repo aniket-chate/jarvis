@@ -721,22 +721,20 @@ class IntentArbitrator:
 
         # 12. Browser Contextual Search ("search for python" while on GitHub)
         browser = context_manager.get_browser()
-        if "github.com" in browser.url and low in ["search for python", "search python"]:
+        if "github.com" in browser.url and re.search(r"\bsearch\s+(?:for\s+)?(.+)$", clean, re.I):
             return StructuredIntent(
                 domain="browser",
                 action="github_search",
                 target="",
-                params={"query": ""},
+                params={"query": re.search(r"\bsearch\s+(?:for\s+)?(.+)$", clean, re.I).group(1).strip()},
             )
 
         # 13. General Web Navigation & Media
         if "open youtube" in low:
-            pass
-            return StructuredIntent(domain="browser", action="play_youtube", target="", params={"song": ""})
+            return StructuredIntent(domain="browser", action="open_url", target="YouTube", params={"url": "YouTube"}, raw_query=clean, source="legacy")
 
         if "open github" in low:
-            pass
-            return StructuredIntent(domain="browser", action="open_url", target="https://github.com/", params={"url": "https://github.com/"})
+            return StructuredIntent(domain="browser", action="open_url", target="GitHub", params={"url": "GitHub"}, raw_query=clean, source="legacy")
 
         # 13b. Cross-Capability Composite Workflow (Calendar + Device Mesh + Notification)
         if "calendar" in low and ("notify" in low or "alert me on" in low or "device" in low):

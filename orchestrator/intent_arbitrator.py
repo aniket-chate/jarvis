@@ -225,8 +225,12 @@ class IntentArbitrator:
                     return IntentCandidate(self._clarify(text, "scheduler", "Please provide " + " and ".join(missing) + ".", {"calendar_request": text, **params}, source="scheduler"), .97)
                 return IntentCandidate(self._make(text, "scheduler", "create_calendar_event", params.get("title", ""), {"calendar_request": text, **params}, .97, True, "scheduler"), .97)
             return IntentCandidate(self._make(text, "scheduler", "get_calendar_events", "calendar_events", {"query": text, "calendar_request": text}, .94, source="scheduler"), .94)
-        if "schedule" in low and not any(x in low for x in ("calendar", "meeting", "event", "reminder", "remind me", "alarm", "timer")):
-            return IntentCandidate(self._clarify(text, "scheduler", "What should I schedule?", source="scheduler"), .98)
+        if "schedule" in low and not any(x in low for x in ("reminder", "remind me", "alarm", "timer")):
+            params = parameter_extractor.extract_calendar_params(text)
+            missing = params.get("missing_required", [])
+            if missing:
+                return IntentCandidate(self._clarify(text, "scheduler", "Please provide " + " and ".join(missing) + ".", {"calendar_request": text, **params}, source="scheduler"), .97)
+            return IntentCandidate(self._make(text, "scheduler", "create_calendar_event", params.get("title", ""), {"calendar_request": text, **params}, .97, True, "scheduler"), .97)
         if not any(x in low for x in ("reminder", "remind me", "set an alarm", "set a timer", "wake me")):
             return None
         params = parameter_extractor.extract_schedule_params(text)

@@ -221,6 +221,8 @@ class IntentArbitrator:
                     return IntentCandidate(self._clarify(text, "scheduler", "Please provide " + " and ".join(missing) + ".", {"calendar_request": text, **params}, source="scheduler"), .97)
                 return IntentCandidate(self._make(text, "scheduler", "create_calendar_event", params.get("title", ""), {"calendar_request": text, **params}, .97, True, "scheduler"), .97)
             return IntentCandidate(self._make(text, "scheduler", "get_calendar_events", "calendar_events", {"query": text, "calendar_request": text}, .94, source="scheduler"), .94)
+        if "schedule" in low and not any(x in low for x in ("calendar", "meeting", "event", "reminder", "remind me", "alarm", "timer")):
+            return IntentCandidate(self._clarify(text, "scheduler", "What should I schedule?", source="scheduler"), .98)
         if not any(x in low for x in ("reminder", "remind me", "set an alarm", "set a timer", "wake me")):
             return None
         params = parameter_extractor.extract_schedule_params(text)
@@ -232,6 +234,8 @@ class IntentArbitrator:
         return IntentCandidate(self._make(text, "scheduler", action, params.get("message", ""), params, .96, source="scheduler"), .96)
 
     def _provider_file(self, text):
+        if re.search(r"\b(?:delete|remove|erase)\b", text, re.I) and not re.search(r"\b(?:file|document|resume|report|notes?|pdf|csv|json|folder|directory)\b", text, re.I):
+            return IntentCandidate(self._clarify(text, "file", "Which file should I delete?", source="file"), .98)
         if not re.search(r"\b(?:create|make|write|save|read|open|view|show|delete|remove|move|rename|search|find|locate)\b", text, re.I):
             return None
         if not re.search(r"\b(?:file|document|resume|report|notes?|pdf|csv|json|folder|directory)\b", text, re.I):

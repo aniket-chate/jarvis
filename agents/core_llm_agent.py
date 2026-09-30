@@ -388,8 +388,30 @@ class CoreLLMAgent:
             )
             return {"success": True, "response": resp, "output": resp, "persona": persona}
 
-        if re.search(r"\\b(?:what is|calculate|compute)\\b", low_prompt):
-            expression = re.sub(r"^(?:what is|calculate|compute)\\s+", "", low_prompt).strip(" ?")
+        natural_math = re.search(
+            r"\b(\d+(?:\.\d+)?)\s+(plus|minus|times|multiplied by|divided by)\s+(\d+(?:\.\d+)?)\b",
+            low_prompt,
+        )
+        if natural_math:
+            left = float(natural_math.group(1))
+            right = float(natural_math.group(3))
+            operation = natural_math.group(2)
+            if operation == "divided by" and right == 0:
+                resp = "I can't divide by zero."
+            else:
+                operations = {
+                    "plus": left + right,
+                    "minus": left - right,
+                    "times": left * right,
+                    "multiplied by": left * right,
+                    "divided by": left / right,
+                }
+                result = operations[operation]
+                resp = f"The answer is {int(result) if result.is_integer() else result}."
+            return {"success": True, "response": resp, "output": resp, "persona": persona}
+
+        if re.search(r"\b(?:what is|calculate|compute)\b", low_prompt):
+            expression = re.sub(r"^(?:what is|calculate|compute)\s+", "", low_prompt).strip(" ?")
             if expression and re.fullmatch(r"[\\d\\s+\\-*/().]+", expression):
                 try:
                     tree = ast.parse(expression, mode="eval")

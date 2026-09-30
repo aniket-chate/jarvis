@@ -48,7 +48,10 @@ def wait_for_server():
                 if r.status == 200: return
         except Exception:
             time.sleep(1)
-    raise RuntimeError("JARVIS server did not become reachable")
+    log_text = server_log.read_text(encoding="utf-8", errors="replace") if server_log.exists() else ""
+    if server.poll() is not None:
+        raise RuntimeError(f"JARVIS server exited with code {server.returncode}:\n{log_text[-12000:]}")
+    raise RuntimeError(f"JARVIS server did not become reachable.\n{log_text[-12000:]}")
 
 def summarize(payload):
     plan = payload.get("plan") or {}
@@ -77,7 +80,9 @@ def main():
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT)
     env["GATEWAY_AUTH_TOKEN"] = TOKEN
-    server = subprocess.Popen([sys.executable, "-m", "uvicorn", "server.app:app", "--host", "127.0.0.1", "--port", "8765"], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    server_log = ROOT / "blackbox_server.log"
+    log_handle = server_log.open("w", encoding="utf-8")
+    server = subprocess.Popen([sys.executable, "-m", "uvicorn", "server.app:app", "--host", "127.0.0.1", "--port", "8765"], cwd=ROOT, env=env, stdout=log_handle, stderr=subprocess.STDOUT, text=True)
     results = []
     try:
         wait_for_server()
@@ -106,6 +111,9 @@ def main():
         server.terminate()
         try: server.wait(timeout=10)
         except subprocess.TimeoutExpired: server.kill()
+        try: log_handle.close()
+        except Exception: pass
+        if server_log.exists(): server_log.unlink()
     passed = sum(1 for _, _, ok, _ in results if ok)
     print("\n=== BLACK-BOX 20-TURN SUMMARY ===")
     print(f"PASSED={passed}/20")

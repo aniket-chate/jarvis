@@ -11,6 +11,7 @@ Guards the 4GB VRAM / 16GB RAM hardware envelope.
 import ast
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 import httpx

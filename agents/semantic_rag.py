@@ -267,7 +267,14 @@ class LocalVectorStore:
         if not rows:
             return []
 
-        scored_results = []
+        # Retrieve every candidate first, then combine semantic and lexical signals.
+        # Rank fusion is intentional here: the local embedding model is lightweight and
+        # its cosine values are not calibrated enough to safely add fixed lexical bonuses.
+        # This keeps retrieval general for future projects without naming any project.
+        candidates = []
+        q_tokens = set(self.embedder._tokenize(query)) - self.embedder.STOPWORDS
+        generic_title_words = {"personal", "profile", "project", "knowledge", "system", "and"}
+
         for doc_id, title, content, vec_blob, meta_str in rows:
             if not vec_blob:
                 continue
@@ -280,32 +287,76 @@ class LocalVectorStore:
                 continue
 
             doc_vec = np.frombuffer(vec_blob, dtype=np.float32)
-            # Cosine similarity: dot product of normalized vectors
-            sim = float(np.dot(q_vec, doc_vec))
+            if doc_vec.size != q_vec.size:
+                logger.warning("[LocalVectorStore] Skipping '%s': vector dimension mismatch", doc_id)
+                continue
 
-            # Hybrid lexical grounding boost for distinctive title & content matches
-            GENERIC_TITLE_WORDS = {"personal", "profile", "project", "knowledge", "system", "and"}
-            q_tokens = set(self.embedder._tokenize(query)) - self.embedder.STOPWORDS
-            t_tokens = (set(self.embedder._tokenize(title)) - self.embedder.STOPWORDS) - GENERIC_TITLE_WORDS
-            c_tokens = (set(self.embedder._tokenize(content)) - self.embedder.STOPWORDS)
-            tag_tokens = (set(self.embedder._tokenize(" ".join(meta.get("tags", [])))) - self.embedder.STOPWORDS)
-            overlap_title = len(q_tokens & t_tokens)
-            overlap_content = len(q_tokens & c_tokens)
-            overlap_tags = len(q_tokens & tag_tokens)
-            if overlap_title > 0:
-                sim += 0.20 * overlap_title
-            if overlap_tags > 0:
-                sim += 0.15 * min(3, overlap_tags)
-            elif overlap_content > 0:
-                sim += 0.03 * min(5, overlap_content)
+            semantic_score = float(np.dot(q_vec, doc_vec))
 
-            scored_results.append({
+            title_tokens = (
+                set(self.embedder._tokenize(title)) - self.embedder.STOPWORDS
+            ) - generic_title_words
+            content_tokens = set(self.embedder._tokenize(content)) - self.embedder.STOPWORDS
+            tag_tokens = (
+                set(self.embedder._tokenize(" ".join(meta.get("tags", []))))
+                - self.embedder.STOPWORDS
+            )
+
+            title_overlap = len(q_tokens & title_tokens)
+            tag_overlap = len(q_tokens & tag_tokens)
+            content_overlap = len(q_tokens & content_tokens)
+
+            # Lexical evidence is normalized by query size, so longer queries do not
+            # receive an automatic advantage. Title/tag matches carry more intent
+            # than incidental content matches.
+            query_size = max(1, len(q_tokens))
+            title_coverage = title_overlap / query_size
+            tag_coverage = tag_overlap / query_size
+            content_coverage = content_overlap / query_size
+            lexical_score = (
+                0.55 * title_coverage
+                + 0.30 * tag_coverage
+                + 0.15 * content_coverage
+            )
+
+            candidates.append({
                 "doc_id": doc_id,
                 "title": title,
                 "content": content,
-                "score": round(sim, 4),
-                "metadata": meta
+                "semantic_score": semantic_score,
+                "lexical_score": lexical_score,
+                "metadata": meta,
             })
+
+        # Reciprocal-rank fusion prevents an uncalibrated cosine score from
+        # overwhelming explicit lexical evidence. Semantic ranking remains the
+        # primary signal; title/tags/content provide grounded intent.
+        candidates.sort(key=lambda x: x["semantic_score"], reverse=True)
+        semantic_rank = {item["doc_id"]: rank for rank, item in enumerate(candidates, 1)}
+
+        candidates.sort(
+            key=lambda x: (
+                x["lexical_score"],
+                x["semantic_score"],
+            ),
+            reverse=True,
+        )
+        lexical_rank = {item["doc_id"]: rank for rank, item in enumerate(candidates, 1)}
+
+        for item in candidates:
+            sr = semantic_rank[item["doc_id"]]
+            lr = lexical_rank[item["doc_id"]]
+            rrf_score = (
+                0.65 * (1.0 / (50.0 + sr))
+                + 0.35 * (1.0 / (50.0 + lr))
+            )
+            # Keep the externally visible score on a useful 0..1-ish scale while
+            # retaining enough precision for deterministic ordering.
+            item["score"] = round(rrf_score * 100.0, 4)
+            item.pop("semantic_score", None)
+            item.pop("lexical_score", None)
+
+        scored_results = candidates
 
         # Sort descending by cosine similarity score
         scored_results.sort(key=lambda x: x["score"], reverse=True)

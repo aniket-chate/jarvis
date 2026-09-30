@@ -242,26 +242,10 @@ class IntentArbitrator:
                 params={"code": ref["resolved_target"], "scenario": "b is zero"},
             )
 
-        if "factorial" in low and any(w in low for w in ["program", "code", "python", "make", "write"]):
-            factorial_code = (
-                "def factorial(n):\n"
-                "    if not isinstance(n, int) or n < 0:\n"
-                "        raise ValueError('Factorial is only defined for non-negative integers.')\n"
-                "    return 1 if n in (0, 1) else n * factorial(n - 1)\n"
-            )
-            context_manager.set_code(factorial_code, language="python", function_name="factorial", variables=["n"])
-            return StructuredIntent(
-                domain="code",
-                action="generate_code",
-                target="factorial",
-                params={"code": factorial_code, "language": "python"},
-            )
-
         if "review this python code" in low or "review this code" in low:
             m_code = re.search(r":\s*(.+)$", clean, re.DOTALL)
             code_text = m_code.group(1).strip() if m_code else clean
-            context_manager.set_code(code_text, language="python", function_name="divide", variables=["a", "b"])
-            return StructuredIntent(
+                        return StructuredIntent(
                 domain="code",
                 action="review_code",
                 target="code_snippet",

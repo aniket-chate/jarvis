@@ -54,6 +54,7 @@ class IntentArbitrator:
             IntentProvider("communication", self._provider_communication),
             IntentProvider("telemetry", self._provider_telemetry),
             IntentProvider("browser", self._provider_browser),
+            IntentProvider("file_reference", self._provider_file_reference),
         ]
 
     @staticmethod
@@ -184,6 +185,28 @@ class IntentArbitrator:
             if target:
                 return IntentCandidate(self._make(text, "browser", "open_url", target, {"url": target}, .88, source="browser"), .88)
         return None
+
+    def _provider_file_reference(self, text):
+        if not re.search(r"\b(?:read|show|open|delete|remove|move|rename)\b", text, re.I):
+            return None
+        if not re.search(r"\b(?:that file|the file|it|the one|just created|created)\b", text, re.I):
+            return None
+        file_ctx = getattr(self.context, "get_file", lambda: None)()
+        if not file_ctx or not getattr(file_ctx, "path", ""):
+            return IntentCandidate(self._clarify(text, "file", "Which file should I use?", source="file_reference"), .97)
+        low = text.lower()
+        if "delete" in low or "remove" in low:
+            action = "delete_file"
+            confirmation = True
+        elif "move" in low:
+            return IntentCandidate(self._clarify(text, "file", "Where should I move the file?", source="file_reference"), .97)
+        elif "rename" in low:
+            return IntentCandidate(self._clarify(text, "file", "What should the new filename be?", source="file_reference"), .97)
+        else:
+            action = "read_file"
+            confirmation = False
+        path = str(file_ctx.path)
+        return IntentCandidate(self._make(text, "file", action, path, {"path": path, "file_path": path, "filename": Path(path).name}, .98, confirmation, "file_reference"), .98)
 
     def _legacy_arbitrate(self, text: str) -> StructuredIntent:
 

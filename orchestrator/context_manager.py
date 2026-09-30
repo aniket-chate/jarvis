@@ -71,6 +71,7 @@ class WorkingContextManager:
         self._file: Optional[FileContext] = None
         self._pending_confirmation: Optional[ConfirmationTransaction] = None
         self._last_git_branch: str = ""
+        self._previous_git_branch: str = ""
         self._active_window_title: str = ""
         self._history: List[Dict[str, Any]] = []
 
@@ -211,10 +212,16 @@ class WorkingContextManager:
 
     # Git State
     def set_git_branch(self, branch: str) -> None:
-        self._last_git_branch = branch
+        clean = (branch or "").strip()
+        if clean and clean != self._last_git_branch:
+            self._previous_git_branch = self._last_git_branch
+            self._last_git_branch = clean
 
     def get_git_branch(self) -> str:
         return self._last_git_branch
+
+    def get_previous_git_branch(self) -> str:
+        return self._previous_git_branch
 
     # Pronoun & Contextual Reference Resolution
     def resolve_references(self, query: str) -> Dict[str, Any]:

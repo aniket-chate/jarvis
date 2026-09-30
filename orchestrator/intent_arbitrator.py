@@ -79,6 +79,10 @@ class IntentArbitrator:
         clean = self.normalize(text)
         if not clean:
             return self._clarify(clean, "chat", "What would you like JARVIS to do?", source="normalization")
+        confirmation = self._provider_confirmation(clean)
+        if confirmation:
+            return confirmation.intent
+
         candidates = []
         for provider in self.providers:
             try:

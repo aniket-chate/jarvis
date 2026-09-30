@@ -244,8 +244,11 @@ class ParameterExtractor:
                     filename = m_search2.group(1).strip().replace("called ", "").replace("named ", "").strip()
                     directory = m_search2.group(2).strip().lower()
                 else:
-                    filename = "*"
-            requires_clarification = False
+                    candidate = re.sub(r"^.*?\b(?:search|find)\s+(?:for\s+)?", "", text, flags=re.IGNORECASE).strip(" .,:;")
+                    filename = candidate if candidate else ""
+            requires_clarification = not bool(filename)
+            if requires_clarification:
+                clarification_prompt = "What file or text should I search for?"
 
         elif action == "read":
             m_read = re.search(
@@ -424,6 +427,57 @@ class ParameterExtractor:
         }
         logger.info("[Structured Extraction] Extracted schedule parameters: %s", json.dumps(params))
         return params
+
+    @classmethod
+    def extract_calendar_params(cls, text: str) -> Dict[str, Any]:
+        """Extract calendar semantics without inventing missing values."""
+        raw = text.strip()
+        lower = raw.lower()
+        title = ""
+        attendee = ""
+        location = ""
+        duration_minutes = None
+        date_expression = ""
+        time_expression = ""
+
+        m = re.search(r"\b(?:event|meeting)\s+(?:called|named|titled)\s+(.+?)(?=\s+(?:on|at|tomorrow|today|for|with)\b|$)", raw, re.I)
+        if m:
+            title = m.group(1).strip(" .,:;")
+        m = re.search(r"\bwith\s+(.+?)(?=\s+(?:on|at|tomorrow|today|for)\b|$)", raw, re.I)
+        if m:
+            attendee = m.group(1).strip(" .,:;")
+        m = re.search(r"\b(\d+)\s*(minutes?|mins?|hours?|hrs?)\b", lower)
+        if m:
+            value = int(m.group(1))
+            duration_minutes = value * 60 if "hour" in m.group(2) or "hr" in m.group(2) else value
+        for token in ("tomorrow", "today", "tonight"):
+            if token in lower:
+                date_expression = token
+                break
+        m = re.search(r"\b(?:at|around)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b", lower)
+        if m:
+            time_expression = m.group(1).strip()
+        if "create event" in lower and not title:
+            m = re.search(r"\bevent\s+(.+?)(?=\s+(?:on|at|tomorrow|today|for|with)\b|$)", raw, re.I)
+            if m:
+                title = m.group(1).strip(" .,:;")
+        missing = []
+        if not title:
+            missing.append("an event title")
+        if not date_expression and not time_expression:
+            missing.append("a date/time")
+        if duration_minutes is None:
+            missing.append("a duration")
+        return {
+            "raw_query": raw,
+            "title": title,
+            "attendee": attendee,
+            "location": location,
+            "duration_minutes": duration_minutes,
+            "date_expression": date_expression,
+            "time_expression": time_expression,
+            "missing_required": missing,
+        }
 
     # Aliases
     extract_file_parameters = extract_file_params

@@ -12,17 +12,17 @@ import wave
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-try:
-    import sounddevice as sd
-except (ImportError, OSError) as exc:
-    sd = None
-    logger.warning("[TTS Audio] sounddevice unavailable; audio playback will be disabled: %s", exc)
-
 import numpy as np
 
 from config.settings import settings, PROJECT_ROOT
 
 logger = logging.getLogger("JARVIS.TTS")
+
+try:
+    import sounddevice as sd
+except (ImportError, OSError) as exc:
+    sd = None
+    logger.warning("[TTS Audio] sounddevice unavailable; audio playback will be disabled: %s", exc)
 
 PIPER_VOICES_DIR = PROJECT_ROOT / "models" / "piper"
 PIPER_VOICES_DIR.mkdir(parents=True, exist_ok=True)

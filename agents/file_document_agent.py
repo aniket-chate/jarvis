@@ -1,7 +1,7 @@
 """File & Document Agent for JARVIS Layer 3 (Scoped Laptop Control Expansion).
 
 Provides real file search, create, read, move, and rename operations across:
-- Workspace Sandbox (D:\\assignment\\JARVIS\\workspace\\)
+- Workspace Sandbox (configured project workspace)
 - Real User Directories: Documents, Downloads, Desktop
 
 TWO-GATE SAFETY SYSTEM ENFORCEMENT:

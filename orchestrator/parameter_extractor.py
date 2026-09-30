@@ -397,8 +397,7 @@ class ParameterExtractor:
                     target_dt += timedelta(days=1)
                 delay_sec = max(1, int((target_dt - now).total_seconds()))
 
-        if target_dt is None:
-            target_dt = now + timedelta(seconds=delay_sec)
+        # Missing scheduling data stays explicit; the planner will request clarification.
 
         # Message extraction
         message = ""
@@ -416,15 +415,11 @@ class ParameterExtractor:
             if cleaned:
                 message = cleaned
 
-        if not message:
-            time_str = target_dt.strftime("%H:%M:%S")
-            message = f"Scheduled alarm for {time_str}"
-
         params = {
             "delay_seconds": delay_sec,
             "message": message,
-            "fire_time": target_dt.strftime("%H:%M:%S"),
-            "fire_time_iso": target_dt.isoformat(),
+            "fire_time": target_dt.strftime("%H:%M:%S") if target_dt else "",
+            "fire_time_iso": target_dt.isoformat() if target_dt else "",
             "raw_query": text,
         }
         logger.info("[Structured Extraction] Extracted schedule parameters: %s", json.dumps(params))

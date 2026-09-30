@@ -154,8 +154,17 @@ def test_generic_browser_target(arb):
     assert intent.params["url"] == "example.com"
 
 
-def test_calendar_preserves_full_request_and_delegates_extraction(arb, monkeypatch):
-    query = "schedule a 30 minute meeting with the project team tomorrow at 3 PM"
+def test_calendar_missing_duration_clarifies_and_preserves_request(arb):
+    query = "schedule a meeting with the project team tomorrow at 3 PM"
+    intent = arb.arbitrate(query)
+    assert intent.domain == "scheduler"
+    assert intent.needs_clarification is True
+    assert "duration" in intent.clarification_prompt.lower()
+    assert intent.raw_query == query
+    assert intent.params["calendar_request"] == query
+
+def test_calendar_complete_request_preserves_full_request(arb):
+    query = "schedule a project review tomorrow at 3 PM for 30 minutes"
     intent = arb.arbitrate(query)
     assert intent.domain == "scheduler"
     assert intent.action == "create_calendar_event"

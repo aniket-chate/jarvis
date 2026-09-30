@@ -208,6 +208,22 @@ class TaskPlanner:
         )
 
     def _build_step_from_intent(self, plan_id: str, intent: Any, text: str) -> Optional[TaskStep]:
+        # Clarification intents are terminal conversational steps: never fall through
+        # to a generic agent that could execute with fabricated parameters.
+        if getattr(intent, "needs_clarification", False) or getattr(intent, "action", "") == "clarification":
+            prompt = (
+                getattr(intent, "clarification_prompt", "")
+                or (getattr(intent, "params", {}) or {}).get("response")
+                or (getattr(intent, "params", {}) or {}).get("query")
+                or "Could you clarify what you would like me to do?"
+            )
+            return TaskStep(
+                step_id=f"{plan_id}_step_1",
+                description="Request required clarification",
+                required_agent_type="core_llm_agent",
+                inputs={"action": "clarification", "query": prompt, "system_extra": prompt, "response": prompt},
+            )
+
         d = intent.domain
         act = intent.action
         params = intent.params

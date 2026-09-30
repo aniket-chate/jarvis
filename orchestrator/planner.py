@@ -1003,10 +1003,7 @@ class TaskPlanner:
                 if last_img and Path(last_img).exists():
                     img_target = str(last_img)
                 else:
-                    cand = None
-                    if not cand.exists():
-                        cand = None
-                    img_target = str(cand) if cand else ""
+                    img_target = ""
 
             return TaskStep(
                 step_id=f"{plan_id}_step_1",

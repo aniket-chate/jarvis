@@ -38,7 +38,5 @@ jobs:
           pip install -r requirements.txt
       - name: Install browser display support
         run: sudo apt-get update && sudo apt-get install -y xvfb
-      - name: Probe communication arbitration
-        run: python -c "import sys; sys.path.insert(0, \".\"); from orchestrator.intent_arbitrator import IntentArbitrator; print(IntentArbitrator().arbitrate(\"Send a message to someone saying hello.\"))"
       - name: Run 20-turn black-box runtime QA
         run: xvfb-run -a python tests/test_blackbox_20_turns.py

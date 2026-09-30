@@ -215,7 +215,7 @@ class TaskPlanner:
 
         if d == "info":
             if act == "get_weather":
-                loc = params.get("location") or target or "Delhi"
+                loc = params.get("location") or target or ""
                 tt = params.get("time_target", "now")
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
@@ -224,7 +224,7 @@ class TaskPlanner:
                     inputs={"action": "get_weather", "location": loc, "time_target": tt, "query": text}
                 )
             elif act == "get_news":
-                topic = params.get("topic") or target or "general"
+                topic = params.get("topic") or target or ""
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
                     description=f"Retrieve news for {topic}",
@@ -250,8 +250,8 @@ class TaskPlanner:
             elif act in ["check_conflicts", "create_calendar_event", "get_calendar_events"]:
                 pass
             else:
-                delay = int(params.get("delay_seconds", 60))
-                msg = params.get("message") or target or "Scheduled alarm notification"
+                delay = int(params.get("delay_seconds"))
+                msg = params.get("message") or target or ""
                 action_name = act if act in ["set_alarm", "set_reminder", "create_alarm"] else "set_alarm"
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
@@ -273,7 +273,7 @@ class TaskPlanner:
                 step_id=f"{plan_id}_step_1",
                 description=f"Code assistant: {act}",
                 required_agent_type="core_llm_agent",
-                inputs={"action": act, "prompt": text, "code": params.get("code", ""), "input_arg": params.get("input_arg", 5), "scenario": params.get("scenario", "")}
+                inputs={"action": act, "prompt": text, "code": params.get("code", ""), "input_arg": params.get("input_arg"), "scenario": params.get("scenario", "")}
             )
 
         elif d == "file":
@@ -282,14 +282,14 @@ class TaskPlanner:
                     step_id=f"{plan_id}_step_1",
                     description=f"Stage file creation: {target}",
                     required_agent_type="file_agent",
-                    inputs={"action": "create", "path": target, "content": params.get("content", ""), "requires_confirmation": True, "directory": params.get("directory", "desktop")}
+                    inputs={"action": "create", "path": target, "content": params.get("content", ""), "requires_confirmation": True, "directory": params.get("directory", "")}
                 )
             elif act in ["confirmed_create_file", "create_file"]:
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
                     description=f"Create file: {target}",
                     required_agent_type="file_agent",
-                    inputs={"action": "create", "path": target, "filename": params.get("filename", target), "content": params.get("content", ""), "user_confirmed": True, "directory": params.get("directory", "documents")}
+                    inputs={"action": "create", "path": target, "filename": params.get("filename", target), "content": params.get("content", ""), "user_confirmed": True, "directory": params.get("directory", "")}
                 )
             elif act in ["read_file", "read", "show_file", "show", "open_file", "open"]:
                 p = params.get("path") or params.get("file_path") or params.get("filename") or target
@@ -297,7 +297,7 @@ class TaskPlanner:
                     step_id=f"{plan_id}_step_1",
                     description=f"Read file: {p}",
                     required_agent_type="file_agent",
-                    inputs={"action": "read", "path": p, "file_path": p, "filename": p, "directory": params.get("directory", "documents")}
+                    inputs={"action": "read", "path": p, "file_path": p, "filename": p, "directory": params.get("directory", "")}
                 )
             elif act in ["delete_file", "delete", "remove_file", "remove"]:
                 p = params.get("path") or params.get("file_path") or params.get("filename") or target
@@ -305,14 +305,14 @@ class TaskPlanner:
                     step_id=f"{plan_id}_step_1",
                     description=f"Delete file: {p}",
                     required_agent_type="file_agent",
-                    inputs={"action": "delete_file", "path": p, "file_path": p, "directory": params.get("directory", "documents")}
+                    inputs={"action": "delete_file", "path": p, "file_path": p, "directory": params.get("directory", "")}
                 )
             elif act == "move_file":
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
                     description=f"Move file: {target}",
                     required_agent_type="file_agent",
-                    inputs={"action": "move", "source": params.get("source", target), "destination": params.get("destination", "downloads"), "user_confirmed": True}
+                    inputs={"action": "move", "source": params.get("source", target), "destination": params.get("destination", ""), "user_confirmed": True}
                 )
             elif act in ["rename_file", "rename"]:
                 new_n = params.get("new_name") or params.get("destination") or ""
@@ -387,7 +387,7 @@ class TaskPlanner:
                     step_id=f"{plan_id}_step_1",
                     description="Play YouTube music",
                     required_agent_type="browser_automation_agent",
-                    inputs={"action": "play_youtube", "song": params.get("song", "lofi beats"), "query": params.get("song", "lofi beats")}
+                    inputs={"action": "play_youtube", "song": params.get("song", ""), "query": params.get("song", "")}
                 )
             elif act == "open_url":
                 return TaskStep(
@@ -402,7 +402,7 @@ class TaskPlanner:
                 step_id=f"{plan_id}_step_1",
                 description=f"WhatsApp draft: {target}",
                 required_agent_type="communication_agent",
-                inputs={"action": "draft_whatsapp", "recipient": params.get("recipient", "Sachin"), "message": params.get("message", "I'm running late"), "user_confirmed": False}
+                inputs={"action": "draft_whatsapp", "recipient": params.get("recipient", ""), "message": params.get("message", ""), "user_confirmed": False}
             )
 
         elif d == "system":
@@ -958,7 +958,7 @@ class TaskPlanner:
         )
         if is_alarm_or_timer:
             sched_params = parameter_extractor.extract_schedule_params(text)
-            delay = int(sched_params.get("delay_seconds", 60))
+            delay = int(sched_params.get("delay_seconds"))
             msg = sched_params.get("message") or "Scheduled alarm notification"
             return TaskStep(
                 step_id=f"{plan_id}_step_1",
@@ -1432,7 +1432,7 @@ class TaskPlanner:
 
         # Weather & ASR Homophone Ambiguity (Capability 32)
         is_weather = False
-        weather_loc = "Delhi"
+        weather_loc = ""
         weather_time = "now"
         is_conjunction = bool(
             re.search(r"\b(?:know|doubt|wonder|unsure|decide|choose|matter|see|tell|ask|care)\s+whether\b", lower) or
@@ -1458,7 +1458,7 @@ class TaskPlanner:
                     is_weather = True
                     m_t = re.search(r"\b(tomorrow|today|tonight)\b", lower)
                     weather_time = m_t.group(1) if m_t else "tomorrow"
-                    weather_loc = w_ctx.get("location", "Delhi")
+                    weather_loc = w_ctx.get("location")
 
         if is_weather:
             clean_text = re.sub(r"[?!.,;]+$", "", text).strip()
@@ -1570,8 +1570,8 @@ class TaskPlanner:
                 ddir = f_params.get("directory") or "workspace"
                 return TaskStep(f"{plan_id}_step_1", f"Delete file '{dname}' from {ddir}", "file_agent", {"action": "delete_file", "path": dname, "file_path": dname, "directory": ddir})
             elif f_params.get("action") == "create":
-                fname = f_params.get("filename") or "new_file.txt"
-                fdir = f_params.get("directory") or "documents"
+                fname = f_params.get("filename") or ""
+                fdir = f_params.get("directory") or ""
                 fcontent = f_params.get("content", "")
                 return TaskStep(f"{plan_id}_step_1", f"Create file '{fname}' in {fdir}", "file_agent", {"action": "create", "path": fname, "content": fcontent, "directory": fdir})
 
@@ -1591,7 +1591,7 @@ class TaskPlanner:
                 step_id=f"{plan_id}_step_1",
                 description=f"Manage local file '{f_target}'",
                 required_agent_type="file_agent",
-                inputs={"action": f_act, "path": f_target, "file_path": f_target, "filename": f_target, "directory": f_params.get("directory", "documents")}
+                inputs={"action": f_act, "path": f_target, "file_path": f_target, "filename": f_target, "directory": f_params.get("directory", "")}
             )
 
         # System Control / Telemetry (battery, disk, ram, cpu, network, phone, health, memory)

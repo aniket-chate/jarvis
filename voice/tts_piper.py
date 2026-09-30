@@ -12,6 +12,8 @@ import wave
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+logger = logging.getLogger("JARVIS.TTS")
+
 try:
     import sounddevice as sd
 except (ImportError, OSError) as exc:
@@ -21,8 +23,6 @@ except (ImportError, OSError) as exc:
 import numpy as np
 
 from config.settings import settings, PROJECT_ROOT
-
-logger = logging.getLogger("JARVIS.TTS")
 
 
 PIPER_VOICES_DIR = PROJECT_ROOT / "models" / "piper"

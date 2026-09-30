@@ -11,6 +11,7 @@ Guards the 4GB VRAM / 16GB RAM hardware envelope.
 import ast
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -315,6 +316,14 @@ class CoreLLMAgent:
         persona = inputs.get("active_persona") or settings.active_persona_name
         system_extra = inputs.get("system_extra")
 
+        if action == "clarification":
+            resp = inputs.get("response") or inputs.get("query") or "Could you clarify what you would like me to do?"
+            return {"success": True, "response": resp, "output": resp, "persona": persona}
+
+        if "what can you do" in prompt.lower() or "what are your capabilities" in prompt.lower() or "list your capabilities" in prompt.lower():
+            resp = "I can help with browser and web tasks, local files and documents, Git and developer work, system telemetry, scheduling, communication, OCR, and other registered JARVIS skills."
+            return {"success": True, "response": resp, "output": resp, "persona": persona}
+
         if action == "session_summary":
             summary = inputs.get("summary") or "In this session, we had a conversational discussion and answered queries."
             return {
@@ -370,6 +379,18 @@ class CoreLLMAgent:
             }
 
         low_prompt = prompt.lower()
+
+        natural_math = re.search(r"\b(\d+(?:\.\d+)?)\s+(plus|minus|times|multiplied by|divided by)\s+(\d+(?:\.\d+)?)\b", low_prompt)
+        if natural_math:
+            left = float(natural_math.group(1))
+            right = float(natural_math.group(3))
+            operation = natural_math.group(2)
+            if operation == "divided by" and right == 0:
+                resp = "I can't divide by zero."
+            else:
+                result = {"plus": left + right, "minus": left - right, "times": left * right, "multiplied by": left * right, "divided by": left / right}[operation]
+                resp = f"The answer is {int(result) if result.is_integer() else result}."
+            return {"success": True, "response": resp, "output": resp, "persona": persona}
         if any(p in low_prompt for p in ["what can you actually do right now", "what can you do right now", "list your capabilities", "what are your capabilities"]):
             resp = (
                 "I am equipped with a multi-agent runtime capable of: "

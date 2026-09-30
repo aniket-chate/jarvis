@@ -115,7 +115,7 @@ class ParameterExtractor:
             )
             if m_ren:
                 filename = m_ren.group(1).strip()
-                destination = m_ren.group(2).strip()
+                destination = m_ren.group(2).strip().rstrip(".,!?;:")
             elif is_referential:
                 try:
                     from cognitive.world_model import world_model
@@ -126,7 +126,7 @@ class ParameterExtractor:
                     pass
                 m_to = re.search(r"\b(?:to|as)\s+['\"]?([a-zA-Z0-9_.-]+)['\"]?", text, re.IGNORECASE)
                 if m_to:
-                    destination = m_to.group(1).strip()
+                    destination = m_to.group(1).strip().rstrip(".,!?;:")
             if not filename:
                 requires_clarification = True
                 clarification_prompt = "Which file would you like me to rename?"
@@ -228,6 +228,9 @@ class ParameterExtractor:
                 ext_m = re.search(r"\b([a-zA-Z0-9_.-]+\.[a-zA-Z0-9]{1,5})\b", text_clean)
                 if ext_m:
                     filename = ext_m.group(1).strip()
+            if not filename:
+                requires_clarification = True
+                clarification_prompt = "What should I name the file?"
 
         elif action == "search":
             m_search = re.search(
@@ -246,6 +249,11 @@ class ParameterExtractor:
                 else:
                     filename = "*"
             requires_clarification = False
+
+        elif action == "create":
+            if not filename:
+                requires_clarification = True
+                clarification_prompt = "What should I name the file?"
 
         elif action == "read":
             m_read = re.search(

@@ -204,7 +204,8 @@ class FileDocumentAgent:
     ) -> Dict[str, Any]:
         """Moves a file. Requires Two-Gate confirmation if source or destination is outside workspace sandbox."""
         try:
-            src = self._resolve_scoped_path(src_path, default_dir="workspace")
+            src_default_dir = "documents" if str(src_path).strip().lower().startswith("documents:") else ("downloads" if str(src_path).strip().lower().startswith("downloads:") else ("desktop" if str(src_path).strip().lower().startswith("desktop:") else "workspace"))
+            src = self._resolve_scoped_path(src_path, default_dir=src_default_dir)
             dest = self._resolve_scoped_path(dest_path, default_dir="workspace")
         except Exception as e:
             return {"success": False, "error": str(e), "status": "failed"}

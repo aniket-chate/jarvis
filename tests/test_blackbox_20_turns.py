@@ -8,6 +8,7 @@ TEST_NAME = f"jarvis_blackbox_{uuid.uuid4().hex[:8]}.txt"
 RENAMED_NAME = f"jarvis_blackbox_renamed_{uuid.uuid4().hex[:8]}.txt"
 BASE_URL = "http://127.0.0.1:8765/api/chat"
 DOCUMENTS = ROOT / "workspace" / "documents"
+SERVER_LOG = ROOT / "blackbox_server.log"
 
 COMMANDS = [
     "Hi Jarvis, are you ready?",
@@ -39,7 +40,7 @@ def request(message):
     with urllib.request.urlopen(req, timeout=45) as resp:
         return resp.status, json.loads(resp.read().decode()), round((time.perf_counter()-t0)*1000, 2)
 
-def wait_for_server():
+def wait_for_server(server):
     deadline = time.time() + 60
     while time.time() < deadline:
         try:
@@ -48,7 +49,7 @@ def wait_for_server():
                 if r.status == 200: return
         except Exception:
             time.sleep(1)
-    log_text = server_log.read_text(encoding="utf-8", errors="replace") if server_log.exists() else ""
+    log_text = SERVER_LOG.read_text(encoding="utf-8", errors="replace") if SERVER_LOG.exists() else ""
     if server.poll() is not None:
         raise RuntimeError(f"JARVIS server exited with code {server.returncode}:\n{log_text[-12000:]}")
     raise RuntimeError(f"JARVIS server did not become reachable.\n{log_text[-12000:]}")
@@ -81,11 +82,11 @@ def main():
     env["PYTHONPATH"] = str(ROOT)
     env["GATEWAY_AUTH_TOKEN"] = TOKEN
     server_log = ROOT / "blackbox_server.log"
-    log_handle = server_log.open("w", encoding="utf-8")
+    log_handle = SERVER_LOG.open("w", encoding="utf-8")
     server = subprocess.Popen([sys.executable, "-m", "uvicorn", "server.app:app", "--host", "127.0.0.1", "--port", "8765"], cwd=ROOT, env=env, stdout=log_handle, stderr=subprocess.STDOUT, text=True)
     results = []
     try:
-        wait_for_server()
+        wait_for_server(server)
         for i, command in enumerate(COMMANDS, 1):
             try:
                 status, payload, latency = request(command)
@@ -113,7 +114,7 @@ def main():
         except subprocess.TimeoutExpired: server.kill()
         try: log_handle.close()
         except Exception: pass
-        if server_log.exists(): server_log.unlink()
+        if SERVER_LOG.exists(): SERVER_LOG.unlink()
     passed = sum(1 for _, _, ok, _ in results if ok)
     print("\n=== BLACK-BOX 20-TURN SUMMARY ===")
     print(f"PASSED={passed}/20")

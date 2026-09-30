@@ -150,9 +150,9 @@ class IntentArbitrator:
         low = text.lower()
         if not re.search(r"\b(?:whatsapp|email|mail|message|sms|text)\b", low):
             return None
-        match = re.search(r"\b(?:to|tell|message|contact)\s+([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})", text, re.I)
+        match = re.search(r"\b(?:to|tell|message|contact|email)\s+([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})(?=\s+(?:saying|with|that|body|message)\b|$)", text, re.I)
         if not match:
-            match = re.search(r"\b(?:to|tell|message|contact)\s+((?:[A-Za-z][A-Za-z.'-]*\s+){0,5}[A-Za-z][A-Za-z.'-]*)", text, re.I)
+            match = re.search(r"\b(?:to|tell|message|contact)\s+((?:[A-Za-z][A-Za-z.'-]*\s+){0,5}[A-Za-z][A-Za-z.'-]*)(?=\s+(?:saying|with|that|body|message)\b|$)", text, re.I)
         recipient = match.group(1).strip(" ,.:;") if match else ""
         if not recipient:
             return IntentCandidate(self._clarify(text, "communication", "Who should receive the message?", source="communication"), .98)

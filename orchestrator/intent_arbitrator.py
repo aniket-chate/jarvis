@@ -260,7 +260,7 @@ class IntentArbitrator:
             "delete the file", "delete file", "remove the file", "move the file", "move file", "rename the file", "rename file"
         ]
         is_past_inquiry = bool(re.search(r"^(?:did\s+you|was\s+the|were\s+the|have\s+you|why\s+did\s+you)\b", low))
-        if not is_past_inquiry and (any(w in low for w in file_triggers) or (any(k in low for k in ["file", "document", "notes", ".txt", ".json", ".csv", ".md"]) and any(v in low for v in ["create", "write", "make", "read", "show", "open", "delete", "remove", "move", "rename"]))):
+        if not is_past_inquiry and (any(w in low for w in file_triggers) or (("search" in low or "find" in low or "locate" in low) and any(k in low for k in ["file", "files", "document", "documents"])) or (any(k in low for k in ["file", "document", "notes", ".txt", ".json", ".csv", ".md"]) and any(v in low for v in ["create", "write", "make", "read", "show", "open", "delete", "remove", "move", "rename"]))):
             from orchestrator.parameter_extractor import parameter_extractor
             f_params = parameter_extractor.extract_file_parameters(clean)
             if f_params.get("requires_clarification"):

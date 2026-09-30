@@ -52,6 +52,7 @@ class ConfirmationTransaction:
     action: str
     target: str
     payload: Dict[str, Any]
+    domain: str = ""
     created_at: float = field(default_factory=time.time)
     ttl_seconds: float = 90.0
 
@@ -69,7 +70,7 @@ class WorkingContextManager:
         self._code: Optional[CodeContext] = None
         self._file: Optional[FileContext] = None
         self._pending_confirmation: Optional[ConfirmationTransaction] = None
-        self._last_git_branch: str = "master"
+        self._last_git_branch: str = ""
         self._active_window_title: str = ""
         self._history: List[Dict[str, Any]] = []
 
@@ -180,8 +181,19 @@ class WorkingContextManager:
         return self._file
 
     # Confirmation Transaction Management
-    def stage_confirmation(self, action: str, target: str, payload: Dict[str, Any]) -> ConfirmationTransaction:
-        tx = ConfirmationTransaction(action=action, target=target, payload=payload)
+    def stage_confirmation(
+        self,
+        action: str,
+        target: str,
+        payload: Dict[str, Any],
+        domain: str = "",
+    ) -> ConfirmationTransaction:
+        tx = ConfirmationTransaction(
+            action=action,
+            target=target,
+            payload=payload,
+            domain=domain,
+        )
         self._pending_confirmation = tx
         logger.info("[ContextManager] Staged pending confirmation: action='%s', target='%s'", action, target)
         return tx

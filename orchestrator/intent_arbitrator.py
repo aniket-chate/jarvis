@@ -98,18 +98,37 @@ class IntentArbitrator:
         return intent
 
     def _provider_confirmation(self, text):
-        tx = getattr(self.context, "get_pending_confirmation", lambda: None)()
-        if not tx:
-            tx = getattr(self.context, "_pending_confirmation", None) or getattr(self.context, "pending", None)
-        if not tx or getattr(tx, "is_expired", False):
+        tx = getattr(self.context, "pending", None)
+        if tx is None:
+            getter = getattr(self.context, "get_pending_confirmation", None)
+            tx = getter() if callable(getter) else getattr(self.context, "_pending_confirmation", None)
+        if tx is None or getattr(tx, "is_expired", False):
             return None
-        low = re.sub(r"[^a-z0-9 ]+", " ", text.lower()).strip()
-        if low in {"yes", "yes do it", "do it", "confirm", "proceed", "sure", "approve", "approved", "go ahead", "ok", "okay"}:
+        low = re.sub(r"[^a-z0-9 ]+", " ", str(text).lower()).strip()
+        confirms = {"yes", "yes do it", "do it", "confirm", "proceed", "sure", "approve", "approved", "go ahead", "ok", "okay"}
+        cancels = {"no", "cancel", "abort", "nevermind", "never mind", "dont", "don't"}
+        if low in confirms:
             payload = copy.deepcopy(getattr(tx, "payload", {}) or {})
-            payload["_confirmation"] = {"domain": getattr(tx, "domain", ""), "action": getattr(tx, "action", ""), "target": getattr(tx, "target", ""), "payload": copy.deepcopy(payload), "original_request": getattr(tx, "original_request", ""), "resolution": "confirm"}
-            return IntentCandidate(self._make(text, getattr(tx, "domain", "") or "system", "confirmed_" + getattr(tx, "action", "action"), getattr(tx, "target", ""), payload, 1.0, source="confirmation"), 1.0)
-        if low in {"no", "cancel", "abort", "nevermind", "never mind", "dont", "don't"} or (low == "stop" and (getattr(tx, "payload", {}) or {}).get("allow_stop_cancel")):
-            return IntentCandidate(self._make(text, "system", "cancel_action", getattr(tx, "target", ""), {"user_cancelled": True}, 1.0, source="confirmation"), 1.0)
+            meta = {
+                "domain": getattr(tx, "domain", ""),
+                "action": getattr(tx, "action", ""),
+                "target": getattr(tx, "target", ""),
+                "payload": copy.deepcopy(payload),
+                "original_request": getattr(tx, "original_request", ""),
+                "resolution": "confirm",
+            }
+            payload["_confirmation"] = meta
+            return IntentCandidate(self._make(text, meta["domain"] or "system", "confirmed_" + (meta["action"] or "action"), meta["target"], payload, 1.0, source="confirmation"), 1.0)
+        if low in cancels or (low == "stop" and (getattr(tx, "payload", {}) or {}).get("allow_stop_cancel")):
+            meta = {
+                "domain": getattr(tx, "domain", ""),
+                "action": getattr(tx, "action", ""),
+                "target": getattr(tx, "target", ""),
+                "payload": copy.deepcopy(getattr(tx, "payload", {}) or {}),
+                "original_request": getattr(tx, "original_request", ""),
+                "resolution": "cancel",
+            }
+            return IntentCandidate(self._make(text, "system", "cancel_action", meta["target"], {"user_cancelled": True, "_confirmation": meta}, 1.0, source="confirmation"), 1.0)
         return None
 
     def _provider_weather(self, text):

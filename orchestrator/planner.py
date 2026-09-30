@@ -724,7 +724,7 @@ class TaskPlanner:
 
         # -1b. Google Maps Route & Directions Navigation (Astra Web Agent Path)
         maps_m = re.search(r"\b(?:route\s+(?:of|to|for)|directions?\s+(?:to|for)|how\s+to\s+reach)\s+(.+)", lower)
-        if maps_m or ("route" in lower and any(w in lower for w in ["shaniwar wada", "mumbai", "pune", "delhi", "maps", "destination"])):
+        if maps_m or ("route" in lower and any(w in lower for w in ["maps", "destination"])):
             dest = maps_m.group(1).strip() if maps_m else text
             dest = re.sub(r"\b(?:on\s+maps|on\s+google\s+maps|using\s+maps|for\s+me|please)\b", "", dest, flags=re.IGNORECASE).strip()
             dest = re.sub(r"^(?:give\s+me\s+the\s+route\s+(?:of|to)|show\s+me\s+the\s+route\s+(?:of|to))\s+", "", dest, flags=re.IGNORECASE).strip()
@@ -740,8 +740,7 @@ class TaskPlanner:
         if active_sess and active_sess.get("action_type") == "maps_route":
             prev_dest = active_sess.get("query")
             clean_loc = re.sub(r"^(?:from|starting\s+from)\s+", "", lower).strip()
-            known_locs = ["jalna", "pune", "mumbai", "delhi", "nagpur", "nashik", "aurangabad", "chhatrapati sambhajinagar"]
-            if clean_loc in known_locs or lower.startswith("from ") or (len(lower.split()) <= 2 and not any(w in lower for w in ["hello", "hi", "hey", "who", "what", "stop", "cancel"])):
+            if lower.startswith("from ") or (len(lower.split()) <= 4 and not any(w in lower for w in ["hello", "hi", "hey", "who", "what", "stop", "cancel"])):
                 logger.info("[Planner MapFollowUp] Linking conversational route origin '%s' to destination '%s'", text, prev_dest)
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",

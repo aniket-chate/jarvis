@@ -255,6 +255,7 @@ class IntentArbitrator:
         # 8. File Operations & Creation Safety
         file_triggers = [
             "make a note file", "create a file", "make a file", "write a file", "save a file",
+            "search for files", "search files", "find files", "find a file", "locate a file",
             "read the file", "read file", "show the file", "show me the file", "open the file", "open file",
             "delete the file", "delete file", "remove the file", "move the file", "move file", "rename the file", "rename file"
         ]
@@ -378,7 +379,7 @@ class IntentArbitrator:
                 raw_query=clean,
             )
 
-        if low in ["switch back", "go back"]:
+        if re.fullmatch(r"(?:switch|go)\s+back(?:\s+to\s+(?:the\s+)?previous(?:\s+git)?\s+branch)?[.!]?", low):
             previous = context_manager.get_previous_git_branch()
             if not previous:
                 return StructuredIntent(
@@ -420,12 +421,35 @@ class IntentArbitrator:
             body = m_body.group(1).strip() if m_body else ""
 
             action_type = "draft_email" if is_email else "draft_message"
+            if not recipient:
+                prompt = "Who should I send the message to?"
+                return StructuredIntent(
+                    domain="communication",
+                    action="clarification",
+                    target="",
+                    params={"query": prompt, "system_extra": prompt, "response": prompt},
+                    raw_query=clean,
+                    needs_clarification=True,
+                    clarification_prompt=prompt,
+                )
+            if not body:
+                prompt = "What message should I send?"
+                return StructuredIntent(
+                    domain="communication",
+                    action="clarification",
+                    target=recipient,
+                    params={"query": prompt, "system_extra": prompt, "response": prompt},
+                    raw_query=clean,
+                    needs_clarification=True,
+                    clarification_prompt=prompt,
+                )
             return StructuredIntent(
                 domain="communication",
                 action=action_type,
                 target=recipient,
                 params={"recipient": recipient, "to": recipient, "message": body, "body": body},
                 requires_confirmation=True,
+                raw_query=clean,
             )
 
         # 11. Multi-Intent Telemetry ("tell me cpu, ram, network status and the time")
@@ -532,12 +556,41 @@ class IntentArbitrator:
         if is_alarm_or_timer:
             from orchestrator.parameter_extractor import parameter_extractor
             sched_params = parameter_extractor.extract_schedule_params(clean)
+            if sched_params.get("delay_seconds") is None:
+                return StructuredIntent(
+                    domain="scheduler",
+                    action="clarification",
+                    target="",
+                    params={
+                        "query": "When should I schedule the reminder?",
+                        "system_extra": "When should I schedule the reminder?",
+                        "response": "When should I schedule the reminder?",
+                    },
+                    raw_query=clean,
+                    needs_clarification=True,
+                    clarification_prompt="When should I schedule the reminder?",
+                )
+            if not sched_params.get("message"):
+                return StructuredIntent(
+                    domain="scheduler",
+                    action="clarification",
+                    target="",
+                    params={
+                        "query": "What should I remind you about?",
+                        "system_extra": "What should I remind you about?",
+                        "response": "What should I remind you about?",
+                    },
+                    raw_query=clean,
+                    needs_clarification=True,
+                    clarification_prompt="What should I remind you about?",
+                )
             return StructuredIntent(
                 domain="scheduler",
                 action="set_alarm",
-                target=sched_params.get("message", "Scheduled alarm"),
+                target=sched_params["message"],
                 params=sched_params,
                 confidence=0.98,
+                raw_query=clean,
             )
 
         # 14. Multi-Intent Personal + External Synthesis (Capabilities 33, 31, 34, 35)

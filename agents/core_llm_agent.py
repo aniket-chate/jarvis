@@ -316,6 +316,10 @@ class CoreLLMAgent:
         persona = inputs.get("active_persona") or settings.active_persona_name
         system_extra = inputs.get("system_extra")
 
+        if action == "clarification":
+            resp = inputs.get("response") or inputs.get("query") or "Could you clarify what you would like me to do?"
+            return {"success": True, "response": resp, "output": resp, "persona": persona}
+
         if action == "session_summary":
             summary = inputs.get("summary") or "In this session, we had a conversational discussion and answered queries."
             return {

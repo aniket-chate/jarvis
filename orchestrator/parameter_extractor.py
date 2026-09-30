@@ -402,7 +402,15 @@ class ParameterExtractor:
                 delay_sec = max(1, int((target_dt - now).total_seconds()))
 
         if target_dt is None:
-            target_dt = now + timedelta(seconds=delay_sec)
+            return {
+                "delay_seconds": None,
+                "message": "",
+                "fire_time": "",
+                "fire_time_iso": "",
+                "requires_clarification": True,
+                "clarification_prompt": "When should I schedule the reminder?",
+                "raw_query": text,
+            }
 
         # Message extraction
         message = ""
@@ -421,8 +429,15 @@ class ParameterExtractor:
                 message = cleaned
 
         if not message:
-            time_str = target_dt.strftime("%H:%M:%S")
-            message = f"Scheduled alarm for {time_str}"
+            return {
+                "delay_seconds": delay_sec,
+                "message": "",
+                "fire_time": target_dt.strftime("%H:%M:%S"),
+                "fire_time_iso": target_dt.isoformat(),
+                "requires_clarification": True,
+                "clarification_prompt": "What should I remind you about?",
+                "raw_query": text,
+            }
 
         params = {
             "delay_seconds": delay_sec,

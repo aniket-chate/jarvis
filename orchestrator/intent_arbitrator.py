@@ -57,6 +57,7 @@ class IntentArbitrator:
             IntentProvider("telemetry", self._provider_telemetry),
             IntentProvider("browser", self._provider_browser),
             IntentProvider("scheduler", self._provider_scheduler),
+            IntentProvider("file", self._provider_file),
             IntentProvider("file_reference", self._provider_file_reference),
         ]
 
@@ -87,13 +88,18 @@ class IntentArbitrator:
                 logger.warning("[IntentArbitrator] Provider %s failed: %s", provider.name, exc)
         if candidates:
             return max(candidates, key=lambda item: (item.score, item.intent.confidence)).intent
-        return self._legacy_arbitrate(clean)
+        intent = self._legacy_arbitrate(clean)
+        if not intent.raw_query:
+            intent.raw_query = clean
+        if not intent.source:
+            intent.source = "legacy"
+        return intent
 
     def _provider_confirmation(self, text):
         tx = getattr(self.context, "get_pending_confirmation", lambda: None)()
         if not tx or getattr(tx, "is_expired", False):
             return None
-        low = text.lower()
+        low = re.sub(r"[^a-z0-9 ]+", " ", text.lower()).strip()
         if low in {"yes", "yes do it", "do it", "confirm", "proceed", "sure", "approve", "approved", "go ahead", "ok", "okay"}:
             payload = copy.deepcopy(getattr(tx, "payload", {}) or {})
             payload["_confirmation"] = {"domain": getattr(tx, "domain", ""), "action": getattr(tx, "action", ""), "target": getattr(tx, "target", ""), "payload": copy.deepcopy(payload), "original_request": getattr(tx, "original_request", ""), "resolution": "confirm"}
@@ -174,7 +180,7 @@ class IntentArbitrator:
     def _provider_telemetry(self, text):
         metrics = {"cpu":{"cpu"}, "ram":{"ram"}, "memory":{"memory","mem"}, "disk":{"disk","storage"}, "network":{"network","net"}, "battery":{"battery"}, "temperature":{"temperature","temp"}, "uptime":{"uptime"}, "time":{"time","clock"}}
         found = [key for key, aliases in metrics.items() if any(re.search(r"\b"+re.escape(alias)+r"\b", text.lower()) for alias in aliases)]
-        if not found or not any(x in text.lower() for x in ("status","check","show","tell","what","how")):
+        if not found:
             return None
         return IntentCandidate(self._make(text, "system", "multi_telemetry", "system_overview", {"metrics": found}, .9, source="telemetry"), .9)
 
@@ -207,7 +213,15 @@ class IntentArbitrator:
             return IntentCandidate(self._make(text, "scheduler", "list", "active_alarms", {"action": "list"}, .96, source="scheduler"), .96)
         if re.search(r"\b(?:cancel|delete|clear|stop)\s+(?:the\s+)?alarm\b", low):
             return IntentCandidate(self._make(text, "scheduler", "cancel", "alarm", {"action": "cancel"}, .96, source="scheduler"), .96)
-        if not any(k in low for k in ("reminder", "remind me", "set an alarm", "set a timer", "wake me")):
+        if any(x in low for x in ("calendar", "meeting", "event", "agenda", "free slot", "availability")):
+            if re.search(r"\b(?:create|add|book|schedule)\b", low):
+                params = parameter_extractor.extract_calendar_params(text)
+                missing = params.get("missing_required", [])
+                if missing:
+                    return IntentCandidate(self._clarify(text, "scheduler", "Please provide " + " and ".join(missing) + ".", {"calendar_request": text, **params}, source="scheduler"), .97)
+                return IntentCandidate(self._make(text, "scheduler", "create_calendar_event", params.get("title", ""), {"calendar_request": text, **params}, .97, True, "scheduler"), .97)
+            return IntentCandidate(self._make(text, "scheduler", "get_calendar_events", "calendar_events", {"query": text, "calendar_request": text}, .94, source="scheduler"), .94)
+        if not any(x in low for x in ("reminder", "remind me", "set an alarm", "set a timer", "wake me")):
             return None
         params = parameter_extractor.extract_schedule_params(text)
         if params.get("delay_seconds") is None:
@@ -216,6 +230,31 @@ class IntentArbitrator:
             return IntentCandidate(self._clarify(text, "scheduler", "What should I remind you about?", params, source="scheduler"), .97)
         action = "set_reminder" if "remind" in low or "reminder" in low else "set_alarm"
         return IntentCandidate(self._make(text, "scheduler", action, params.get("message", ""), params, .96, source="scheduler"), .96)
+
+    def _provider_file(self, text):
+        if not re.search(r"\b(?:create|make|write|save|read|open|view|show|delete|remove|move|rename|search|find|locate)\b", text, re.I):
+            return None
+        if not re.search(r"\b(?:file|document|resume|report|notes?|pdf|csv|json|folder|directory)\b", text, re.I):
+            return None
+        params = parameter_extractor.extract_file_parameters(text)
+        action = params.get("action", "")
+        filename = params.get("filename") or ""
+        if action == "create" and not filename:
+            return IntentCandidate(self._clarify(text, "file", "What filename should I use?", params, source="file"), .98)
+        if action == "delete" and not filename:
+            return IntentCandidate(self._clarify(text, "file", "Which file should I delete?", params, source="file"), .98)
+        if action == "read" and not filename:
+            return IntentCandidate(self._clarify(text, "file", "Which file should I read?", params, source="file"), .98)
+        if action == "rename" and (not filename or not params.get("destination")):
+            return IntentCandidate(self._clarify(text, "file", "Which file should I rename, and what should its new name be?", params, source="file"), .98)
+        if action == "move" and (not filename or not params.get("destination")):
+            return IntentCandidate(self._clarify(text, "file", "Which file should I move, and where should it go?", params, source="file"), .98)
+        if action == "search" and (not filename or filename == "*"):
+            return IntentCandidate(self._clarify(text, "file", "What file or text should I search for?", params, source="file"), .98)
+        mapped = {"create":"create_file","read":"read_file","delete":"delete_file","move":"move_file","rename":"rename_file","search":"search_file"}.get(action)
+        if not mapped:
+            return None
+        return IntentCandidate(self._make(text, "file", mapped, filename, params, .93, action == "delete", "file"), .93)
 
     def _provider_file_reference(self, text):
         if not re.search(r"\b(?:read|show|open|delete|remove|move|rename)\b", text, re.I):

@@ -256,7 +256,7 @@ class ParameterExtractor:
                 text,
                 re.IGNORECASE
             )
-            m_path = re.search(r'(?P<q>["'](?:[A-Za-z]:[\\/]|/|~)[^"']+["'])|(?P<p>[A-Za-z]:[\\/][^\s,;]+)|(?P<h>~[\\/][^\s,;]+)', text)
+            m_path = re.search(r"(?P<q>[\"'](?:[A-Za-z]:[\\/]|/|~)[^\"']+[\"'])|(?P<p>[A-Za-z]:[\\/][^\s,;]+)|(?P<h>~[\\/][^\s,;]+)", text)
             if m_path:
                 raw_path = m_path.groupdict().get("q") or m_path.groupdict().get("p") or m_path.groupdict().get("h")
                 filename = str(Path(raw_path.strip('"')).expanduser())

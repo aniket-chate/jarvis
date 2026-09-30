@@ -514,18 +514,7 @@ class BrowserAutomationAgent:
             # 1. Capture initial playback proof screenshot
             page.screenshot(path=str(screenshot_dest))
 
-            # Copy initial screenshot to active conversation artifacts directory
-            try:
-                import shutil
-                artifacts_dirs = [
-                    Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\65337e1e-5d27-4941-8153-1cf1c5997512"),
-                    Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\a47af4a5-7bb7-4250-bd6c-7d2bf08ed5f3")
-                ]
-                for adir in artifacts_dirs:
-                    if adir.exists():
-                        shutil.copy(screenshot_dest, adir / screenshot_filename)
-            except Exception as cpy_err:
-                logger.warning("[BrowserAgent FastPath] Artifact copy warning: %s", cpy_err)
+            # Persist only to the configured screenshot destination.
 
             # 2. If play_duration_sec requested (e.g. verification), allow video to play continuously
             time_at_60s = final_time

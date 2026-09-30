@@ -20,7 +20,7 @@ from perception.events import PerceptionEvent
 MESSAGES = [
     ("What is the weather in Jalna today?", "weather_agent"),
     ("What is the latest news about artificial intelligence?", "news_agent"),
-    ("Create a file named jarvis_real_work_probe.txt with content: black-box test", "file_agent"),
+    ("Create a file named jarvis_real_work_probe.txt in workspace with content: black-box test", "file_agent"),
     ("Read the file I just created", "file_agent"),
     ("Show me the file you just created", "file_agent"),
     ("Read that file", "file_agent"),

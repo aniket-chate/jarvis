@@ -301,8 +301,8 @@ class ParameterExtractor:
         """Extracts messaging parameters (channel, recipient, message)."""
         lower = text.strip().lower()
         channel = "whatsapp" if "whatsapp" in lower else ("email" if "email" in lower or "mail" in lower else "sms")
-        recipient = "Contact"
-        message = "Hello from JARVIS"
+        recipient = ""
+        message = ""
 
         # WhatsApp extraction
         if channel == "whatsapp":
@@ -336,7 +336,7 @@ class ParameterExtractor:
         from datetime import datetime, timedelta
         lower = text.strip().lower()
         now = datetime.now()
-        delay_sec = 60
+        delay_sec = None
         target_dt = None
         matched_time_span = ""
 

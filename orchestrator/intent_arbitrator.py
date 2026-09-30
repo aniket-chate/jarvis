@@ -22,6 +22,9 @@ class StructuredIntent:
     params: Dict[str, Any] = field(default_factory=dict)
     requires_confirmation: bool = False
     confidence: float = 1.0
+    raw_query: str = ""
+    needs_clarification: bool = False
+    clarification_prompt: str = ""
 
 
 class IntentArbitrator:
@@ -38,7 +41,7 @@ class IntentArbitrator:
                 if tx:
                     logger.info("[IntentArbitrator] Matched confirmed transaction: action='%s', target='%s'", tx.action, tx.target)
                     return StructuredIntent(
-                        domain="file" if "file" in tx.action else "communication",
+                        domain=getattr(tx, "domain", "") or tx.payload.get("_domain", "system"),
                         action=f"confirmed_{tx.action}",
                         target=tx.target,
                         params=tx.payload,
@@ -149,7 +152,7 @@ class IntentArbitrator:
                     is_weather = True
                     m_t = re.search(r"\b(tomorrow|today|tonight)\b", low)
                     weather_time = m_t.group(1) if m_t else "tomorrow"
-                    weather_loc = w_ctx.get("location", "Delhi")
+                    weather_loc = w_ctx.get("location")
             elif re.search(r"\b(?:what\s+about|how\s+about|and\s+in)\s+([a-zA-Z\s]+)$", low):
                 w_ctx = context_manager.get_weather_context() if hasattr(context_manager, "get_weather_context") else {}
                 if w_ctx.get("active"):
@@ -171,7 +174,7 @@ class IntentArbitrator:
                     weather_loc = cand
             if not weather_loc:
                 w_ctx = context_manager.get_weather_context() if hasattr(context_manager, "get_weather_context") else {}
-                weather_loc = w_ctx.get("location") or "Delhi"
+                weather_loc = w_ctx.get("location")
             if "tomorrow" in low:
                 weather_time = "tomorrow"
             elif "tonight" in low:
@@ -214,20 +217,20 @@ class IntentArbitrator:
             return StructuredIntent(
                 domain="ocr",
                 action="scan_document",
-                target="sample_receipt.png",
-                params={"image_path": "sample_receipt.png", "save_to_kb": "save" in low},
+                target=ref["resolved_target"] or "",
+                params={"image_path": ref["resolved_target"] or "", "save_to_kb": "save" in low},
             )
 
         # 7. Code Review & Follow-up & Generation
         if ref["is_code_op"] and ref["resolved_action"] == "execute_code":
             # "run it with 5"
             m_arg = re.search(r"with\s+(\d+)", low)
-            arg_val = int(m_arg.group(1)) if m_arg else 5
+            arg_val = m_arg.group(1).strip() if m_arg else ""
             return StructuredIntent(
                 domain="code",
                 action="execute_code",
-                target="factorial",
-                params={"code": ref["resolved_target"], "input_arg": arg_val},
+                target=ref["resolved_target"] or "",
+                params={"code": ref["resolved_target"], "input_arg": arg_val} if arg_val else {"code": ref["resolved_target"]},
             )
 
         if ref["is_code_op"] and ref["resolved_action"] == "code_explanation":
@@ -235,29 +238,13 @@ class IntentArbitrator:
             return StructuredIntent(
                 domain="code",
                 action="explain_code",
-                target="zero_division",
-                params={"code": ref["resolved_target"], "scenario": "b is zero"},
-            )
-
-        if "factorial" in low and any(w in low for w in ["program", "code", "python", "make", "write"]):
-            factorial_code = (
-                "def factorial(n):\n"
-                "    if not isinstance(n, int) or n < 0:\n"
-                "        raise ValueError('Factorial is only defined for non-negative integers.')\n"
-                "    return 1 if n in (0, 1) else n * factorial(n - 1)\n"
-            )
-            context_manager.set_code(factorial_code, language="python", function_name="factorial", variables=["n"])
-            return StructuredIntent(
-                domain="code",
-                action="generate_code",
-                target="factorial",
-                params={"code": factorial_code, "language": "python"},
+                target=ref["resolved_target"] or "",
+                params={"code": ref["resolved_target"], "scenario": clean},
             )
 
         if "review this python code" in low or "review this code" in low:
             m_code = re.search(r":\s*(.+)$", clean, re.DOTALL)
             code_text = m_code.group(1).strip() if m_code else clean
-            context_manager.set_code(code_text, language="python", function_name="divide", variables=["a", "b"])
             return StructuredIntent(
                 domain="code",
                 action="review_code",
@@ -290,13 +277,14 @@ class IntentArbitrator:
             dir_target = f_params.get("directory") or "documents"
             content_txt = f_params.get("content") or ""
 
-            target_path = filename if (filename and (":\\" in filename or ":/" in filename)) else f"C:\\Users\\acer\\{dir_target.capitalize()}\\{filename}"
+            target_path = filename if (filename and (":\\" in filename or ":/" in filename)) else f"{dir_target}:{filename}"
 
             if f_action == "create":
                 is_desktop = (dir_target == "desktop" or "desktop" in low)
                 if is_desktop:
                     context_manager.stage_confirmation(
                         action="create_file",
+                        domain="file",
                         target=target_path,
                         payload={"directory": dir_target, "filename": filename, "content": content_txt, "path": target_path},
                     )
@@ -352,7 +340,7 @@ class IntentArbitrator:
 
         if any(w in low for w in ["find a file", "search for a file", "locate file"]):
             m_fn = re.search(r"called\s+([a-zA-Z0-9_\-\.]+)", low)
-            target_fn = m_fn.group(1).strip() if m_fn else "agent_registry.yaml"
+            target_fn = m_fn.group(1).strip() if m_fn else ""
             return StructuredIntent(
                 domain="file",
                 action="search_file",
@@ -369,24 +357,45 @@ class IntentArbitrator:
                 params={},
             )
 
-        if "create a temporary branch" in low or "temporary branch" in low or "create branch" in low:
-            # Clean branch extraction without preposition pollution
-            branch_name = "test-temp-branch"
-            context_manager.set_git_branch(branch_name)
+        if "create branch" in low or "temporary branch" in low:
+            m_branch = re.search(r"\b(?:called|named|branch)\s+([A-Za-z0-9._/-]+)\b", clean, re.IGNORECASE)
+            branch_name = m_branch.group(1).strip() if m_branch else ""
+            if not branch_name:
+                return StructuredIntent(
+                    domain="git",
+                    action="create_branch",
+                    target="",
+                    params={},
+                    needs_clarification=True,
+                    clarification_prompt="What should I name the new branch?",
+                    raw_query=clean,
+                )
             return StructuredIntent(
                 domain="git",
                 action="create_branch",
                 target=branch_name,
                 params={"branch_name": branch_name},
+                raw_query=clean,
             )
 
-        if low in ["switch back", "go back to main", "checkout master", "checkout main"]:
-            # Context collision resolution: If git branch was switched, switch git branch back!
+        if low in ["switch back", "go back"]:
+            previous = context_manager.get_previous_git_branch()
+            if not previous:
+                return StructuredIntent(
+                    domain="git",
+                    action="switch_branch",
+                    target="",
+                    params={},
+                    needs_clarification=True,
+                    clarification_prompt="Which branch should I switch back to?",
+                    raw_query=clean,
+                )
             return StructuredIntent(
                 domain="git",
                 action="switch_branch",
-                target="master",
-                params={"branch_name": "master"},
+                target=previous,
+                params={"branch_name": previous},
+                raw_query=clean,
             )
 
         # 10. Communication (Email, Messages, WhatsApp)
@@ -405,10 +414,10 @@ class IntentArbitrator:
                 )
 
             m_recip = re.search(r"(?:to|tell|message)\s+([a-zA-Z0-9_\-]+)", clean, re.IGNORECASE)
-            recipient = m_recip.group(1).strip() if m_recip else "recipient"
+            recipient = m_recip.group(1).strip() if m_recip else ""
             
             m_body = re.search(r"(?:saying|body|that|message)\s+(.+)$", clean, re.IGNORECASE)
-            body = m_body.group(1).strip() if m_body else clean
+            body = m_body.group(1).strip() if m_body else ""
 
             action_type = "draft_email" if is_email else "draft_message"
             return StructuredIntent(
@@ -434,14 +443,14 @@ class IntentArbitrator:
             return StructuredIntent(
                 domain="browser",
                 action="github_search",
-                target="python",
-                params={"query": "python", "url": "https://github.com/search?q=python&type=repositories"},
+                target="",
+                params={"query": ""},
             )
 
         # 13. General Web Navigation & Media
         if "open youtube" in low:
             context_manager.update_browser(url="https://www.youtube.com", media_state="playing", media_target="song")
-            return StructuredIntent(domain="browser", action="play_youtube", target="lofi beats", params={"song": "lofi beats"})
+            return StructuredIntent(domain="browser", action="play_youtube", target="", params={"song": ""})
 
         if "open github" in low:
             context_manager.update_browser(url="https://github.com/", title="GitHub", media_state="stopped")

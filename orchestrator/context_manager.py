@@ -52,6 +52,7 @@ class ConfirmationTransaction:
     action: str
     target: str
     payload: Dict[str, Any]
+    domain: str = ""
     created_at: float = field(default_factory=time.time)
     ttl_seconds: float = 90.0
 
@@ -69,7 +70,8 @@ class WorkingContextManager:
         self._code: Optional[CodeContext] = None
         self._file: Optional[FileContext] = None
         self._pending_confirmation: Optional[ConfirmationTransaction] = None
-        self._last_git_branch: str = "master"
+        self._last_git_branch: str = ""
+        self._previous_git_branch: str = ""
         self._active_window_title: str = ""
         self._history: List[Dict[str, Any]] = []
 
@@ -151,7 +153,7 @@ class WorkingContextManager:
     def get_weather_context(self) -> Dict[str, Any]:
         ctx = getattr(self, "_weather_context", None)
         if not ctx:
-            return {"active": False, "location": "Delhi", "time_target": "now"}
+            return {"active": False, "location": "", "time_target": "now"}
         if time.time() - ctx.get("timestamp", 0) > 900:
             ctx["active"] = False
         return ctx
@@ -180,8 +182,19 @@ class WorkingContextManager:
         return self._file
 
     # Confirmation Transaction Management
-    def stage_confirmation(self, action: str, target: str, payload: Dict[str, Any]) -> ConfirmationTransaction:
-        tx = ConfirmationTransaction(action=action, target=target, payload=payload)
+    def stage_confirmation(
+        self,
+        action: str,
+        target: str,
+        payload: Dict[str, Any],
+        domain: str = "",
+    ) -> ConfirmationTransaction:
+        tx = ConfirmationTransaction(
+            action=action,
+            target=target,
+            payload=payload,
+            domain=domain,
+        )
         self._pending_confirmation = tx
         logger.info("[ContextManager] Staged pending confirmation: action='%s', target='%s'", action, target)
         return tx
@@ -199,10 +212,16 @@ class WorkingContextManager:
 
     # Git State
     def set_git_branch(self, branch: str) -> None:
-        self._last_git_branch = branch
+        clean = (branch or "").strip()
+        if clean and clean != self._last_git_branch:
+            self._previous_git_branch = self._last_git_branch
+            self._last_git_branch = clean
 
     def get_git_branch(self) -> str:
         return self._last_git_branch
+
+    def get_previous_git_branch(self) -> str:
+        return self._previous_git_branch
 
     # Pronoun & Contextual Reference Resolution
     def resolve_references(self, query: str) -> Dict[str, Any]:

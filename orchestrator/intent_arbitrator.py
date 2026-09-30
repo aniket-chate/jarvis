@@ -108,7 +108,7 @@ class IntentArbitrator:
             tx = getter() if callable(getter) else getattr(self.context, "_pending_confirmation", None)
         if tx is None or getattr(tx, "is_expired", False):
             return None
-        low = re.sub(r"[^a-z0-9 ]+", " ", str(text).lower()).strip()
+        low = " ".join(re.sub(r"[^a-z0-9 ]+", " ", str(text).lower()).split())
         confirms = {"yes", "yes do it", "do it", "confirm", "proceed", "sure", "approve", "approved", "go ahead", "ok", "okay"}
         cancels = {"no", "cancel", "abort", "nevermind", "never mind", "dont", "don't"}
         if low in confirms:

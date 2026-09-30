@@ -7,7 +7,9 @@ regex collisions and ambiguous pronoun failures.
 import re
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List
+from typing import Callable, Dict, Any, Optional, List, Sequence
+import copy
+import unicodedata
 from orchestrator.context_manager import context_manager
 from memory.episodic_ledger import episodic_ledger
 
@@ -25,19 +27,170 @@ class StructuredIntent:
     raw_query: str = ""
     needs_clarification: bool = False
     clarification_prompt: str = ""
+    source: str = "legacy"
+
+
+@dataclass
+class IntentCandidate:
+    intent: StructuredIntent
+    score: float
+
+
+class IntentProvider:
+    def __init__(self, name, detect):
+        self.name = name
+        self.detect = detect
 
 
 class IntentArbitrator:
-    """Classifies user intent through semantic decomposition and active context binding."""
+    """Side-effect-free semantic classifier with injectable capability providers."""
+
+    def __init__(self, context=None, providers=None):
+        self.context = context or context_manager
+        self.providers = list(providers) if providers is not None else [
+            IntentProvider("confirmation", self._provider_confirmation),
+            IntentProvider("weather", self._provider_weather),
+            IntentProvider("git", self._provider_git),
+            IntentProvider("communication", self._provider_communication),
+            IntentProvider("telemetry", self._provider_telemetry),
+            IntentProvider("browser", self._provider_browser),
+        ]
+
+    @staticmethod
+    def normalize(text):
+        return " ".join(unicodedata.normalize("NFKC", str(text or "")).split()).strip()
+
+    @staticmethod
+    def _make(text, domain, action, target="", params=None, confidence=.8, confirmation=False, source="provider"):
+        return StructuredIntent(domain, action, target, dict(params or {}), confirmation, confidence, text, False, "", source)
+
+    @staticmethod
+    def _clarify(text, domain, prompt, params=None, confidence=.98, source="provider"):
+        return StructuredIntent(domain, "clarification", "", {"query": prompt, **(params or {})}, False, confidence, text, True, prompt, source)
 
     def arbitrate(self, text: str) -> StructuredIntent:
-        clean = text.strip()
-        low = clean.lower()
+        clean = self.normalize(text)
+        if not clean:
+            return self._clarify(clean, "chat", "What would you like JARVIS to do?", source="normalization")
+        candidates = []
+        for provider in self.providers:
+            try:
+                candidate = provider.detect(clean)
+                if candidate:
+                    candidate.intent.source = provider.name
+                    candidates.append(candidate)
+            except Exception as exc:
+                logger.warning("[IntentArbitrator] Provider %s failed: %s", provider.name, exc)
+        if candidates:
+            return max(candidates, key=lambda item: (item.score, item.intent.confidence)).intent
+        return self._legacy_arbitrate(clean)
+
+    def _provider_confirmation(self, text):
+        tx = getattr(self.context, "get_pending_confirmation", lambda: None)()
+        if not tx or getattr(tx, "is_expired", False):
+            return None
+        low = text.lower()
+        if low in {"yes", "yes do it", "do it", "confirm", "proceed", "sure", "approve", "approved", "go ahead", "ok", "okay"}:
+            payload = copy.deepcopy(getattr(tx, "payload", {}) or {})
+            payload["_confirmation"] = {"domain": getattr(tx, "domain", ""), "action": getattr(tx, "action", ""), "target": getattr(tx, "target", ""), "payload": copy.deepcopy(payload), "original_request": getattr(tx, "original_request", ""), "resolution": "confirm"}
+            return IntentCandidate(self._make(text, getattr(tx, "domain", "") or "system", "confirmed_" + getattr(tx, "action", "action"), getattr(tx, "target", ""), payload, 1.0, source="confirmation"), 1.0)
+        if low in {"no", "cancel", "abort", "nevermind", "never mind", "dont", "don't"} or (low == "stop" and (getattr(tx, "payload", {}) or {}).get("allow_stop_cancel")):
+            return IntentCandidate(self._make(text, "system", "cancel_action", getattr(tx, "target", ""), {"user_cancelled": True}, 1.0, source="confirmation"), 1.0)
+        return None
+
+    def _provider_weather(self, text):
+        low = text.lower()
+        if "whether" in low and (re.search(r"\bwhether\s+(?:to|or|or not)\b", low) or re.search(r"\b(?:know|wonder|decide|choose|unsure|doubt)\s+whether\b", low)):
+            return None
+        if not re.search(r"\b(?:weather|forecast|temperature|rain|raining)\b", low):
+            return None
+        location = ""
+        match = re.search(r"\b(?:in|for|at)\s+(.+?)(?:\s+(?:today|tomorrow|tonight|now))?\s*[?!.,]*$", text, re.I)
+        if match:
+            location = match.group(1).strip(" .,!?'\"")
+        if not location:
+            ctx = getattr(self.context, "get_weather_context", lambda: {})()
+            if ctx.get("active"):
+                location = str(ctx.get("location") or "").strip()
+        if not location:
+            location = str(getattr(self.context, "get_configured_location", lambda: "")() or "").strip()
+        when = "tomorrow" if "tomorrow" in low else "tonight" if "tonight" in low else "today" if "today" in low else "now"
+        if not location:
+            return IntentCandidate(self._clarify(text, "info", "Which location should I check?", {"time_target": when}, source="weather"), .98)
+        return IntentCandidate(self._make(text, "info", "get_weather", location, {"location": location, "time_target": when, "action": "get_weather"}, .97, source="weather"), .97)
+
+    def _provider_git(self, text):
+        low = text.lower()
+        if "git status" in low:
+            return IntentCandidate(self._make(text, "git", "status", "local_repo", confidence=.96, source="git"), .96)
+        if re.search(r"\b(?:create|make)\s+(?:a\s+)?(?:git\s+)?branch\b", low):
+            match = re.search(r"\b(?:called|named)\s+([A-Za-z0-9._/-]+)\b", text, re.I)
+            if not match:
+                return IntentCandidate(self._clarify(text, "git", "What should I name the new branch?", source="git"), .98)
+            branch = match.group(1).strip()
+            return IntentCandidate(self._make(text, "git", "create_branch", branch, {"branch_name": branch}, .98, source="git"), .98)
+        if re.fullmatch(r"(?:switch|go)\s+back", low):
+            previous = getattr(self.context, "get_previous_git_branch", lambda: "")()
+            if not previous:
+                return IntentCandidate(self._clarify(text, "git", "Which branch should I switch back to?", source="git"), .98)
+            return IntentCandidate(self._make(text, "git", "switch_branch", previous, {"branch_name": previous}, .98, source="git"), .98)
+        return None
+
+    def _provider_communication(self, text):
+        low = text.lower()
+        if not re.search(r"\b(?:whatsapp|email|mail|message|sms|text)\b", low):
+            return None
+        match = re.search(r"\b(?:to|tell|message|contact)\s+([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})", text, re.I)
+        if not match:
+            match = re.search(r"\b(?:to|tell|message|contact)\s+((?:[A-Za-z][A-Za-z.'-]*\s+){0,5}[A-Za-z][A-Za-z.'-]*)", text, re.I)
+        recipient = match.group(1).strip(" ,.:;") if match else ""
+        if not recipient:
+            return IntentCandidate(self._clarify(text, "communication", "Who should receive the message?", source="communication"), .98)
+        body = re.search(r"\b(?:saying|message|body|with text|that)\s*[:,-]?\s*[\"'](.+?)[\"']\s*$", text, re.I|re.S)
+        if not body:
+            body = re.search(r"\b(?:saying|message|body|with text|that)\s*[:,-]?\s*(.+)$", text, re.I|re.S)
+        message = body.group(1).strip().strip("\"'") if body else ""
+        if not message and "draft" not in low:
+            return IntentCandidate(self._clarify(text, "communication", "What message should I send?", source="communication"), .98)
+        action = "draft_email" if re.search(r"\b(?:email|mail)\b", low) else "draft_message"
+        return IntentCandidate(self._make(text, "communication", action, recipient, {"recipient": recipient, "to": recipient, "message": message, "body": message}, .95, source="communication"), .95)
+
+    def _provider_telemetry(self, text):
+        metrics = {"cpu":{"cpu"}, "ram":{"ram"}, "memory":{"memory","mem"}, "disk":{"disk","storage"}, "network":{"network","net"}, "battery":{"battery"}, "temperature":{"temperature","temp"}, "uptime":{"uptime"}, "time":{"time","clock"}}
+        found = [key for key, aliases in metrics.items() if any(re.search(r"\b"+re.escape(alias)+r"\b", text.lower()) for alias in aliases)]
+        if not found or not any(x in text.lower() for x in ("status","check","show","tell","what","how")):
+            return None
+        return IntentCandidate(self._make(text, "system", "multi_telemetry", "system_overview", {"metrics": found}, .9, source="telemetry"), .9)
+
+    def _provider_browser(self, text):
+        match = re.search(r"\bsearch\s+(?:on\s+)?github\s+(?:for\s+)?(.+)$", text, re.I)
+        if match:
+            query = match.group(1).strip(" .?!")
+            if query:
+                return IntentCandidate(self._make(text, "browser", "github_search", query, {"query": query}, .97, source="browser"), .97)
+        match = re.search(r"\b(?:play|listen to)\s+(.+?)(?:\s+on\s+(?:youtube|spotify))?[.!?]*$", text, re.I)
+        if match:
+            query = match.group(1).strip(" .?!")
+            if query:
+                return IntentCandidate(self._make(text, "browser", "play_youtube", query, {"song": query, "query": query}, .94, source="browser"), .94)
+        match = re.search(r"\b(?:search|look up|find)\s+(?:for\s+)?(.+)$", text, re.I)
+        if match and not re.search(r"\b(?:file|contact|calendar)\b", text.lower()):
+            query = match.group(1).strip(" .?!")
+            if query:
+                return IntentCandidate(self._make(text, "browser", "browser_search", query, {"query": query, "site": "google"}, .86, source="browser"), .86)
+        match = re.search(r"\b(?:open|launch|navigate to|go to)\s+(.+)$", text, re.I)
+        if match:
+            target = match.group(1).strip(" .?!")
+            if target:
+                return IntentCandidate(self._make(text, "browser", "open_url", target, {"url": target}, .88, source="browser"), .88)
+        return None
+
+    def _legacy_arbitrate(self, text: str) -> StructuredIntent:
 
         # 1. Check for Pending Confirmation Response ("yes, do it", "yes", "confirm", "proceed", "no", "cancel")
         if context_manager.has_pending_confirmation():
             if low in ["yes, do it", "yes", "do it", "confirm", "proceed", "sure", "approve", "approved", "go ahead"]:
-                tx = context_manager.pop_confirmation()
+                tx = context_manager.get_pending_confirmation()
                 if tx:
                     logger.info("[IntentArbitrator] Matched confirmed transaction: action='%s', target='%s'", tx.action, tx.target)
                     return StructuredIntent(
@@ -114,7 +267,7 @@ class IntentArbitrator:
         m_persona = re.search(r"\b(?:call yourself|switch to|be|act as)\s+(friday|jarvis|ultron|omi)\b", low)
         if m_persona:
             target_p = m_persona.group(1).capitalize()
-            context_manager.set_persona(target_p)
+            pass
             return StructuredIntent(
                 domain="system",
                 action="switch_persona",
@@ -183,7 +336,7 @@ class IntentArbitrator:
                 weather_time = "today"
 
             if hasattr(context_manager, "set_weather_context"):
-                context_manager.set_weather_context(weather_loc, weather_time)
+                pass
 
             return StructuredIntent(
                 domain="info",
@@ -282,7 +435,7 @@ class IntentArbitrator:
             if f_action == "create":
                 is_desktop = (dir_target == "desktop" or "desktop" in low)
                 if is_desktop:
-                    context_manager.stage_confirmation(
+                    # downstream policy/executor owns confirmation staging: context_manager.stage_confirmation(
                         action="create_file",
                         domain="file",
                         target=target_path,
@@ -461,11 +614,11 @@ class IntentArbitrator:
 
         # 13. General Web Navigation & Media
         if "open youtube" in low:
-            context_manager.update_browser(url="https://www.youtube.com", media_state="playing", media_target="song")
+            pass
             return StructuredIntent(domain="browser", action="play_youtube", target="", params={"song": ""})
 
         if "open github" in low:
-            context_manager.update_browser(url="https://github.com/", title="GitHub", media_state="stopped")
+            pass
             return StructuredIntent(domain="browser", action="open_url", target="https://github.com/", params={"url": "https://github.com/"})
 
         # 13b. Cross-Capability Composite Workflow (Calendar + Device Mesh + Notification)

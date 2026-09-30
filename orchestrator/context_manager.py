@@ -153,7 +153,7 @@ class WorkingContextManager:
     def get_weather_context(self) -> Dict[str, Any]:
         ctx = getattr(self, "_weather_context", None)
         if not ctx:
-            return {"active": False, "location": "Delhi", "time_target": "now"}
+            return {"active": False, "location": "", "time_target": "now"}
         if time.time() - ctx.get("timestamp", 0) > 900:
             ctx["active"] = False
         return ctx

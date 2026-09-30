@@ -89,6 +89,10 @@ def main():
         wait_for_server(server)
         for i, command in enumerate(COMMANDS, 1):
             try:
+                if i == 17:
+                    from orchestrator.intent_arbitrator import IntentArbitrator
+                    debug_intent = IntentArbitrator().arbitrate(command)
+                    print("DEBUG_INTENT_17=" + repr(debug_intent))
                 status, payload, latency = request(command)
                 summary = summarize(payload)
                 summary["latency_ms"] = latency

@@ -216,7 +216,8 @@ def test_confirmation_is_context_sensitive_and_non_mutating(arb):
     assert intent.domain == "file"
     assert intent.action == "confirmed_delete_file"
     assert intent.target == tx.target
-    assert intent.params == tx.payload
+    assert intent.params["path"] == tx.payload["path"]
+    assert intent.params["_confirmation"]["original_request"] == tx.original_request
     assert intent.params is not tx.payload
     assert arb.context.pending is tx
 

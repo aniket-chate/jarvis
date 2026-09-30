@@ -420,11 +420,30 @@ class TaskPlanner:
                 )
 
         elif d == "communication":
+            recipient = str(params.get("recipient") or params.get("to") or target or "").strip()
+            message = str(params.get("message") or params.get("body") or "").strip()
+            ambiguous_recipients = {"someone", "somebody", "a person", "them", "him", "her"}
+            if not recipient or recipient.lower() in ambiguous_recipients:
+                prompt = "Who should I send the message to?"
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description="Request communication recipient",
+                    required_agent_type="core_llm_agent",
+                    inputs={"action": "clarification", "query": prompt, "response": prompt},
+                )
+            if not message:
+                prompt = "What message should I send?"
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description="Request communication message",
+                    required_agent_type="core_llm_agent",
+                    inputs={"action": "clarification", "query": prompt, "response": prompt},
+                )
             return TaskStep(
                 step_id=f"{plan_id}_step_1",
-                description=f"WhatsApp draft: {target}",
+                description=f"Communication draft: {recipient}",
                 required_agent_type="communication_agent",
-                inputs={"action": "draft_whatsapp", "recipient": params.get("recipient", ""), "message": params.get("message", ""), "user_confirmed": False}
+                inputs={"action": "draft_whatsapp", "recipient": recipient, "message": message, "user_confirmed": False}
             )
 
         elif d == "system":

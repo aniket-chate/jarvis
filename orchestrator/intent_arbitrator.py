@@ -52,6 +52,7 @@ class IntentArbitrator:
             IntentProvider("weather", self._provider_weather),
             IntentProvider("git", self._provider_git),
             IntentProvider("communication", self._provider_communication),
+            IntentProvider("code_followup", self._provider_code_followup),
             IntentProvider("telemetry", self._provider_telemetry),
             IntentProvider("browser", self._provider_browser),
             IntentProvider("file_reference", self._provider_file_reference),
@@ -155,6 +156,18 @@ class IntentArbitrator:
             return IntentCandidate(self._clarify(text, "communication", "What message should I send?", source="communication"), .98)
         action = "draft_email" if re.search(r"\b(?:email|mail)\b", low) else "draft_message"
         return IntentCandidate(self._make(text, "communication", action, recipient, {"recipient": recipient, "to": recipient, "message": message, "body": message}, .95, source="communication"), .95)
+
+    def _provider_code_followup(self, text):
+        if not re.search(r"\b(?:run|execute|test|try)\s+(?:it|this)\b", text, re.I):
+            return None
+        code_ctx = getattr(self.context, "get_code", lambda: None)()
+        if not code_ctx or not getattr(code_ctx, "code", ""):
+            return IntentCandidate(self._clarify(text, "code", "Which code should I run?", source="code_followup"), .96)
+        match = re.search(r"\bwith\s+(.+)$", text, re.I)
+        params = {"code": code_ctx.code, "query": text}
+        if match:
+            params["input_arg"] = match.group(1).strip()
+        return IntentCandidate(self._make(text, "code", "execute_code", code_ctx.code, params, .96, source="code_followup"), .96)
 
     def _provider_telemetry(self, text):
         metrics = {"cpu":{"cpu"}, "ram":{"ram"}, "memory":{"memory","mem"}, "disk":{"disk","storage"}, "network":{"network","net"}, "battery":{"battery"}, "temperature":{"temperature","temp"}, "uptime":{"uptime"}, "time":{"time","clock"}}

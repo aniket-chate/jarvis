@@ -432,7 +432,10 @@ class IntentArbitrator:
             m_recip = re.search(r"(?:message\s+to|to|tell|message)\s+([a-zA-Z0-9_\-]+)", clean, re.IGNORECASE)
             recipient = m_recip.group(1).strip() if m_recip else ""
             ambiguous_recipients = {"someone", "somebody", "a", "an", "person", "them", "him", "her"}
-            if recipient.lower() in ambiguous_recipients:
+            if recipient.lower() in ambiguous_recipients or re.search(
+                r"\b(?:send|message)\s+(?:a\s+)?message\s+to\s+(?:someone|somebody|a\s+person|them|him|her)\b",
+                low,
+            ):
                 recipient = ""
             
             m_body = re.search(r"(?:saying|body|that|message)\s+(.+)$", clean, re.IGNORECASE)

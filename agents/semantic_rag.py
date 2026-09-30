@@ -329,8 +329,8 @@ class LocalVectorStore:
             })
 
         # Reciprocal-rank fusion prevents an uncalibrated cosine score from
-        # overwhelming explicit lexical evidence. Semantic ranking remains the
-        # primary signal; title/tags/content provide grounded intent.
+        # overwhelming explicit lexical evidence. Semantic ranking remains useful,
+        # while exact title/tag/content evidence can establish a strong intent match.
         candidates.sort(key=lambda x: x["semantic_score"], reverse=True)
         semantic_rank = {item["doc_id"]: rank for rank, item in enumerate(candidates, 1)}
 
@@ -346,13 +346,25 @@ class LocalVectorStore:
         for item in candidates:
             sr = semantic_rank[item["doc_id"]]
             lr = lexical_rank[item["doc_id"]]
-            rrf_score = (
-                0.35 * (1.0 / (20.0 + sr))
-                + 0.65 * (1.0 / (20.0 + lr))
-            )
-            # Keep the externally visible score on a useful 0..1-ish scale while
-            # retaining enough precision for deterministic ordering.
-            item["score"] = round(rrf_score * 100.0, 4)
+
+            # Explicit lexical evidence should dominate only when it exists.
+            # This makes exact/near-exact entity references (names, project names,
+            # tags) reliable without maintaining a project-specific allowlist.
+            if item["lexical_score"] > 0.0:
+                item["score"] = round(
+                    1.0
+                    + 0.60 * item["lexical_score"]
+                    + 0.20 * (1.0 / (20.0 + lr))
+                    + 0.20 * (1.0 / (20.0 + sr)),
+                    4,
+                )
+            else:
+                # No lexical evidence: fall back to semantic rank, not the raw
+                # uncalibrated cosine magnitude.
+                item["score"] = round(
+                    0.35 + 0.65 * (1.0 / (20.0 + sr)),
+                    4,
+                )
             item.pop("semantic_score", None)
             item.pop("lexical_score", None)
 

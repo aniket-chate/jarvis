@@ -164,10 +164,6 @@ class ParameterExtractor:
                 clarification_prompt = "Which file would you like me to move?"
 
         elif action == "create":
-            if not filename:
-                requires_clarification = True
-                clarification_prompt = "What should I name the file?"
-
             # 1. Explicit inline content extraction
             explicit_content_patterns = [
                 r"(?:and\s+)?(?:put|write|save)\s+(?:all\s+)?(?:this|the\s+following)?\s*(?:information|content|text|details|data)?\s*(?:inside|in|into)\s*(?:it|the\s+file)?\s*[:\"']\s*(.+)$",
@@ -186,6 +182,14 @@ class ParameterExtractor:
             if content_m:
                 content = content_m.group(1).strip().strip('"\'')
                 text_clean = text[:content_m.start()].strip()
+            if not filename:
+                ext_m = re.search(r"\b([a-zA-Z0-9_.-]+\.[a-zA-Z0-9]{1,5})\b", text_clean)
+                if ext_m:
+                    filename = ext_m.group(1).strip()
+                else:
+                    requires_clarification = True
+                    clarification_prompt = "What should I name the file?"
+
             elif content_ref_m:
                 # Resolve content from WorldModel / Memory
                 text_clean = text

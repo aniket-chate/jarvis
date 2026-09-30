@@ -97,6 +97,8 @@ class IntentArbitrator:
 
     def _provider_confirmation(self, text):
         tx = getattr(self.context, "get_pending_confirmation", lambda: None)()
+        if not tx:
+            tx = getattr(self.context, "_pending_confirmation", None) or getattr(self.context, "pending", None)
         if not tx or getattr(tx, "is_expired", False):
             return None
         low = re.sub(r"[^a-z0-9 ]+", " ", text.lower()).strip()

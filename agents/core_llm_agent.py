@@ -41,11 +41,7 @@ class CoreLLMAgent:
                     "tone": p.get("tone", "calm, formal, precise, addresses the user respectfully")
                 }
 
-        # Fallback to Jarvis
-        return {
-            "name": "Jarvis",
-            "tone": "calm, formal, precise, addresses the user respectfully"
-        }
+        return {"name": target_name or "", "tone": ""}
 
     def build_system_prompt(
         self,
@@ -70,8 +66,9 @@ class CoreLLMAgent:
 
         # Inject persistent user memories & owner identity (formatted naturally without raw dictionary keys)
         memories = memory_manager.get_all_persistent()
-        owner_name = memories.get("owner") or memories.get("user_name") or "Aniket"
-        prompt_parts.append(f"Owner Identity: Your owner, creator, and administrator is {owner_name}. Address him respectfully in accordance with your persona.")
+        owner_name = memories.get("owner") or memories.get("user_name")
+        if owner_name:
+            prompt_parts.append(f"Owner Identity: Your owner, creator, and administrator is {owner_name}. Address them respectfully in accordance with your persona.")
 
         if memories:
             clean_facts = []
@@ -310,63 +307,28 @@ class CoreLLMAgent:
     def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """Standardized interface for Orchestrator Agent Router."""
         action = inputs.get("action")
-        prompt = inputs.get("query") or inputs.get("prompt") or inputs.get("task") or "Hello"
+        prompt = inputs.get("query") or inputs.get("prompt") or inputs.get("task") or ""
         persona = inputs.get("active_persona") or settings.active_persona_name
         system_extra = inputs.get("system_extra")
 
         if action == "session_summary":
-            summary = inputs.get("summary") or "In this session, we had a conversational discussion and answered queries."
-            return {
-                "success": True,
-                "response": summary,
-                "output": summary,
-                "persona": persona,
-            }
-
+            summary = inputs.get("summary")
+            if summary:
+                return {"success": True, "response": summary, "output": summary, "persona": persona}
+            prompt = prompt or "Summarize the current session using the available session context."
         elif action == "execute_code":
-            input_val = inputs.get("input_arg", 5)
-            import math
-            res = math.factorial(input_val)
-            resp = f"Executed factorial program with input {input_val}. Output: {res}."
-            return {
-                "success": True,
-                "response": resp,
-                "output": resp,
-                "persona": persona,
-            }
-
-        elif action == "explain_code":
-            resp = (
-                "If b is zero in the function `def divide(a, b): return a / b`, Python raises a "
-                "`ZeroDivisionError: division by zero` exception at runtime. "
-                "To handle this safely, you should check `if b == 0:` before division or wrap the operation in a `try...except ZeroDivisionError:` block."
-            )
-            return {
-                "success": True,
-                "response": resp,
-                "output": resp,
-                "persona": persona,
-            }
-
+            code = inputs.get("code")
+            if not code:
+                return {"success": False, "response": "Which code should I execute?", "output": "", "persona": persona, "needs_clarification": True}
+            prompt = prompt or "Execute the supplied code and report the observed result."
+            prompt = f"{prompt}\n\nCode:\n{code}"
+        elif action in {"explain_code", "generate_code", "review_code", "debug_code", "optimize_code"}:
+            prompt = prompt or inputs.get("query") or ""
+            if not prompt and not inputs.get("code"):
+                return {"success": False, "response": "What code or coding task should I work on?", "output": "", "persona": persona, "needs_clarification": True}
         elif action == "cancel_action":
-            resp = inputs.get("response", "Action cancelled. The operation was safely aborted.")
-            return {
-                "success": True,
-                "response": resp,
-                "output": resp,
-                "persona": persona,
-                "user_cancelled": True,
-            }
-
-        elif action == "generate_code":
-            code = inputs.get("code") or "def factorial(n):\n    return 1 if n in (0, 1) else n * factorial(n - 1)"
-            resp = f"Here is a compact Python factorial program:\n\n```python\n{code}\n```"
-            return {
-                "success": True,
-                "response": resp,
-                "output": resp,
-                "persona": persona,
-            }
+            resp = inputs.get("response") or "Action cancelled."
+            return {"success": True, "response": resp, "output": resp, "persona": persona, "user_cancelled": True}
 
         low_prompt = prompt.lower()
         if any(p in low_prompt for p in ["what can you actually do right now", "what can you do right now", "list your capabilities", "what are your capabilities"]):

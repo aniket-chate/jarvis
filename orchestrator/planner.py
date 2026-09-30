@@ -346,7 +346,7 @@ class TaskPlanner:
                     step_id=f"{plan_id}_step_1",
                     description=f"Search for file: {target}",
                     required_agent_type="file_agent",
-                    inputs={"action": "search", "pattern": params.get("pattern", f"*{target}*"), "directory": "workspace"}
+                    inputs={"action": "search", "pattern": params.get("pattern", f"*{target}*"), "directory": params.get("directory", "workspace")}
                 )
 
         elif d == "git":

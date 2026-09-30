@@ -1465,6 +1465,8 @@ class TaskPlanner:
                     weather_loc = w_ctx.get("location")
 
         if is_weather:
+            if not weather_loc:
+                return TaskStep(f"{plan_id}_step_1", "Request weather location", "core_llm_agent", {"action": "clarification", "query": "Which location should I check the weather for?"})
             clean_text = re.sub(r"[?!.,;]+$", "", text).strip()
             m_city = re.search(r"\b(?:in|for|at)\s+([a-zA-Z0-9_\-\s]+?)(?:\s+(?:today|tomorrow|tonight|right\s+now|now))?$", clean_text, re.IGNORECASE)
             if not m_city:

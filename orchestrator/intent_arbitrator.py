@@ -300,6 +300,7 @@ class IntentArbitrator:
                 if is_desktop:
                     context_manager.stage_confirmation(
                         action="create_file",
+                        domain="file",
                         target=target_path,
                         payload={"directory": dir_target, "filename": filename, "content": content_txt, "path": target_path},
                     )
@@ -432,7 +433,7 @@ class IntentArbitrator:
             recipient = m_recip.group(1).strip() if m_recip else ""
             
             m_body = re.search(r"(?:saying|body|that|message)\s+(.+)$", clean, re.IGNORECASE)
-            body = m_body.group(1).strip() if m_body else clean
+            body = m_body.group(1).strip() if m_body else ""
 
             action_type = "draft_email" if is_email else "draft_message"
             return StructuredIntent(

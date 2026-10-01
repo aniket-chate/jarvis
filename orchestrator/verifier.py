@@ -81,16 +81,17 @@ class TaskVerifier:
                         from pathlib import Path
                         try:
                             p_obj = Path(target_p)
-                            from agents.file_document_agent import WORKSPACE_DIR, DOCUMENTS_DIR, FileDocumentAgent
-                            directory = step_inputs.get("directory") or "workspace"
+                            from agents.file_document_agent import FileDocumentAgent, WORKSPACE_DIR, DOCUMENTS_DIR
                             if p_obj.is_absolute():
                                 actual_file = p_obj if p_obj.exists() else None
                             else:
+                                directory = str(step_inputs.get("directory") or "workspace")
                                 try:
-                                    resolved = FileDocumentAgent()._resolve_scoped_path(str(p_obj), default_dir=directory)
-                                    actual_file = resolved if resolved.exists() else None
+                                    actual_file = FileDocumentAgent()._resolve_scoped_path(str(p_obj), default_dir=directory)
+                                    if not actual_file.exists():
+                                        actual_file = None
                                 except Exception:
-                                    cand = WORKSPACE_DIR / p_obj
+                                    cand = p_obj if p_obj.is_absolute() else (WORKSPACE_DIR / p_obj)
                                     cand_doc = DOCUMENTS_DIR / p_obj.name
                                     actual_file = cand if cand.exists() else (cand_doc if cand_doc.exists() else None)
                             if not actual_file:

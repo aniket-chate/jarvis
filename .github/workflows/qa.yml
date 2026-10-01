@@ -24,7 +24,11 @@ jobs:
         run: python -m compileall -q .
       - name: Run security regressions
         run: pytest -q tests/test_security_regressions.py
+      - name: Run production intent regression suite
+        run: pytest -q tests/test_intent_arbitrator_production.py
       - name: Install browser display support
         run: sudo apt-get update && sudo apt-get install -y xvfb
       - name: Run 20-message real-work black-box harness
         run: xvfb-run -a python tests/test_20_real_work_messages.py
+      - name: Run 30-turn manual-use acceptance conversation
+        run: xvfb-run -a python tests/test_30_manual_conversation.py

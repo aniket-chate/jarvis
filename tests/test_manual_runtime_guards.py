@@ -1,5 +1,10 @@
 """Focused regression guards for current JARVIS intent/media architecture."""
 from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from orchestrator.context_manager import WorkingContextManager
 from orchestrator.intent_arbitrator import IntentArbitrator

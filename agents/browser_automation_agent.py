@@ -1627,6 +1627,26 @@ class BrowserAutomationAgent:
         if action in ["show_tabs", "list_tabs", "active_tabs", "bring_to_front", "show_browser"]:
             return self.show_active_tabs()
 
+        if action == "get_active_tab":
+            self._bring_chrome_window_to_front()
+            if self._active_page is None or self._active_page.is_closed():
+                return {
+                    "success": True,
+                    "action": "get_active_tab",
+                    "has_active_tab": False,
+                    "response": "There is no active browser tab.",
+                    "output": "There is no active browser tab.",
+                }
+            return {
+                "success": True,
+                "action": "get_active_tab",
+                "has_active_tab": True,
+                "title": self._active_page.title(),
+                "url": self._active_page.url,
+                "response": f"You are currently viewing {self._active_page.title()} ({self._active_page.url}).",
+                "output": f"You are currently viewing {self._active_page.title()} ({self._active_page.url}).",
+            }
+
         # General Web Action (Astra-Style Observe-Decide-Execute)
         if action in ["web_action", "browse_action", "general_action"]:
             return self._web_action_impl(

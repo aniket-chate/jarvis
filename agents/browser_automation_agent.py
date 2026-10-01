@@ -144,7 +144,7 @@ class BrowserAutomationAgent:
             if self._playwright is None:
                 self._playwright = sync_playwright().start()
 
-            # 1. Primary Preference: Try connecting to user's REAL Chrome via CDP (http://localhost:9222)
+            # 1. Primary Preference: Try connecting to user's REAL Chrome via configured CDP
             connected_cdp = False
             try:
                 logger.info("[BrowserAgent] Attempting to connect to REAL Chrome via CDP (http://localhost:9222)...")
@@ -154,7 +154,7 @@ class BrowserAutomationAgent:
                 elif cdp_browser:
                     self._context = cdp_browser.new_context()
                 connected_cdp = True
-                logger.info("[BrowserAgent] Successfully connected to user's REAL Chrome via CDP at port 9222.")
+                logger.info("[BrowserAgent] Successfully connected to user's REAL Chrome via CDP at the configured CDP endpoint.")
             except Exception as cdp_err:
                 logger.info("[BrowserAgent] Real Chrome CDP connection unavailable (%s). Falling back to managed persistent profile...", cdp_err)
 
@@ -1561,7 +1561,7 @@ class BrowserAutomationAgent:
     def play_youtube_song(
         self,
         song_query: str,
-        screenshot_filename: str = "test_youtube_playback.png",
+        screenshot_filename: Optional[str] = None,
         screenshot_60s_filename: Optional[str] = None,
         play_duration_sec: float = 0.0,
         headless: bool = False

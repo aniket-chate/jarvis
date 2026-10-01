@@ -470,14 +470,13 @@ class IntentArbitrator:
                 song = play_match.group(1).strip().rstrip(".!?")
                 generic_song = re.fullmatch(r"(?:a|the|some|any)\s+(?:song|music|track|video)", song, re.IGNORECASE)
                 if generic_song:
-                    prompt = "Which song or music should I play?"
+                    category = "music" if re.search(r"\bmusic\b", song, re.IGNORECASE) else "song"
+                    context_manager.update_browser(url=site_url, media_state="stopped", media_target="")
                     return StructuredIntent(
                         domain="browser",
-                        action="clarification",
+                        action="play_youtube_first_result",
                         target="",
-                        params={"query": prompt, "response": prompt},
-                        needs_clarification=True,
-                        clarification_prompt=prompt,
+                        params={"site": site_url, "category": category},
                         raw_query=clean,
                     )
                 context_manager.update_browser(url=site_url, media_state="stopped", media_target="")

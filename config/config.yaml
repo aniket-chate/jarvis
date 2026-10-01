@@ -88,6 +88,10 @@ integrations:
     enabled: true
   browser_automation:
     enabled: true
+    cdp_endpoint: "http://127.0.0.1:9222"
+    managed_profile_dir: ""
+    playwright_browsers_path: ""
+    media_platform: "youtube"
   identity_gate:
     enabled: true
     face_recognition: true

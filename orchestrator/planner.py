@@ -7,6 +7,7 @@ Supports both single-step and multi-step tasks, and detects persona switch inten
 
 import re
 import uuid
+import urllib.parse
 import logging
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Any, Optional
@@ -260,7 +261,27 @@ class TaskPlanner:
                     inputs={"action": "cancel", "alarm_id": params.get("alarm_id", "")}
                 )
             elif act in ["check_conflicts", "create_calendar_event", "get_calendar_events"]:
-                pass
+                if act == "create_calendar_event":
+                    return TaskStep(
+                        step_id=f"{plan_id}_step_1",
+                        description="Create calendar event: " + str(params.get("title") or target),
+                        required_agent_type="calendar_agent",
+                        inputs={
+                            "action": "create_calendar_event",
+                            "summary": params.get("title") or target,
+                            "title": params.get("title") or target,
+                            "start": params.get("start") or params.get("start_time"),
+                            "duration": params.get("duration") or params.get("duration_minutes"),
+                            "description": params.get("description", ""),
+                            "user_confirmed": params.get("user_confirmed", False),
+                        },
+                    )
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description="Read calendar events",
+                    required_agent_type="calendar_agent",
+                    inputs={"action": "get_calendar_events"},
+                )
             else:
                 delay_raw = params.get("delay_seconds")
                 if delay_raw is None:
@@ -292,6 +313,15 @@ class TaskPlanner:
             )
 
         elif d == "file":
+            if act == "search":
+                pattern = params.get("pattern") or target or "*"
+                directory = params.get("directory") or ""
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description=f"Search for files matching '{pattern}'" + (f" in {directory}" if directory else ""),
+                    required_agent_type="file_agent",
+                    inputs={"action": "search", "pattern": pattern, "directory": directory},
+                )
             if act == "stage_file_creation":
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
@@ -300,11 +330,21 @@ class TaskPlanner:
                     inputs={"action": "create", "path": target, "content": params.get("content", ""), "requires_confirmation": True, "directory": params.get("directory", "")}
                 )
             elif act in ["confirmed_create_file", "create_file"]:
+                file_inputs = {
+                    "action": "create",
+                    "path": target,
+                    "filename": params.get("filename", target),
+                    "content": params.get("content", ""),
+                    "user_confirmed": True,
+                    "directory": params.get("directory", ""),
+                }
+                if params.get("_confirmation"):
+                    file_inputs["_confirmation"] = params["_confirmation"]
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
                     description=f"Create file: {target}",
                     required_agent_type="file_agent",
-                    inputs={"action": "create", "path": target, "filename": params.get("filename", target), "content": params.get("content", ""), "user_confirmed": True, "directory": params.get("directory", "")}
+                    inputs=file_inputs,
                 )
             elif act in ["read_file", "read", "show_file", "show", "open_file", "open"]:
                 p = params.get("path") or params.get("file_path") or params.get("filename") or target
@@ -314,13 +354,21 @@ class TaskPlanner:
                     required_agent_type="file_agent",
                     inputs={"action": "read", "path": p, "file_path": p, "filename": p, "directory": params.get("directory", "")}
                 )
-            elif act in ["delete_file", "delete", "remove_file", "remove"]:
+            elif act in ["confirmed_delete_file", "delete_file", "delete", "remove_file", "remove"]:
                 p = params.get("path") or params.get("file_path") or params.get("filename") or target
+                delete_inputs = {
+                    "action": "delete_file",
+                    "path": p,
+                    "file_path": p,
+                    "directory": params.get("directory", ""),
+                }
+                if params.get("_confirmation"):
+                    delete_inputs["_confirmation"] = params["_confirmation"]
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
                     description=f"Delete file: {p}",
                     required_agent_type="file_agent",
-                    inputs={"action": "delete_file", "path": p, "file_path": p, "directory": params.get("directory", "")}
+                    inputs=delete_inputs
                 )
             elif act == "move_file":
                 return TaskStep(
@@ -390,12 +438,20 @@ class TaskPlanner:
                     required_agent_type="browser_automation_agent",
                     inputs={"action": "get_active_tab"}
                 )
+            elif act == "web_search":
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description="Search the web",
+                    required_agent_type="web_agent",
+                    inputs={"action": "search", "query": params.get("query", target), "max_results": params.get("max_results", 5)}
+                )
             elif act == "github_search":
+                github_query_url = f"https://github.com/search?q={urllib.parse.quote(params.get('query', ''))}&type=repositories"
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
                     description="Search GitHub in active browser",
                     required_agent_type="browser_automation_agent",
-                    inputs={"action": "open_url", "query": params.get("url", "https://github.com/search?q=python&type=repositories"), "url": params.get("url")}
+                    inputs={"action": "open_url", "query": github_query_url, "url": github_query_url}
                 )
             elif act == "play_youtube":
                 return TaskStep(
@@ -654,6 +710,24 @@ class TaskPlanner:
                 inputs={"action": "resume_media", "query": text}
             )
 
+        # Media playback must win over generic application-launch parsing.
+        media_platform = str((settings.integrations.get("browser_automation") or {}).get("media_platform") or "").strip()
+        if re.fullmatch(r"play\s+(?:a\s+)?(?:song|music)[.!?]?", lower):
+            prompt = "Which song or media would you like me to play?"
+            return TaskStep(f"{plan_id}_step_1", "Request media selection", "core_llm_agent", {"action": "clarification", "query": prompt, "response": prompt})
+        if media_platform and (lower.startswith("play ") or "play on " + media_platform in lower):
+            raw_song = re.sub(r"^(?:please\s+)?(?:play|listen to)\s+", "", text, flags=re.IGNORECASE).strip()
+            raw_song = raw_song.rstrip(".!?").strip()
+            raw_song = re.sub(r"\s+on\s+" + re.escape(media_platform) + r"$", "", raw_song, flags=re.IGNORECASE).strip()
+            raw_song = raw_song.rstrip(".!?").strip()
+            if raw_song and raw_song.lower() not in {"a song", "song", "music"}:
+                return TaskStep(
+                    f"{plan_id}_step_1",
+                    f"Play media on {media_platform}",
+                    "browser_automation_agent",
+                    {"action": "chained_play", "site": media_platform, "query": raw_song, "song": raw_song},
+                )
+
         is_browser_target = any(w in lower for w in ["tab", "page", "browser", "site", "website", "it", "that", "this"]) or lower in ["close", "close please", "close now"]
         is_desktop_app_close = any(app in lower for app in ["notepad", "calculator", "calc", "powershell", "terminal", "explorer", "window", "windows"])
         if action_intent == "close" and has_page and (is_browser_target or not is_desktop_app_close) and not is_desktop_app_close:
@@ -908,16 +982,30 @@ class TaskPlanner:
                 inputs={"query": text, "instruction": "The user is reporting an operational failure or complaint about a previous task. Acknowledge respectfully in your persona character, do not launch any external tools or songs, and ask how to proceed."}
             )
 
-        # 0b. Unsupported Music Streaming Platforms (Priority 6)
-        # Truthful clarification for Spotify, Apple Music, etc.
-        unsupported_music = ["spotify", "apple music", "soundcloud", "amazon music", "tidal", "gaana", "jiosaavn", "wynk"]
-        if any(w in lower for w in ["play", "listen to", "stream", "song", "music"]) and any(p in lower for p in unsupported_music) and not lower.startswith("open"):
-            matched_p = next(p for p in unsupported_music if p in lower).capitalize()
+        # 0b. Unsupported media platforms are detected from the user's explicit destination
+        # and compared with the configured playback platform; no platform-specific list is hardcoded.
+        configured_media_platform = str((settings.integrations.get("browser_automation") or {}).get("media_platform") or "").strip().lower()
+        explicit_media_match = re.search(r"\b(?:on|via|using)\s+([a-z][a-z0-9_-]*)\b", lower)
+        explicit_media_platform = explicit_media_match.group(1).lower() if explicit_media_match else ""
+        if (
+            configured_media_platform
+            and explicit_media_platform
+            and explicit_media_platform != configured_media_platform
+            and re.search(r"\b(?:play|listen|stream|song|music)\b", lower)
+            and not lower.startswith("open")
+        ):
+            requested = explicit_media_platform
             return TaskStep(
                 step_id=f"{plan_id}_step_1",
-                description=f"Inform user regarding unsupported platform {matched_p}",
+                description=f"Inform user regarding unsupported media platform {requested}",
                 required_agent_type="core_llm_agent",
-                inputs={"query": f"The user asked to play audio on {matched_p}. Respond honestly and clearly: 'I can only play audio directly from YouTube right now. Would you like me to play this on YouTube instead, or open the {matched_p} application for you?'"}
+                inputs={
+                    "query": (
+                        f"The user explicitly requested playback on {requested}, but the configured JARVIS media "
+                        f"playback provider is {configured_media_platform}. Respond honestly and do not silently "
+                        f"switch providers. Ask whether the user wants the configured provider instead."
+                    )
+                }
             )
 
         # 0c. Memory Storage & Owner Identity Recall (Priority 8)

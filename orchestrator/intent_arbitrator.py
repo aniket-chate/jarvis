@@ -464,8 +464,26 @@ class IntentArbitrator:
 
         # 13. General Web Navigation & Media
         if "open youtube" in low:
-            context_manager.update_browser(url="https://www.youtube.com", media_state="playing", media_target="song")
-            return StructuredIntent(domain="browser", action="play_youtube", target="", params={"song": ""})
+            site_url = settings.browser.get("sites", {}).get("youtube", "")
+            play_match = re.search(r"\bopen\s+youtube\s+and\s+play\s+(.+)$", clean, re.IGNORECASE)
+            if play_match:
+                song = play_match.group(1).strip().rstrip(".!?")
+                generic_song = re.fullmatch(r"(?:a|the|some|any)\s+(?:song|music|track|video)", song, re.IGNORECASE)
+                if generic_song:
+                    prompt = "Which song or music should I play?"
+                    return StructuredIntent(
+                        domain="browser",
+                        action="clarification",
+                        target="",
+                        params={"query": prompt, "response": prompt},
+                        needs_clarification=True,
+                        clarification_prompt=prompt,
+                        raw_query=clean,
+                    )
+                context_manager.update_browser(url=site_url, media_state="stopped", media_target="")
+                return StructuredIntent(domain="browser", action="play_youtube", target=song, params={"song": song, "site": site_url}, raw_query=clean)
+            context_manager.update_browser(url=site_url, media_state="stopped", media_target="")
+            return StructuredIntent(domain="browser", action="open_url", target=site_url, params={"url": site_url}, raw_query=clean)
 
         if "open github" in low:
             context_manager.update_browser(url="https://github.com/", title="GitHub", media_state="stopped")

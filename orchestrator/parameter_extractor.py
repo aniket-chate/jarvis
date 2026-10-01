@@ -256,6 +256,13 @@ class ParameterExtractor:
                 clarification_prompt = "What should I name the file?"
 
         elif action == "read":
+            m_path = re.search(
+                r'(?P<q>["\'](?:[A-Za-z]:[\\/]|/|~)[^"\']+["\'])|(?P<p>[A-Za-z]:[\\/][^\s,;]+)|(?P<h>~[\\/][^\s,;]+)',
+                text,
+            )
+            if m_path:
+                raw_path = m_path.groupdict().get("q") or m_path.groupdict().get("p") or m_path.groupdict().get("h")
+                filename = str(Path(raw_path.strip('"')).expanduser())
             m_read = re.search(
                 r"\b(?:read|open|view|show|cat|inspect)\s+(?:the\s+)?(?:file\s+)?(?:called|named)?\s*['\"]?([a-zA-Z0-9_.-]+\.[a-zA-Z0-9]+)['\"]?",
                 text,

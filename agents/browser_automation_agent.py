@@ -1713,9 +1713,40 @@ class BrowserAutomationAgent:
                 song = last_media.get("title") or last_media.get("song_query")
                 logger.info("[BrowserAgent Context] Resolved '%s' to previous media result: '%s'", raw_target, song)
             else:
-                song = "trending top music hits"
-        elif any(w in raw_target.lower() for w in ["play", "song", "music", "youtube"]):
-            song = cleaned if (cleaned and cleaned.lower() not in ["a", "the", "new", "track", "song"]) else "trending top music hits"
+
+                return {
+
+                    "success": True,
+
+                    "action": "clarification",
+
+                    "needs_clarification": True,
+
+                    "response": "Which song or music should I play?",
+
+                    "output": "Which song or music should I play?",
+
+                }
+
+            elif any(w in raw_target.lower() for w in ["play", "song", "music", "youtube"]):
+
+                if not cleaned or cleaned.lower() in ["a", "the", "new", "track", "song"]:
+
+                    return {
+
+                        "success": True,
+
+                        "action": "clarification",
+
+                        "needs_clarification": True,
+
+                        "response": "Which song or music should I play?",
+
+                        "output": "Which song or music should I play?",
+
+                    }
+
+                song = cleaned
         else:
             song = cleaned or inputs.get("song")
 
@@ -1743,7 +1774,15 @@ class BrowserAutomationAgent:
                 pass
             return res
 
-        task = inputs.get("task") or query or "Navigate to https://example.com"
+        task = inputs.get("task") or query
+        if not task:
+            return {
+                "success": True,
+                "action": "clarification",
+                "needs_clarification": True,
+                "response": "What should I do in the browser?",
+                "output": "What should I do in the browser?",
+            }
         max_steps = int(inputs.get("max_steps", 4))
         res = self.run_task(task=task, max_steps=max_steps, screenshot_filename=screenshot_name)
         res["response"] = res.get("result") or f"Browser automation task '{task}' completed."

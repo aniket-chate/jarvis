@@ -2,7 +2,7 @@ name: JARVIS QA
 
 on:
   push:
-    branches: ["master", "qa/**"]
+    branches: ["master", "qa/**", "fix/**"]
   pull_request:
     branches: ["master"]
 

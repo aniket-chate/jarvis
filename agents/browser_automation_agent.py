@@ -1722,14 +1722,14 @@ class BrowserAutomationAgent:
 
         if action in ["chained_play", "play_media"]:
             play_target = query or inputs.get("song") or inputs.get("media") or ""
-            play_site = inputs.get("platform") or site or "youtube"
+            play_site = inputs.get("platform") or site or settings.browser.get("default_media_site", "")
             play_duration_sec = float(inputs.get("play_duration_sec", 0.0))
             screenshot_60s_name = inputs.get("screenshot_60s_filename")
             return self.chained_play_media(
                 site=play_site,
                 query=play_target,
                 headless=headless,
-                screenshot_filename=screenshot_name or "media_playback_live.png",
+                screenshot_filename=screenshot_name,
                 screenshot_60s_filename=screenshot_60s_name,
                 play_duration_sec=play_duration_sec
             )

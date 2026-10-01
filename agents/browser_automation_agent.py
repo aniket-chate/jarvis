@@ -382,7 +382,7 @@ class BrowserAutomationAgent:
     def _play_youtube_fastpath(
         self,
         song_query: str,
-        screenshot_filename: str = "test_youtube_playback.png",
+        screenshot_filename: Optional[str] = None,
         screenshot_60s_filename: Optional[str] = None,
         play_duration_sec: float = 0.0,
         headless: bool = False
@@ -393,8 +393,9 @@ class BrowserAutomationAgent:
 
         encoded_query = urllib.parse.quote(song_query)
         search_url = f"https://www.youtube.com/results?search_query={encoded_query}"
-        screenshot_dest = SCREENSHOTS_DIR / screenshot_filename
-        screenshot_60s_dest = SCREENSHOTS_DIR / (screenshot_60s_filename or f"60s_{screenshot_filename}") if play_duration_sec > 0 else None
+        screenshot_name = screenshot_filename or f"youtube_playback_{int(time.time() * 1000)}.png"
+        screenshot_dest = SCREENSHOTS_DIR / screenshot_name
+        screenshot_60s_dest = SCREENSHOTS_DIR / (screenshot_60s_filename or f"60s_{screenshot_name}") if play_duration_sec > 0 else None
 
         logger.info("[BrowserAgent FastPath] Attempting persistent visible playback for: '%s' (duration=%.1fs)", song_query, play_duration_sec)
         try:
@@ -1685,6 +1686,18 @@ class BrowserAutomationAgent:
             return self.whatsapp_start_call(recipient=recip, screenshot_filename=screenshot_name)
 
         # Generalized chained media playback (YouTube, Spotify, etc.)
+        if action == "play_youtube_first_result":
+            category = str(inputs.get("category") or "song").strip()
+            play_site = inputs.get("platform") or site or "youtube"
+            return self.chained_play_media(
+                site=play_site,
+                query=category,
+                screenshot_filename=inputs.get("screenshot_filename"),
+                screenshot_60s_filename=inputs.get("screenshot_60s_filename"),
+                play_duration_sec=float(inputs.get("play_duration_sec", 0.0)),
+                headless=headless,
+            )
+
         if action in ["chained_play", "play_media"]:
             play_target = query or inputs.get("song") or inputs.get("media") or ""
             play_site = inputs.get("platform") or site or "youtube"

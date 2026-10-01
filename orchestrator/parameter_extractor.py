@@ -261,7 +261,7 @@ class ParameterExtractor:
                 text,
                 re.IGNORECASE
             )
-            if m_read:
+            if m_read and not m_path:
                 filename = m_read.group(1).strip()
             elif is_referential:
                 try:

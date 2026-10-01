@@ -108,7 +108,30 @@ class ExecutionManager:
 
             try:
                 res = self.router.route_and_execute(step.required_agent_type, inputs, persona)
-                if res.get("status") in ["success", "refused_by_policy", "refused", "blocked"] or res.get("success") is True:
+                if res.get("status") == "blocked_by_safety_filter":
+                    step.status = "blocked"
+                    step.result = res
+                    logger.warning("[ExecutionManager] [%s] Step '%s' blocked by safety filter; no retry will be attempted.", persona, step.step_id)
+                    return True
+                if res.get("status") == "success" or res.get("success") is True:
+                    if inputs.get("_confirmation", {}).get("resolution") in {"confirm", "cancel"}:
+                        try:
+                            from orchestrator.context_manager import context_manager
+                            context_manager.consume_pending_confirmation()
+                        except Exception:
+                            logger.debug("Unable to consume pending context confirmation", exc_info=True)
+                    if inputs.get("_confirmation", {}).get("resolution") == "confirm":
+                        try:
+                            from orchestrator.memory import memory_manager
+                            pending = memory_manager.get_pending_action() or {}
+                            pending_inputs = pending.get("inputs", {})
+                            if (
+                                pending_inputs.get("action") == "create_file"
+                                and pending_inputs.get("path") == inputs.get("path")
+                            ):
+                                memory_manager.clear_pending_action()
+                        except Exception:
+                            logger.debug("Unable to consume pending memory confirmation", exc_info=True)
                     step.status = "completed"
                     step.result = res
                     logger.info(

@@ -114,6 +114,7 @@ class Settings:
         self.ollama: Dict[str, Any] = raw.get("ollama", {})
         self.voice: Dict[str, Any] = raw.get("voice", {})
         self.integrations: Dict[str, Any] = raw.get("integrations", {})
+        self.browser: Dict[str, Any] = raw.get("browser", {})
         self.locale: Dict[str, Any] = raw.get("locale", {
             "timezone": "Asia/Kolkata",
             "timezone_label": "IST",

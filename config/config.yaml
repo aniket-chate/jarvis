@@ -73,6 +73,26 @@ voice:
   wakeword_dir: "models/wakewords"
   fallback_wakeword: "hey_jarvis"
 
+# Browser runtime configuration
+browser:
+  cdp_url: "http://127.0.0.1:9222"
+  channel: "chrome"
+  headless: false
+  reuse_active_tab: true
+  autoplay_policy: "no-user-gesture-required"
+  default_media_site: "youtube"
+  screenshots_dir: "workspace/screenshots"
+  sites:
+    youtube: "https://www.youtube.com"
+    google: "https://www.google.com"
+    github: "https://github.com"
+    wikipedia: "https://en.wikipedia.org"
+    reddit: "https://www.reddit.com"
+    linkedin: "https://www.linkedin.com"
+    instagram: "https://www.instagram.com"
+    twitter: "https://x.com"
+    amazon: "https://www.amazon.com"
+
 # Skills and External Integrations
 integrations:
   google_calendar:

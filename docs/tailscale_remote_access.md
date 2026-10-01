@@ -10,9 +10,9 @@ This guide documents how the JARVIS Device Gateway is reached from any mobile de
 +-------------------------------------------------------------+
 |                      TAILSCALE MESH                         |
 |                                                             |
-|   [ Mobile Phone ]                     [ Host PC (maxxi) ]  |
+|   [ Mobile Phone ]                     [ Host PC (configured node) ]  |
 |   Anywhere on 4G/5G / WiFi            RTX 2050 (Ollama/VLM) |
-|   Tailscale IP: 100.x.y.z              Tailscale IP: 100.91.155.75
+|   Tailscale IP: 100.x.y.z              Tailscale IP: <TAILSCALE_HOST_IP>
 |        |                                    |               |
 |        +========= WireGuard Tunnel ========+               |
 |                 (Encrypted, Peer-to-Peer)                  |
@@ -24,8 +24,8 @@ This guide documents how the JARVIS Device Gateway is reached from any mobile de
 +-------------------------------------------------------------+
 ```
 
-- **Host PC Node:** `maxxi`
-- **Host Tailscale IP:** `100.91.155.75`
+- **Host PC Node:** `<TAILSCALE_HOST_NAME>`
+- **Host Tailscale IP:** `<TAILSCALE_HOST_IP>`
 - **Port:** `8000` (Bound to `0.0.0.0` to accept both LAN and Tailscale connections)
 - **Encryption:** Automatic peer-to-peer WireGuard noise protocol.
 
@@ -37,7 +37,7 @@ This guide documents how the JARVIS Device Gateway is reached from any mobile de
    - Android: Download from Google Play Store.
    - iOS: Download from Apple App Store.
 2. **Log In**:
-   - Log into Tailscale using the same account used on the PC (`aniketchate50@`).
+   - Log into Tailscale using the same account used on the PC (the account configured for your Tailscale network).
    - Confirm the phone appears in your Tailscale machine list.
 3. **Open JARVIS Mobile Thin Client**:
    - Open your mobile browser (Chrome / Safari / Firefox).
@@ -52,7 +52,7 @@ This guide documents how the JARVIS Device Gateway is reached from any mobile de
 ## 3. Security & Authentication
 
 - **Never Open or Unauthenticated**:
-  Even though Tailscale is a private overlay network, the Gateway requires `GATEWAY_AUTH_TOKEN` (`jarvis-gateway-token-2026-auth`) on every request.
+  Even though Tailscale is a private overlay network, the Gateway requires the configured `GATEWAY_AUTH_TOKEN` on every request.
   - HTTP Requests: `X-JARVIS-Token` header or `?token=` parameter.
   - WebSocket Connections: `?token=` query parameter.
   - Unauthorized requests are rejected immediately with `HTTP 401 Unauthorized` or WebSocket close code `4401`.
@@ -68,5 +68,5 @@ This guide documents how the JARVIS Device Gateway is reached from any mobile de
 3. **Camera Vision**:
    - Tap the camera button (📷) to snap a picture or upload from gallery. The raw image is sent directly to the PC where Moondream 1.6B VLM analyzes it and streams the answer back.
 4. **Cross-Device Casting**:
-   - Say: *"Play Blinding Lights on my phone"*. The PC dispatches the media stream directly to the phone's built-in media receiver!
+   - Say: *"Play <requested media> on my phone"*. The PC dispatches the media stream directly to the phone's built-in media receiver!
    - Say: *"Play on PC"*. The media is routed to the PC's speakers and browser.

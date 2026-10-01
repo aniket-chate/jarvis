@@ -144,17 +144,17 @@ class BrowserAutomationAgent:
             if self._playwright is None:
                 self._playwright = sync_playwright().start()
 
-            # 1. Primary Preference: Try connecting to user's REAL Chrome via CDP (http://localhost:9222)
+            # 1. Primary Preference: Try connecting to user's REAL Chrome via configured CDP
             connected_cdp = False
             try:
                 logger.info("[BrowserAgent] Attempting to connect to REAL Chrome via CDP (http://localhost:9222)...")
-                cdp_browser = self._playwright.chromium.connect_over_cdp("http://localhost:9222", timeout=3000)
+                cdp_browser = self._playwright.chromium.connect_over_cdp(settings.browser.get("cdp_url", ""), timeout=3000)
                 if cdp_browser and len(cdp_browser.contexts) > 0:
                     self._context = cdp_browser.contexts[0]
                 elif cdp_browser:
                     self._context = cdp_browser.new_context()
                 connected_cdp = True
-                logger.info("[BrowserAgent] Successfully connected to user's REAL Chrome via CDP at port 9222.")
+                logger.info("[BrowserAgent] Successfully connected to user's REAL Chrome via CDP at the configured CDP endpoint.")
             except Exception as cdp_err:
                 logger.info("[BrowserAgent] Real Chrome CDP connection unavailable (%s). Falling back to managed persistent profile...", cdp_err)
 
@@ -176,7 +176,6 @@ class BrowserAutomationAgent:
                         "--no-default-browser-check",
                         "--no-first-run",
                     ],
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                 )
         return self._context
 
@@ -325,7 +324,7 @@ class BrowserAutomationAgent:
                 import urllib.request
                 is_cdp_live = False
                 try:
-                    with urllib.request.urlopen("http://127.0.0.1:9222/json/version", timeout=0.8) as resp:
+                    with urllib.request.urlopen(f"{settings.browser.get('cdp_url', '').rstrip('/')}/json/version", timeout=0.8) as resp:
                         if resp.status == 200:
                             is_cdp_live = True
                 except Exception:
@@ -333,7 +332,7 @@ class BrowserAutomationAgent:
 
                 if is_cdp_live:
                     logger.info("[BrowserAgent] Browser-Use connecting to REAL Chrome via CDP port 9222")
-                    browser = Browser(cdp_url="http://127.0.0.1:9222")
+                    browser = Browser(cdp_url=settings.browser.get("cdp_url", ""))
                 else:
                     browser = Browser(
                         channel="chrome",
@@ -383,7 +382,7 @@ class BrowserAutomationAgent:
     def _play_youtube_fastpath(
         self,
         song_query: str,
-        screenshot_filename: str = "test_youtube_playback.png",
+        screenshot_filename: Optional[str] = None,
         screenshot_60s_filename: Optional[str] = None,
         play_duration_sec: float = 0.0,
         headless: bool = False
@@ -394,8 +393,9 @@ class BrowserAutomationAgent:
 
         encoded_query = urllib.parse.quote(song_query)
         search_url = f"https://www.youtube.com/results?search_query={encoded_query}"
-        screenshot_dest = SCREENSHOTS_DIR / screenshot_filename
-        screenshot_60s_dest = SCREENSHOTS_DIR / (screenshot_60s_filename or f"60s_{screenshot_filename}") if play_duration_sec > 0 else None
+        screenshot_name = screenshot_filename or f"youtube_playback_{int(time.time() * 1000)}.png"
+        screenshot_dest = SCREENSHOTS_DIR / screenshot_name
+        screenshot_60s_dest = SCREENSHOTS_DIR / (screenshot_60s_filename or f"60s_{screenshot_name}") if play_duration_sec > 0 else None
 
         logger.info("[BrowserAgent FastPath] Attempting persistent visible playback for: '%s' (duration=%.1fs)", song_query, play_duration_sec)
         try:
@@ -513,19 +513,6 @@ class BrowserAutomationAgent:
 
             # 1. Capture initial playback proof screenshot
             page.screenshot(path=str(screenshot_dest))
-
-            # Copy initial screenshot to active conversation artifacts directory
-            try:
-                import shutil
-                artifacts_dirs = [
-                    Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\65337e1e-5d27-4941-8153-1cf1c5997512"),
-                    Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\a47af4a5-7bb7-4250-bd6c-7d2bf08ed5f3")
-                ]
-                for adir in artifacts_dirs:
-                    if adir.exists():
-                        shutil.copy(screenshot_dest, adir / screenshot_filename)
-            except Exception as cpy_err:
-                logger.warning("[BrowserAgent FastPath] Artifact copy warning: %s", cpy_err)
 
             # 2. If play_duration_sec requested (e.g. verification), allow video to play continuously
             time_at_60s = final_time
@@ -764,12 +751,6 @@ class BrowserAutomationAgent:
 
         # 6. Proof Screenshot
         page.screenshot(path=str(screenshot_dest))
-        try:
-            art_dir = Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\027db39b-f320-4348-9eff-8b57c946e55e")
-            if art_dir.exists():
-                shutil.copy(screenshot_dest, art_dir / screenshot_name)
-        except Exception:
-            pass
 
         # 7. Record in Action Memory
         action_memory_manager.record_web_session(
@@ -869,13 +850,6 @@ class BrowserAutomationAgent:
 
         time.sleep(3.0)
         page.screenshot(path=str(screenshot_dest))
-
-        try:
-            art_dir = Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\027db39b-f320-4348-9eff-8b57c946e55e")
-            if art_dir.exists():
-                shutil.copy(screenshot_dest, art_dir / screenshot_name)
-        except Exception:
-            pass
 
         current_url = page.url
         current_title = page.title()
@@ -1183,13 +1157,6 @@ class BrowserAutomationAgent:
 
         # Step 7: Proof screenshot
         page.screenshot(path=str(screenshot_dest))
-        try:
-            import shutil
-            for adir in [Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\c6bb32ea-77a4-490e-800c-743e433883b9"), Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\65337e1e-5d27-4941-8153-1cf1c5997512")]:
-                if adir.exists():
-                    shutil.copy(screenshot_dest, adir / screenshot_name)
-        except Exception:
-            pass
 
         return {
             "success": True,
@@ -1249,14 +1216,6 @@ class BrowserAutomationAgent:
             action_type="open_site"
         )
 
-        try:
-            import shutil
-            for adir in [Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\65337e1e-5d27-4941-8153-1cf1c5997512")]:
-                if adir.exists():
-                    shutil.copy(screenshot_dest, adir / screenshot_name)
-        except Exception:
-            pass
-
         msg = f"Opened {clean_name} ({url}) in browser."
         return {
             "success": True,
@@ -1272,7 +1231,7 @@ class BrowserAutomationAgent:
 
     def chained_play_media(
         self,
-        site: str = "youtube",
+        site: str = "",
         query: str = "",
         headless: bool = False,
         screenshot_filename: Optional[str] = None,
@@ -1602,7 +1561,7 @@ class BrowserAutomationAgent:
     def play_youtube_song(
         self,
         song_query: str,
-        screenshot_filename: str = "test_youtube_playback.png",
+        screenshot_filename: Optional[str] = None,
         screenshot_60s_filename: Optional[str] = None,
         play_duration_sec: float = 0.0,
         headless: bool = False
@@ -1668,6 +1627,26 @@ class BrowserAutomationAgent:
         if action in ["show_tabs", "list_tabs", "active_tabs", "bring_to_front", "show_browser"]:
             return self.show_active_tabs()
 
+        if action == "get_active_tab":
+            self._bring_chrome_window_to_front()
+            if self._active_page is None or self._active_page.is_closed():
+                return {
+                    "success": True,
+                    "action": "get_active_tab",
+                    "has_active_tab": False,
+                    "response": "There is no active browser tab.",
+                    "output": "There is no active browser tab.",
+                }
+            return {
+                "success": True,
+                "action": "get_active_tab",
+                "has_active_tab": True,
+                "title": self._active_page.title(),
+                "url": self._active_page.url,
+                "response": f"You are currently viewing {self._active_page.title()} ({self._active_page.url}).",
+                "output": f"You are currently viewing {self._active_page.title()} ({self._active_page.url}).",
+            }
+
         # General Web Action (Astra-Style Observe-Decide-Execute)
         if action in ["web_action", "browse_action", "general_action"]:
             return self._web_action_impl(
@@ -1721,16 +1700,36 @@ class BrowserAutomationAgent:
             return self.whatsapp_start_call(recipient=recip, screenshot_filename=screenshot_name)
 
         # Generalized chained media playback (YouTube, Spotify, etc.)
+        if action == "play_youtube_first_result":
+            category = str(inputs.get("category") or "").strip()
+            play_site = inputs.get("platform") or site or settings.browser.get("sites", {}).get("youtube", "")
+            if not category:
+                return {
+                    "success": True,
+                    "action": "clarification",
+                    "needs_clarification": True,
+                    "response": "What kind of music should I play?",
+                    "output": "What kind of music should I play?",
+                }
+            return self.chained_play_media(
+                site=play_site,
+                query=category,
+                screenshot_filename=inputs.get("screenshot_filename"),
+                screenshot_60s_filename=inputs.get("screenshot_60s_filename"),
+                play_duration_sec=float(inputs.get("play_duration_sec", 0.0)),
+                headless=headless,
+            )
+
         if action in ["chained_play", "play_media"]:
             play_target = query or inputs.get("song") or inputs.get("media") or ""
-            play_site = inputs.get("platform") or site or "youtube"
+            play_site = inputs.get("platform") or site or settings.browser.get("default_media_site", "")
             play_duration_sec = float(inputs.get("play_duration_sec", 0.0))
             screenshot_60s_name = inputs.get("screenshot_60s_filename")
             return self.chained_play_media(
                 site=play_site,
                 query=play_target,
                 headless=headless,
-                screenshot_filename=screenshot_name or "media_playback_live.png",
+                screenshot_filename=screenshot_name,
                 screenshot_60s_filename=screenshot_60s_name,
                 play_duration_sec=play_duration_sec
             )
@@ -1749,9 +1748,23 @@ class BrowserAutomationAgent:
                 song = last_media.get("title") or last_media.get("song_query")
                 logger.info("[BrowserAgent Context] Resolved '%s' to previous media result: '%s'", raw_target, song)
             else:
-                song = "trending top music hits"
+                return {
+                    "success": True,
+                    "action": "clarification",
+                    "needs_clarification": True,
+                    "response": "Which song or music should I play?",
+                    "output": "Which song or music should I play?",
+                }
         elif any(w in raw_target.lower() for w in ["play", "song", "music", "youtube"]):
-            song = cleaned if (cleaned and cleaned.lower() not in ["a", "the", "new", "track", "song"]) else "trending top music hits"
+            if not cleaned or cleaned.lower() in ["a", "the", "new", "track", "song"]:
+                return {
+                    "success": True,
+                    "action": "clarification",
+                    "needs_clarification": True,
+                    "response": "Which song or music should I play?",
+                    "output": "Which song or music should I play?",
+                }
+            song = cleaned
         else:
             song = cleaned or inputs.get("song")
 
@@ -1779,7 +1792,15 @@ class BrowserAutomationAgent:
                 pass
             return res
 
-        task = inputs.get("task") or query or "Navigate to https://example.com"
+        task = inputs.get("task") or query
+        if not task:
+            return {
+                "success": True,
+                "action": "clarification",
+                "needs_clarification": True,
+                "response": "What should I do in the browser?",
+                "output": "What should I do in the browser?",
+            }
         max_steps = int(inputs.get("max_steps", 4))
         res = self.run_task(task=task, max_steps=max_steps, screenshot_filename=screenshot_name)
         res["response"] = res.get("result") or f"Browser automation task '{task}' completed."

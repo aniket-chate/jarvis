@@ -1713,40 +1713,23 @@ class BrowserAutomationAgent:
                 song = last_media.get("title") or last_media.get("song_query")
                 logger.info("[BrowserAgent Context] Resolved '%s' to previous media result: '%s'", raw_target, song)
             else:
-
                 return {
-
                     "success": True,
-
                     "action": "clarification",
-
                     "needs_clarification": True,
-
                     "response": "Which song or music should I play?",
-
                     "output": "Which song or music should I play?",
-
                 }
-
-            elif any(w in raw_target.lower() for w in ["play", "song", "music", "youtube"]):
-
-                if not cleaned or cleaned.lower() in ["a", "the", "new", "track", "song"]:
-
-                    return {
-
-                        "success": True,
-
-                        "action": "clarification",
-
-                        "needs_clarification": True,
-
-                        "response": "Which song or music should I play?",
-
-                        "output": "Which song or music should I play?",
-
-                    }
-
-                song = cleaned
+        elif any(w in raw_target.lower() for w in ["play", "song", "music", "youtube"]):
+            if not cleaned or cleaned.lower() in ["a", "the", "new", "track", "song"]:
+                return {
+                    "success": True,
+                    "action": "clarification",
+                    "needs_clarification": True,
+                    "response": "Which song or music should I play?",
+                    "output": "Which song or music should I play?",
+                }
+            song = cleaned
         else:
             song = cleaned or inputs.get("song")
 

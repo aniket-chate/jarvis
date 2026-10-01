@@ -1231,7 +1231,7 @@ class BrowserAutomationAgent:
 
     def chained_play_media(
         self,
-        site: str = "youtube",
+        site: str = "",
         query: str = "",
         headless: bool = False,
         screenshot_filename: Optional[str] = None,

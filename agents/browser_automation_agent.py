@@ -1687,8 +1687,16 @@ class BrowserAutomationAgent:
 
         # Generalized chained media playback (YouTube, Spotify, etc.)
         if action == "play_youtube_first_result":
-            category = str(inputs.get("category") or "song").strip()
-            play_site = inputs.get("platform") or site or "youtube"
+            category = str(inputs.get("category") or "").strip()
+            play_site = inputs.get("platform") or site or settings.browser.get("sites", {}).get("youtube", "")
+            if not category:
+                return {
+                    "success": True,
+                    "action": "clarification",
+                    "needs_clarification": True,
+                    "response": "What kind of music should I play?",
+                    "output": "What kind of music should I play?",
+                }
             return self.chained_play_media(
                 site=play_site,
                 query=category,

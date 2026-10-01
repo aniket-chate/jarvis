@@ -9,7 +9,7 @@ on:
 jobs:
   security-regressions:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -19,7 +19,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio
+          pip install pytest pytest-asyncio uvicorn
       - name: Compile Python sources
         run: python -m compileall -q .
       - name: Run security regressions
@@ -28,3 +28,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y xvfb
       - name: Run 20-message real-work black-box harness
         run: xvfb-run -a python tests/test_20_real_work_messages.py
+
+      - name: Run 30-turn real conversation QA
+        env:
+          JARVIS_ALLOW_EXTERNAL_MEDIA_BLOCK: "true"
+        run: xvfb-run -a python tests/test_30_real_conversation.py

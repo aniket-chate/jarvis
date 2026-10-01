@@ -27,7 +27,6 @@ def test_generic_youtube_request_selects_first_result_without_fabricating_song()
     intent = IntentArbitrator().arbitrate("open youtube and play a song")
     assert intent.action == "play_youtube_first_result"
     assert intent.params["category"] in {"song", "music"}
-    assert "song" not in str(intent.params).lower() or intent.params["category"] in {"song", "music"}
 
 
 def test_browser_runtime_contains_no_known_machine_or_fake_song_defaults():

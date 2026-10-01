@@ -94,18 +94,34 @@ class CalendarAgent:
             return {"success": False, "error": str(e)}
 
     def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
-        """Standardized interface for Orchestrator Agent Router."""
-        action = inputs.get("action", "read")
-        if action == "add" or "summary" in inputs:
+        """Execute a calendar action using only supplied semantic fields."""
+        action = inputs.get("action", "get_calendar_events")
+        if action in {"create_calendar_event", "add"}:
+            summary = inputs.get("summary") or inputs.get("title")
+            start_time = inputs.get("start") or inputs.get("start_time")
+            duration = inputs.get("duration") or inputs.get("duration_minutes")
+            if not summary or not start_time or duration is None:
+                missing = []
+                if not summary:
+                    missing.append("event title")
+                if not start_time:
+                    missing.append("date/time")
+                if duration is None:
+                    missing.append("duration")
+                return {
+                    "success": False,
+                    "needs_clarification": True,
+                    "response": "Please provide " + ", ".join(missing) + ".",
+                    "missing": missing,
+                }
             return self.add_event(
-                summary=inputs.get("summary", "New Event"),
-                start_time_iso=inputs.get("start", datetime.utcnow().isoformat()),
-                duration_minutes=inputs.get("duration", 60),
+                summary=summary,
+                start_time_iso=start_time,
+                duration_minutes=duration,
                 description=inputs.get("description", ""),
-                user_confirmed=inputs.get("user_confirmed", False)
+                user_confirmed=inputs.get("user_confirmed", False),
             )
-        else:
-            return self.get_upcoming_events(max_results=inputs.get("max_results", 5))
+        return self.get_upcoming_events(max_results=inputs.get("max_results", 5))
 
 
 calendar_agent = CalendarAgent()

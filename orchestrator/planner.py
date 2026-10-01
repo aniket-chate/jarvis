@@ -404,6 +404,18 @@ class TaskPlanner:
                     required_agent_type="browser_automation_agent",
                     inputs={"action": "play_youtube", "song": params.get("song", ""), "query": params.get("song", "")}
                 )
+
+            elif act == "play_youtube_first_result":
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description="Play the first matching YouTube music result",
+                    required_agent_type="browser_automation_agent",
+                    inputs={
+                        "action": "play_youtube_first_result",
+                        "category": params.get("category", ""),
+                        "site": params.get("site", ""),
+                    }
+                )
             elif act == "open_url":
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",

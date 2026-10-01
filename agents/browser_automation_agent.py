@@ -148,7 +148,7 @@ class BrowserAutomationAgent:
             connected_cdp = False
             try:
                 logger.info("[BrowserAgent] Attempting to connect to REAL Chrome via CDP (http://localhost:9222)...")
-                cdp_browser = self._playwright.chromium.connect_over_cdp("http://localhost:9222", timeout=3000)
+                cdp_browser = self._playwright.chromium.connect_over_cdp(settings.browser.get("cdp_url", ""), timeout=3000)
                 if cdp_browser and len(cdp_browser.contexts) > 0:
                     self._context = cdp_browser.contexts[0]
                 elif cdp_browser:
@@ -176,7 +176,6 @@ class BrowserAutomationAgent:
                         "--no-default-browser-check",
                         "--no-first-run",
                     ],
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                 )
         return self._context
 
@@ -325,7 +324,7 @@ class BrowserAutomationAgent:
                 import urllib.request
                 is_cdp_live = False
                 try:
-                    with urllib.request.urlopen("http://127.0.0.1:9222/json/version", timeout=0.8) as resp:
+                    with urllib.request.urlopen(f"{settings.browser.get('cdp_url', '').rstrip('/')}/json/version", timeout=0.8) as resp:
                         if resp.status == 200:
                             is_cdp_live = True
                 except Exception:
@@ -333,7 +332,7 @@ class BrowserAutomationAgent:
 
                 if is_cdp_live:
                     logger.info("[BrowserAgent] Browser-Use connecting to REAL Chrome via CDP port 9222")
-                    browser = Browser(cdp_url="http://127.0.0.1:9222")
+                    browser = Browser(cdp_url=settings.browser.get("cdp_url", ""))
                 else:
                     browser = Browser(
                         channel="chrome",

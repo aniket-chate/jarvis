@@ -637,6 +637,43 @@ class TaskPlanner:
         clean_lower = re.sub(r"^(?:hey\s+|ok\s+|okay\s+)?jarvis[\s,:]+", "", lower).strip()
         clean_lower = re.sub(r"^(?:can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|please\s+|kindly\s+)", "", clean_lower).strip()
 
+        # Explicit browser state queries must beat generic conversational/web fallbacks.
+        if re.search(r"\b(?:show|list|display)\s+(?:my\s+)?(?:active\s+)?browser\s+tabs?\b", lower):
+            return TaskStep(
+                step_id=f"{plan_id}_step_1",
+                description="Show active browser tabs",
+                required_agent_type="browser_automation_agent",
+                inputs={"action": "show_tabs"},
+            )
+        if re.search(r"\b(?:what|which)\s+(?:page|site|website)\s+am\s+i\s+(?:looking|viewing)\s+at\b", lower):
+            return TaskStep(
+                step_id=f"{plan_id}_step_1",
+                description="Report active browser page",
+                required_agent_type="browser_automation_agent",
+                inputs={"action": "get_active_tab"},
+            )
+
+        # Explicit YouTube playback requests must beat the generic web/media branch.
+        youtube_play = re.search(r"\bopen\s+youtube\s+and\s+play\s+(.+)$", text, re.IGNORECASE)
+        if youtube_play:
+            requested = youtube_play.group(1).strip().rstrip(".!?")
+            site_url = settings.browser.get("sites", {}).get("youtube", "")
+            generic = re.fullmatch(r"(?:a|the|some|any)\s+(song|music|track|video)", requested, re.IGNORECASE)
+            if generic:
+                category = generic.group(1).lower()
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description="Play the first matching YouTube music result",
+                    required_agent_type="browser_automation_agent",
+                    inputs={"action": "play_youtube_first_result", "category": category, "site": site_url},
+                )
+            return TaskStep(
+                step_id=f"{plan_id}_step_1",
+                description=f"Play requested YouTube media: {requested}",
+                required_agent_type="browser_automation_agent",
+                inputs={"action": "play_youtube", "song": requested, "query": requested, "site": site_url},
+            )
+
         # -4. Symmetrical Action Memory Follow-ups resolved via Universal Fuzzy Matcher
         from utils.fuzzy_matcher import match_intent_action
         action_intent = match_intent_action(text)

@@ -514,12 +514,6 @@ class BrowserAutomationAgent:
             # 1. Capture initial playback proof screenshot
             page.screenshot(path=str(screenshot_dest))
 
-            # Copy initial screenshot to active conversation artifacts directory
-                    if adir.exists():
-                        shutil.copy(screenshot_dest, adir / screenshot_filename)
-            except Exception as cpy_err:
-                logger.warning("[BrowserAgent FastPath] Artifact copy warning: %s", cpy_err)
-
             # 2. If play_duration_sec requested (e.g. verification), allow video to play continuously
             time_at_60s = final_time
             if is_playing and play_duration_sec > 0:

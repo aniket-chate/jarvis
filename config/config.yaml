@@ -80,6 +80,7 @@ browser:
   headless: false
   reuse_active_tab: true
   autoplay_policy: "no-user-gesture-required"
+  default_media_site: "youtube"
   screenshots_dir: "workspace/screenshots"
   sites:
     youtube: "https://www.youtube.com"

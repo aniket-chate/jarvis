@@ -44,8 +44,9 @@ class SystemControlAgent:
         mem = psutil.virtual_memory()
         battery = psutil.sensors_battery()
 
-        # Disk C:
-        total_c, used_c, free_c = shutil.disk_usage("C:\\")
+        # Resolve the host system root at runtime; never assume a Windows drive letter.
+        system_root = os.path.abspath(os.environ.get("SystemDrive") + os.sep) if os.name == "nt" and os.environ.get("SystemDrive") else os.path.abspath(os.sep)
+        total_c, used_c, free_c = shutil.disk_usage(system_root)
         gb = 1024 ** 3
 
         status = {
@@ -55,7 +56,7 @@ class SystemControlAgent:
                 "available_gb": round(mem.available / gb, 2),
                 "percent_used": mem.percent
             },
-            "disk_c": {
+            "disk": {
                 "total_gb": round(total_c / gb, 2),
                 "free_gb": round(free_c / gb, 2),
                 "percent_free": round((free_c / total_c) * 100, 1)
@@ -876,12 +877,15 @@ class SystemControlAgent:
             if action == "multi_telemetry" or all(k in q_low for k in ["cpu", "ram", "network", "time"]):
                 res = self.get_system_status()
                 telem = res.get("telemetry", {})
-                cpu_val = telem.get("cpu_percent", 20)
-                mem_data = telem.get("memory", {})
-                total_gb = mem_data.get("total_gb", 16)
-                avail_gb = mem_data.get("available_gb", 5)
-                used_gb = round(total_gb - avail_gb, 1)
-                mem_pct = mem_data.get("percent_used", 60)
+                cpu_val = telem.get("cpu_percent", "N/A")
+                mem_data = telem.get("memory") or {}
+                total_gb = mem_data.get("total_gb", "N/A")
+                avail_gb = mem_data.get("available_gb", "N/A")
+                try:
+                    used_gb = round(float(total_gb) - float(avail_gb), 1)
+                except (TypeError, ValueError):
+                    used_gb = "N/A"
+                mem_pct = mem_data.get("percent_used", "N/A")
                 import socket
                 try:
                     socket.create_connection(("8.8.8.8", 53), timeout=1.5)
@@ -897,10 +901,13 @@ class SystemControlAgent:
                 res = self.get_system_status()
                 telem = res.get("telemetry", {})
                 mem_data = telem.get("memory", {})
-                total_gb = mem_data.get("total_gb", 16)
-                avail_gb = mem_data.get("available_gb", 5)
-                used_gb = round(total_gb - avail_gb, 1)
-                pct = mem_data.get("percent_used", 65)
+                total_gb = mem_data.get("total_gb", "N/A")
+                avail_gb = mem_data.get("available_gb", "N/A")
+                try:
+                    used_gb = round(float(total_gb) - float(avail_gb), 1)
+                except (TypeError, ValueError):
+                    used_gb = "N/A"
+                pct = mem_data.get("percent_used", "N/A")
                 if any(w in q_low for w in ["eating", "most", "consuming", "consumer", "top"]):
                     procs = self.list_processes(3).get("processes", [])
                     top_names = [p['name'].replace('.exe', '').capitalize() for p in procs]
@@ -911,7 +918,7 @@ class SystemControlAgent:
 
             elif re.search(r"\bcpu\b", q_low):
                 res = self.get_system_status()
-                cpu_val = res.get("telemetry", {}).get("cpu_percent", 25)
+                cpu_val = res.get("telemetry", {}).get("cpu_percent", "N/A")
                 msg = f"Current CPU utilization is approximately {cpu_val}%."
                 return {"success": True, "action": "cpu_query", "response": msg, "message": msg, "output": msg}
 
@@ -955,7 +962,7 @@ class SystemControlAgent:
             telem = res.get("telemetry", {})
             cpu = telem.get("cpu_percent", "N/A")
             mem = telem.get("memory", {}).get("percent_used", "N/A")
-            disk = telem.get("disk_c", {}).get("free_gb", "N/A")
+            disk = telem.get("disk", {}).get("free_gb", "N/A")
             batt = telem.get("battery", {}).get("percent", "N/A")
             msg = f"System telemetry: CPU {cpu}%, RAM {mem}%, Free Disk {disk} GB, Battery {batt}%."
             res["message"] = msg

@@ -12,9 +12,11 @@ Maintains live short-term working context across conversational turns:
 
 import time
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List
 from pathlib import Path
+from config.settings import settings
 
 logger = logging.getLogger("JARVIS.ContextManager")
 
@@ -53,6 +55,7 @@ class ConfirmationTransaction:
     target: str
     payload: Dict[str, Any]
     domain: str = ""
+    original_request: str = ""
     created_at: float = field(default_factory=time.time)
     ttl_seconds: float = 90.0
 
@@ -65,7 +68,7 @@ class WorkingContextManager:
     """Central working memory and pronoun resolution engine for JARVIS."""
 
     def __init__(self):
-        self._active_persona: str = "Jarvis"
+        self._active_persona: str = getattr(settings, "active_persona_name", "") or ""
         self._browser: BrowserState = BrowserState()
         self._code: Optional[CodeContext] = None
         self._file: Optional[FileContext] = None
@@ -119,7 +122,7 @@ class WorkingContextManager:
             code=code,
             language=language,
             function_name=function_name,
-            variables=variables or ["a", "b"],
+            variables=list(variables or []),
             last_updated=time.time(),
         )
         logger.info("[ContextManager] Stored working code context: func='%s', len=%d", function_name, len(code))
@@ -188,12 +191,14 @@ class WorkingContextManager:
         target: str,
         payload: Dict[str, Any],
         domain: str = "",
+        original_request: str = "",
     ) -> ConfirmationTransaction:
         tx = ConfirmationTransaction(
             action=action,
             target=target,
             payload=payload,
             domain=domain,
+            original_request=original_request,
         )
         self._pending_confirmation = tx
         logger.info("[ContextManager] Staged pending confirmation: action='%s', target='%s'", action, target)
@@ -209,6 +214,19 @@ class WorkingContextManager:
 
     def has_pending_confirmation(self) -> bool:
         return self._pending_confirmation is not None and not self._pending_confirmation.is_expired
+
+    def get_pending_confirmation(self) -> Optional[ConfirmationTransaction]:
+        """Read pending confirmation without consuming it."""
+        tx = self._pending_confirmation
+        return tx if tx and not tx.is_expired else None
+
+    def consume_pending_confirmation(self) -> Optional[ConfirmationTransaction]:
+        """Consume a pending confirmation after downstream execution/policy resolution."""
+        return self.pop_confirmation()
+
+    def get_configured_location(self) -> str:
+        value = settings.config.get("user", {}).get("location") or settings.config.get("location", "")
+        return str(value or "").strip()
 
     # Git State
     def set_git_branch(self, branch: str) -> None:
@@ -240,20 +258,20 @@ class WorkingContextManager:
         if any(w in low for w in ["pause it", "hold on, pause", "pause the video", "pause the song", "stop playing"]):
             resolved["is_media_control"] = True
             resolved["resolved_action"] = "pause_media"
-            resolved["resolved_target"] = self._browser.media_target or "current video"
+            resolved["resolved_target"] = self._browser.media_target or ""
             return resolved
 
         if any(w in low for w in ["continue", "resume", "play it", "go ahead, continue", "unpause"]):
             resolved["is_media_control"] = True
             resolved["resolved_action"] = "resume_media"
-            resolved["resolved_target"] = self._browser.media_target or "current video"
+            resolved["resolved_target"] = self._browser.media_target or ""
             return resolved
 
         # 2. Browser Tab References ("close that tab", "close this tab", "what page am i looking at")
         if "close that tab" in low or "close this tab" in low or "close tab" in low:
             resolved["is_browser_op"] = True
             resolved["resolved_action"] = "close_tab"
-            resolved["resolved_target"] = self._browser.url or "active_tab"
+            resolved["resolved_target"] = self._browser.url or ""
             return resolved
 
         if "what page" in low or "which page" in low:
@@ -297,7 +315,7 @@ class WorkingContextManager:
             resolved["resolved_target"] = self._code.code
             return resolved
 
-        if self._code and any(k in low for k in ["if b is zero", "b is 0", "if a is zero", "what if b is"]):
+        if self._code and re.search(r"\b(?:what happens if|what if)\b", low):
             resolved["is_code_op"] = True
             resolved["resolved_action"] = "code_explanation"
             resolved["resolved_target"] = self._code.code

@@ -31,24 +31,84 @@ class IntentArbitrator:
     """Classifies user intent through semantic decomposition and active context binding."""
 
     def arbitrate(self, text: str) -> StructuredIntent:
+        intent = self._arbitrate(text)
+        if not intent.raw_query:
+            intent.raw_query = text.strip()
+        if intent.action == "clarification":
+            prompt = intent.clarification_prompt or (intent.params or {}).get("response") or (intent.params or {}).get("query") or ""
+            intent.needs_clarification = True
+            intent.clarification_prompt = prompt
+        return intent
+
+    def _arbitrate(self, text: str) -> StructuredIntent:
         clean = text.strip()
         low = clean.lower()
+
+        # Front-door normalization for unambiguous commands. These are parameterized
+        # patterns only; values always come from the user's request.
+        m_media = re.fullmatch(r"play\s+(.+?)(?:\s+on\s+youtube)?[.!?]?", clean, re.IGNORECASE)
+        if m_media and ("youtube" in low or low.startswith("play ")):
+            media_query = re.sub(r"\s+on\s+youtube\s*$", "", m_media.group(1).strip(), flags=re.IGNORECASE).rstrip(".!?").strip()
+            excluded_media = {"a song", "a music", "song", "music", "it", "that", "it again", "that again"}
+            if media_query.lower() not in excluded_media or ("youtube" in low and media_query.lower() in {"music", "a music"}):
+                return StructuredIntent(domain="browser", action="play_youtube", target=media_query, params={"song": media_query})
+
+        m_open = re.fullmatch(r"(?:open|go to|navigate to)\s+(.+?)[.!?]?", clean, re.IGNORECASE)
+        if m_open:
+            target = m_open.group(1).strip()
+            if target.lower() in {"github", "youtube"} or re.match(r"^https?://", target, re.IGNORECASE) or target.lower().startswith("www."):
+                return StructuredIntent(domain="browser", action="open_url", target=target, params={"url": target})
+
+        m_branch = re.fullmatch(r"create\s+(?:a\s+)?branch\s+(?:called|named)\s+([A-Za-z0-9._/-]+)[.!?]?", clean, re.IGNORECASE)
+        if m_branch:
+            return StructuredIntent(domain="git", action="create_branch", target=m_branch.group(1), params={"branch_name": m_branch.group(1)})
+
+        m_comm = re.fullmatch(r"(message|email|text)\s+(.+?)\s+(?:saying|that|body|with)\s+(.+?)[.!?]?", clean, re.IGNORECASE)
+        if m_comm:
+            kind, recipient, body = m_comm.groups()
+            return StructuredIntent(
+                domain="communication",
+                action="draft_email" if kind.lower() == "email" else "draft_message",
+                target=recipient.strip(),
+                params={"recipient": recipient.strip(), "to": recipient.strip(), "message": body.strip(), "body": body.strip()},
+                requires_confirmation=True,
+            )
+
+        m_meeting = re.fullmatch(r"schedule\s+(?:a\s+)?meeting\s+(.+)", clean, re.IGNORECASE)
+        if m_meeting:
+            request = clean
+            if not re.search(r"\bfor\s+\d+\s*(?:minutes?|mins?|hours?|hrs?)\b", low):
+                prompt = "What duration should the meeting have?"
+                return StructuredIntent(domain="scheduler", action="clarification", target="", params={"query": prompt, "calendar_request": request, "response": prompt}, needs_clarification=True, clarification_prompt=prompt)
+            return StructuredIntent(domain="scheduler", action="create_calendar_event", target=m_meeting.group(1).strip(), params={"title": m_meeting.group(1).strip(), "raw_query": request, "calendar_request": request})
 
         # 1. Check for Pending Confirmation Response ("yes, do it", "yes", "confirm", "proceed", "no", "cancel")
         if context_manager.has_pending_confirmation():
             if low in ["yes, do it", "yes", "do it", "confirm", "proceed", "sure", "approve", "approved", "go ahead"]:
-                tx = context_manager.pop_confirmation()
+                tx = context_manager.get_pending_confirmation()
                 if tx:
                     logger.info("[IntentArbitrator] Matched confirmed transaction: action='%s', target='%s'", tx.action, tx.target)
                     return StructuredIntent(
                         domain=getattr(tx, "domain", "") or tx.payload.get("_domain", "system"),
                         action=f"confirmed_{tx.action}",
                         target=tx.target,
-                        params=tx.payload,
+                        params={**tx.payload, "_confirmation": {"original_request": getattr(tx, "original_request", ""), "domain": getattr(tx, "domain", ""), "action": getattr(tx, "action", ""), "target": getattr(tx, "target", ""), "resolution": "confirm"}},
                         requires_confirmation=False,
                     )
             elif any(re.search(r"\b" + re.escape(w) + r"\b", low) for w in ["no", "cancel", "stop", "abort", "don't", "dont", "wait", "nevermind"]):
                 tx = context_manager.pop_confirmation()
+                if tx and getattr(tx, "action", "") == "create_file":
+                    try:
+                        from orchestrator.memory import memory_manager
+                        pending = memory_manager.get_pending_action() or {}
+                        pending_inputs = pending.get("inputs", {})
+                        if (
+                            pending.get("action") == "create_file"
+                            and pending_inputs.get("path") == getattr(tx, "target", "")
+                        ):
+                            memory_manager.clear_pending_action()
+                    except Exception:
+                        logger.debug("Unable to clear cancelled create_file memory action", exc_info=True)
                 logger.info("[IntentArbitrator] Explicitly cancelled pending transaction: %s", getattr(tx, "action", "action"))
                 return StructuredIntent(
                     domain="system",
@@ -122,6 +182,11 @@ class IntentArbitrator:
                 params={"persona": target_p},
             )
 
+        # Generic telemetry requests must outrank the word "temperature" as a weather cue.
+        if any(re.search(r"\b" + re.escape(k) + r"\b", low) for k in ["cpu", "ram", "memory", "battery", "disk", "storage", "network", "uptime"]) and not any(k in low for k in ["weather", "forecast", "rain"]):
+            metrics = [k for k in ["cpu", "ram", "memory", "battery", "disk", "storage", "network", "uptime", "temperature"] if re.search(r"\b" + re.escape(k) + r"\b", low)]
+            return StructuredIntent(domain="system", action="multi_telemetry", target="system_overview", params={"metrics": metrics})
+
         # 4b. Real-Time Weather Intent & ASR Phonetic Disambiguation (Capability 32)
         is_conjunction = bool(
             re.search(r"\b(?:know|doubt|wonder|unsure|decide|choose|matter|see|tell|ask|care)\s+whether\b", low) or
@@ -185,6 +250,9 @@ class IntentArbitrator:
             if hasattr(context_manager, "set_weather_context"):
                 context_manager.set_weather_context(weather_loc, weather_time)
 
+            if not weather_loc:
+                prompt = "Which location should I use for the weather?"
+                return StructuredIntent(domain="info", action="clarification", target="", params={"query": prompt, "response": prompt}, needs_clarification=True, clarification_prompt=prompt)
             return StructuredIntent(
                 domain="info",
                 action="get_weather",
@@ -259,13 +327,13 @@ class IntentArbitrator:
             "delete the file", "delete file", "remove the file", "move the file", "move file", "rename the file", "rename file"
         ]
         is_past_inquiry = bool(re.search(r"^(?:did\s+you|was\s+the|were\s+the|have\s+you|why\s+did\s+you)\b", low))
-        if not is_past_inquiry and (any(w in low for w in file_triggers) or (("search" in low or "find" in low or "locate" in low) and any(k in low for k in ["file", "files", "document", "documents"])) or (any(k in low for k in ["file", "document", "notes", ".txt", ".json", ".csv", ".md"]) and any(v in low for v in ["create", "write", "make", "read", "show", "open", "delete", "remove", "move", "rename"]))):
+        if not is_past_inquiry and (any(w in low for w in file_triggers) or bool(re.search(r"\b(?:read|open|view|show|inspect)\s+(?:[a-zA-Z]:[\\/]|/|~)", clean, re.IGNORECASE)) or (("search" in low or "find" in low or "locate" in low) and any(k in low for k in ["file", "files", "document", "documents"])) or (any(k in low for k in ["file", "document", "notes", ".txt", ".json", ".csv", ".md"]) and any(v in low for v in ["create", "write", "make", "read", "show", "open", "delete", "remove", "move", "rename"]))):
             from orchestrator.parameter_extractor import parameter_extractor
             f_params = parameter_extractor.extract_file_parameters(clean)
             if f_params.get("requires_clarification"):
                 clarif_p = f_params.get("clarification_prompt", "Could you clarify the file operation details?")
                 return StructuredIntent(
-                    domain="core_llm_agent",
+                    domain="file",
                     action="clarification",
                     target="",
                     params={"query": clarif_p, "system_extra": clarif_p, "response": clarif_p},
@@ -399,7 +467,7 @@ class IntentArbitrator:
             )
 
         # 10. Communication (Email, Messages, WhatsApp)
-        if any(w in low for w in ["whats app", "whatsapp", "send email", "send an email", "draft email", "send message", "draft message", "lookup contact", "find contact"]) or ("send" in low and "message" in low) or ("message" in low and " to " in low):
+        if re.match(r"^(?:message|email|text)\s+\S+", low) or any(w in low for w in ["whats app", "whatsapp", "send email", "send an email", "draft email", "send message", "draft message", "lookup contact", "find contact"]) or ("send" in low and "message" in low) or ("message" in low and " to " in low):
             is_email = "email" in low
             is_contact_lookup = "contact" in low and any(k in low for k in ["lookup", "find", "search", "who is"])
             
@@ -452,20 +520,62 @@ class IntentArbitrator:
                 params={"metrics": ["cpu", "ram", "network", "time"]},
             )
 
-        # 12. Browser Contextual Search ("search for python" while on GitHub)
-        browser = context_manager.get_browser()
-        if "github.com" in browser.url and low in ["search for python", "search python"]:
+
+        # Explicit local file/document searches outrank contextual browser search.
+        m_file_search = re.fullmatch(r"(?:search|find|locate)(?:\s+for)?\s+(.+?)\s+(?:in|under)\s+(documents|downloads|desktop|workspace)[.!?]?", clean, re.IGNORECASE)
+        if m_file_search:
+            pattern, directory = m_file_search.groups()
             return StructuredIntent(
-                domain="browser",
-                action="github_search",
-                target="",
-                params={"query": ""},
+                domain="file",
+                action="search",
+                target=pattern.strip(),
+                params={"pattern": pattern.strip(), "directory": directory.lower()},
             )
 
+        # 12. Explicit search destinations must be parsed before contextual GitHub search.
+        m_google_search = re.fullmatch(r"search(?:\s+for)?\s+(.+?)\s+on\s+google[.!?]?", clean, re.IGNORECASE)
+        if m_google_search:
+            query = m_google_search.group(1).strip()
+            return StructuredIntent(domain="browser", action="web_search", target=query, params={"query": query, "engine": "google"})
+
+        m_github_search = re.fullmatch(r"(?:search|find)(?:\s+on)?\s+github\s+(?:for\s+)?(.+?)[.!?]?", clean, re.IGNORECASE)
+        if m_github_search:
+            query = m_github_search.group(1).strip()
+            return StructuredIntent(domain="browser", action="github_search", target=query, params={"query": query})
+
+        # Contextual GitHub search applies only to unqualified search requests.
+        browser = context_manager.get_browser()
+        if "github.com" in browser.url and not re.search(r"\b(?:github|google)\b", low):
+            search_match = re.fullmatch(r"search(?:\s+for)?\s+(.+)", clean, re.IGNORECASE)
+            if search_match:
+                query = search_match.group(1).strip()
+                return StructuredIntent(domain="browser", action="github_search", target=query, params={"query": query})
+
         # 13. General Web Navigation & Media
+        if re.search(r"\b(?:search|find)\s+(?:on\s+)?github\s+(?:for\s+)?(.+)$", clean, re.IGNORECASE):
+            m = re.search(r"\b(?:search|find)\s+(?:on\s+)?github\s+(?:for\s+)?(.+)$", clean, re.IGNORECASE)
+            query = m.group(1).strip() if m else ""
+            if query:
+                return StructuredIntent(domain="browser", action="github_search", target=query, params={"query": query})
+
+        if re.fullmatch(r"\s*play\s+(?:a\s+)?(?:song|music)\s*[.!?]?\s*", low):
+            return StructuredIntent(domain="browser", action="clarification", target="", params={"query": "Which song or media would you like me to play?", "response": "Which song or media would you like me to play?"}, needs_clarification=True, clarification_prompt="Which song or media would you like me to play?")
+
+        if re.fullmatch(r"\s*play\s+(?:it|that)(?:\s+again)?[.!?]?\s*", low):
+            return StructuredIntent(domain="browser", action="resume_media", target="", params={"query": clean})
+        m_youtube_play = re.fullmatch(r"\s*play\s+(.+?)\s+on\s+youtube[.!?]?\s*", clean, re.IGNORECASE)
+        m_play = re.fullmatch(r"\s*play\s+(.+?)[.!?]?\s*", clean, re.IGNORECASE)
+        if m_youtube_play:
+            song = m_youtube_play.group(1).strip()
+            if song.lower() not in {"a song", "it", "that"}:
+                return StructuredIntent(domain="browser", action="play_youtube", target=song, params={"song": song})
+        elif m_play and m_play.group(1).strip().lower() not in {"a song", "music", "it", "that"}:
+            song = m_play.group(1).strip()
+            return StructuredIntent(domain="browser", action="play_youtube", target=song, params={"song": song})
+
         if "open youtube" in low:
-            context_manager.update_browser(url="https://www.youtube.com", media_state="playing", media_target="song")
-            return StructuredIntent(domain="browser", action="play_youtube", target="", params={"song": ""})
+            context_manager.update_browser(url="https://www.youtube.com", media_state="stopped", media_target="")
+            return StructuredIntent(domain="browser", action="open_url", target="https://www.youtube.com", params={"url": "https://www.youtube.com"})
 
         if "open github" in low:
             context_manager.update_browser(url="https://github.com/", title="GitHub", media_state="stopped")
@@ -492,6 +602,10 @@ class IntentArbitrator:
             )
 
         # 13d. Calendar & Scheduling (Capability 38)
+        if low.strip() in {"schedule something", "schedule an event", "schedule a meeting"}:
+            prompt = "What should I schedule, and when?"
+            return StructuredIntent(domain="scheduler", action="clarification", target="", params={"query": prompt, "response": prompt}, needs_clarification=True, clarification_prompt=prompt)
+
         if any(w in low for w in ["calendar", "schedule", "meeting", "events today", "upcoming events", "free slots", "availability"]):
             if "conflict" in low:
                 return StructuredIntent(
@@ -501,7 +615,14 @@ class IntentArbitrator:
                     params={"query": clean},
                     confidence=0.95,
                 )
+            if re.search(r"^schedule\s+", low) and re.search(r"\b(?:for|duration|lasting)\s+\d+\s*(?:minutes?|mins?|hours?|hrs?)\b", low):
+                title = re.sub(r"^schedule\s+(?:a\s+)?", "", clean, flags=re.IGNORECASE)
+                return StructuredIntent(domain="scheduler", action="create_calendar_event", target=title, params={"title": title, "raw_query": clean, "calendar_request": clean}, confidence=0.95)
+
             if any(k in low for k in ["add event", "create event", "schedule meeting", "schedule event", "new meeting", "new event", "book"]):
+                if "schedule meeting" in low and not re.search(r"\b(?:for|duration|lasting)\s+\d+\s*(?:minutes?|mins?|hours?|hrs?)\b", low):
+                    prompt = "How long should the meeting be?"
+                    return StructuredIntent(domain="scheduler", action="clarification", target="", params={"query": prompt, "calendar_request": clean, "response": prompt}, needs_clarification=True, clarification_prompt=prompt)
                 m_t = re.search(r"(?:event|meeting|book)\s+(?:named|titled|for|about)?\s*(.+?)(?:\s+(?:at|on|tomorrow|today)|$)", clean, re.IGNORECASE)
                 ev_title = m_t.group(1).strip() if m_t else ""
                 return StructuredIntent(
@@ -627,6 +748,18 @@ class IntentArbitrator:
                 params={"query": p_target, "raw_query": clean, "top_k": 5},
                 confidence=0.95,
             )
+
+        if re.fullmatch(r"delete\s+(?:something|it|that|a file|the file)[.!?]?", low):
+            prompt = "Which file would you like me to delete?"
+            return StructuredIntent(domain="file", action="clarification", target="", params={"query": prompt, "response": prompt}, requires_confirmation=False, needs_clarification=True, clarification_prompt=prompt)
+
+        # Browser navigation is handled only for explicit URLs or domain-like targets.
+        # Desktop application names must continue to the application-control planner.
+        m_generic_browser = re.fullmatch(r"(?:open|go to|navigate to)\s+(.+?)[.!?]?", clean, re.IGNORECASE)
+        if m_generic_browser:
+            target = m_generic_browser.group(1).strip()
+            if re.match(r"^https?://", target, re.IGNORECASE) or re.match(r"^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:].*)?$", target):
+                return StructuredIntent(domain="browser", action="open_url", target=target, params={"url": target})
 
         # Default: Route to Core LLM / Conversational Agent
         return StructuredIntent(

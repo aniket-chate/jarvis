@@ -42,6 +42,10 @@ class BrowserAutomationAgent:
         self.model_name = settings.hardware.get("core_llm", "qwen2.5:3b")
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self._executor_thread_id = None
+        browser_cfg = settings.integrations.get("browser_automation") or {}
+        self._cdp_endpoint = browser_cfg.get("cdp_endpoint") or ""
+        self._managed_profile_dir = browser_cfg.get("managed_profile_dir") or ""
+        self._playwright_browsers_path = browser_cfg.get("playwright_browsers_path") or ""
         self._playwright = None
         self._browser = None
         self._context = None
@@ -74,8 +78,13 @@ class BrowserAutomationAgent:
 
     def _get_chrome_user_data_dir(self) -> Path:
         """Resolves Chrome User Data directory with full recursive profile synchronization (Local State, IndexedDB, LevelDB, Cookies)."""
-        real_user_data = Path(os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data"))
-        automation_dir = Path(os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data - JARVIS"))
+        configured_profile = self._managed_profile_dir.strip()
+        automation_dir = (
+            Path(os.path.expandvars(configured_profile)).expanduser()
+            if configured_profile
+            else settings.project_root / "workspace" / "browser_profile"
+        )
+        real_user_data = Path(os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")).expanduser()
         automation_dir.mkdir(parents=True, exist_ok=True)
         target_default = automation_dir / "Default"
         target_default.mkdir(parents=True, exist_ok=True)
@@ -128,7 +137,8 @@ class BrowserAutomationAgent:
     def _get_persistent_context(self, headless: bool = False):
         """Maintains an ongoing persistent Playwright browser instance bound to the user's real Chrome channel and profile."""
         from playwright.sync_api import sync_playwright
-        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "D:\\PlaywrightBrowsers"
+        if self._playwright_browsers_path:
+            os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.path.expandvars(self._playwright_browsers_path)
 
         is_context_valid = False
         if self._context is not None:
@@ -144,19 +154,20 @@ class BrowserAutomationAgent:
             if self._playwright is None:
                 self._playwright = sync_playwright().start()
 
-            # 1. Primary Preference: Try connecting to user's REAL Chrome via CDP (http://localhost:9222)
+            # 1. Primary Preference: Try connecting to user's REAL Chrome via configured CDP endpoint
             connected_cdp = False
-            try:
-                logger.info("[BrowserAgent] Attempting to connect to REAL Chrome via CDP (http://localhost:9222)...")
-                cdp_browser = self._playwright.chromium.connect_over_cdp("http://localhost:9222", timeout=3000)
-                if cdp_browser and len(cdp_browser.contexts) > 0:
-                    self._context = cdp_browser.contexts[0]
-                elif cdp_browser:
-                    self._context = cdp_browser.new_context()
-                connected_cdp = True
-                logger.info("[BrowserAgent] Successfully connected to user's REAL Chrome via CDP at port 9222.")
-            except Exception as cdp_err:
-                logger.info("[BrowserAgent] Real Chrome CDP connection unavailable (%s). Falling back to managed persistent profile...", cdp_err)
+            if self._cdp_endpoint:
+                try:
+                    logger.info("[BrowserAgent] Attempting to connect to configured Chrome CDP endpoint...")
+                    cdp_browser = self._playwright.chromium.connect_over_cdp(self._cdp_endpoint, timeout=3000)
+                    if cdp_browser and len(cdp_browser.contexts) > 0:
+                        self._context = cdp_browser.contexts[0]
+                    elif cdp_browser:
+                        self._context = cdp_browser.new_context()
+                    connected_cdp = True
+                    logger.info("[BrowserAgent] Successfully connected to user's REAL Chrome via configured CDP endpoint.")
+                except Exception as cdp_err:
+                    logger.info("[BrowserAgent] Real Chrome CDP connection unavailable (%s). Falling back to managed persistent profile...", cdp_err)
 
             # 2. Fallback: Dedicated managed persistent Chrome context
             if not connected_cdp:
@@ -176,7 +187,7 @@ class BrowserAutomationAgent:
                         "--no-default-browser-check",
                         "--no-first-run",
                     ],
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    
                 )
         return self._context
 
@@ -252,6 +263,14 @@ class BrowserAutomationAgent:
         for attempt in range(2):
             context = self._get_persistent_context(headless=headless)
             try:
+                live_page = action_memory_manager.get_live_page()
+                if live_page is not None and not live_page.is_closed():
+                    self._active_page = live_page
+                    self._bring_chrome_window_to_front()
+                    return live_page
+            except Exception:
+                pass
+            try:
                 if self._active_page is not None and not self._active_page.is_closed():
                     self._bring_chrome_window_to_front()
                     return self._active_page
@@ -324,16 +343,17 @@ class BrowserAutomationAgent:
                 from browser_use import Browser
                 import urllib.request
                 is_cdp_live = False
-                try:
-                    with urllib.request.urlopen("http://127.0.0.1:9222/json/version", timeout=0.8) as resp:
-                        if resp.status == 200:
-                            is_cdp_live = True
-                except Exception:
-                    is_cdp_live = False
+                if self._cdp_endpoint:
+                    try:
+                        with urllib.request.urlopen(self._cdp_endpoint.rstrip("/") + "/json/version", timeout=0.8) as resp:
+                            if resp.status == 200:
+                                is_cdp_live = True
+                    except Exception:
+                        is_cdp_live = False
 
                 if is_cdp_live:
-                    logger.info("[BrowserAgent] Browser-Use connecting to REAL Chrome via CDP port 9222")
-                    browser = Browser(cdp_url="http://127.0.0.1:9222")
+                    logger.info("[BrowserAgent] Browser-Use connecting to configured Chrome CDP endpoint")
+                    browser = Browser(cdp_url=self._cdp_endpoint)
                 else:
                     browser = Browser(
                         channel="chrome",
@@ -399,13 +419,14 @@ class BrowserAutomationAgent:
 
         logger.info("[BrowserAgent FastPath] Attempting persistent visible playback for: '%s' (duration=%.1fs)", song_query, play_duration_sec)
         try:
+            previous_page = self._active_page
             page = self._get_or_create_active_page(headless=headless)
             self._active_page = page
             try:
                 page.evaluate("() => { const vids = document.querySelectorAll('video'); for (const v of vids) v.pause(); }")
             except Exception:
                 pass
-            page.goto(search_url, wait_until="commit", timeout=20000)
+            page.goto(search_url, wait_until="commit", timeout=15000)
             self._bring_chrome_window_to_front()
             
             # Check for and bypass consent dialog if present
@@ -419,17 +440,27 @@ class BrowserAutomationAgent:
 
             # Wait for video item render
             video_selector = "ytd-video-renderer #video-title, #contents ytd-video-renderer a#thumbnail"
-            page.wait_for_selector(video_selector, timeout=15000)
+            page.wait_for_selector(video_selector, timeout=10000)
 
             first_video = page.locator("ytd-video-renderer #video-title").first
-            video_title = first_video.inner_text()
+            video_title = first_video.inner_text(timeout=5000)
             logger.info("[BrowserAgent FastPath] Found video: '%s', clicking to play...", video_title)
-            first_video.click()
+            first_video.click(timeout=5000)
 
             # Wait for video watch page
-            page.wait_for_url("**/watch*", timeout=15000)
-            page.wait_for_selector("video.html5-main-video", timeout=15000)
+            page.wait_for_url("**/watch*", timeout=7000)
+            page.wait_for_selector("video.html5-main-video", timeout=7000)
+            try:
+                page.wait_for_function(
+                    "() => { const v = document.querySelector('video.html5-main-video'); return !!v && v.readyState >= 2; }",
+                    timeout=10000
+                )
+            except Exception:
+                logger.info("[BrowserAgent FastPath] Video element exists but did not reach readyState >= 2 before playback attempt.")
             actual_video_url = page.url
+            tab_count = len(page.context.pages)
+            page_reused = previous_page is page
+
 
             # Dismiss any initial cookie/consent or promotion dialogs
             try:
@@ -445,12 +476,38 @@ class BrowserAutomationAgent:
             except Exception:
                 pass
 
+            # Detect YouTube access challenges before spending retries on an unavailable player.
+            try:
+                access_challenge = page.evaluate("""() => {
+                    const text = (document.body && document.body.innerText || '').toLowerCase();
+                    return text.includes('sign in to confirm you') || text.includes("confirm you’re not a bot") || text.includes('this helps protect our community');
+                }""")
+            except Exception:
+                access_challenge = False
+            if access_challenge:
+                return {
+                    "success": False,
+                    "status": "external_access_required",
+                    "tool": "play_youtube",
+                    "action": "chained_play",
+                    "playback_state": "blocked",
+                    "song_query": song_query,
+                    "title": video_title,
+                    "video_title": video_title,
+                    "url": actual_video_url,
+                    "browser_tab_count": len(page.context.pages),
+                    "browser_tab_reused": page_reused,
+                    "is_playing": False,
+                    "response": "YouTube requires authentication before playback can start. Please sign in to YouTube in the active browser session and try again.",
+                    "output": "YouTube requires authentication before playback can start. Please sign in to YouTube in the active browser session and try again.",
+                }
+
             # Robust playback initiation and verification loop (checks actual progression)
             is_playing = False
             delta_time = 0.0
             initial_play_time = 0.0
             final_time = 0.0
-            max_retries = 3
+            max_retries = 2
 
             for attempt in range(1, max_retries + 1):
                 # Trigger play via player API, video element, and click, unmuting audio
@@ -469,21 +526,58 @@ class BrowserAutomationAgent:
                     if (v) {
                         v.muted = false;
                         v.volume = 1.0;
-                        v.play().catch(() => {});
                     }
                 }""")
+                try:
+                    large_play = page.locator(".ytp-large-play-button").first
+                    if large_play.is_visible(timeout=1000):
+                        large_play.click(force=True)
+                    play_btn = page.locator("button.ytp-play-button").first
+                    if play_btn.is_visible(timeout=1500):
+                        play_btn.click(force=True)
+                    else:
+                        page.locator("video.html5-main-video").first.click(force=True)
+                except Exception:
+                    pass
 
+                play_attempt = page.evaluate("""() => {
+                    const v = document.querySelector('video.html5-main-video');
+                    if (!v) return {ok: false, error: 'video element missing'};
+                    try {
+                        const promise = v.play();
+                        if (promise && typeof promise.catch === 'function') {
+                            promise.catch(() => {});
+                        }
+                        return {ok: true, paused: v.paused, currentTime: v.currentTime};
+                    } catch (e) {
+                        return {ok: false, error: String(e && (e.name || e.message) || e)};
+                    }
+                }""")
                 t0_data = page.evaluate("""() => {
                     const v = document.querySelector('video.html5-main-video');
-                    return v ? { currentTime: v.currentTime, paused: v.paused, readyState: v.readyState } : null;
+                    const p = document.getElementById('movie_player');
+                    return v ? { currentTime: v.currentTime, paused: v.paused, readyState: v.readyState, playerState: p && typeof p.getPlayerState === 'function' ? p.getPlayerState() : null } : null;
                 }""")
 
-                time.sleep(2.0)
+                time.sleep(6.0)
 
                 t1_data = page.evaluate("""() => {
                     const v = document.querySelector('video.html5-main-video');
                     return v ? { currentTime: v.currentTime, paused: v.paused, readyState: v.readyState } : null;
                 }""")
+
+                if t0_data and t1_data and t1_data.get("paused"):
+                    try:
+                        retry_button = page.locator(".ytp-large-play-button, button.ytp-play-button").first
+                        if retry_button.is_visible(timeout=1000):
+                            retry_button.click(force=True)
+                            time.sleep(2.0)
+                            t1_data = page.evaluate("""() => {
+                                const v = document.querySelector("video.html5-main-video");
+                                return v ? { currentTime: v.currentTime, paused: v.paused, readyState: v.readyState } : null;
+                            }""")
+                    except Exception:
+                        pass
 
                 if t0_data and t1_data:
                     delta = t1_data["currentTime"] - t0_data["currentTime"]
@@ -506,26 +600,40 @@ class BrowserAutomationAgent:
                         except Exception:
                             pass
 
+            if not is_playing:
+                try:
+                    playback_diagnostics = page.evaluate("""() => {
+                        const v = document.querySelector('video.html5-main-video');
+                        const p = document.getElementById('movie_player');
+                        const button = document.querySelector('button.ytp-play-button');
+                        return {
+                            title: document.title,
+                            readyState: v ? v.readyState : null,
+                            networkState: v ? v.networkState : null,
+                            paused: v ? v.paused : null,
+                            currentTime: v ? v.currentTime : null,
+                            duration: v ? v.duration : null,
+                            error: v && v.error ? {code: v.error.code, message: v.error.message || ''} : null,
+                            playerState: p && typeof p.getPlayerState === 'function' ? p.getPlayerState() : null,
+                            playButtonLabel: button ? button.getAttribute('aria-label') : null,
+                            visibleText: (document.body && document.body.innerText || '').slice(0, 1200)
+                        };
+                    }""")
+                    logger.warning("[BrowserAgent FastPath] Playback diagnostics: %s", playback_diagnostics)
+                except Exception:
+                    playback_diagnostics = {}
+            else:
+                playback_diagnostics = {}
+
             # Fallback check if currentTime progressed at all
             if not is_playing and final_time > 0.5:
                 is_playing = True
                 delta_time = 0.5
 
             # 1. Capture initial playback proof screenshot
-            page.screenshot(path=str(screenshot_dest))
+            page.screenshot(path=str(screenshot_dest), timeout=5000)
 
-            # Copy initial screenshot to active conversation artifacts directory
-            try:
-                import shutil
-                artifacts_dirs = [
-                    Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\65337e1e-5d27-4941-8153-1cf1c5997512"),
-                    Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\a47af4a5-7bb7-4250-bd6c-7d2bf08ed5f3")
-                ]
-                for adir in artifacts_dirs:
-                    if adir.exists():
-                        shutil.copy(screenshot_dest, adir / screenshot_filename)
-            except Exception as cpy_err:
-                logger.warning("[BrowserAgent FastPath] Artifact copy warning: %s", cpy_err)
+            # Persist only to the configured screenshot destination.
 
             # 2. If play_duration_sec requested (e.g. verification), allow video to play continuously
             time_at_60s = final_time
@@ -557,13 +665,7 @@ class BrowserAutomationAgent:
 
                 if screenshot_60s_dest:
                     page.screenshot(path=str(screenshot_60s_dest))
-                    try:
-                        for adir in artifacts_dirs:
-                            if adir.exists():
-                                shutil.copy(screenshot_60s_dest, adir / screenshot_60s_dest.name)
-                    except Exception:
-                        pass
-
+ 
             # NOTICE: We deliberately DO NOT call browser.close() so that playback continues indefinitely on the user's desktop!
             action_memory_manager.set_live_page(
                 page=page,
@@ -588,9 +690,13 @@ class BrowserAutomationAgent:
                 "screenshot_path": str(screenshot_dest),
                 "screenshot_60s_path": str(screenshot_60s_dest) if screenshot_60s_dest else None,
                 "is_playing": is_playing,
+                "browser_tab_count": tab_count,
+                "browser_tab_reused": page_reused,
                 "initial_time": initial_play_time,
                 "current_time": time_at_60s,
                 "delta_time": delta_time,
+                "play_attempt": play_attempt if 'play_attempt' in locals() else None,
+                "playback_diagnostics": playback_diagnostics,
                 "message": f"Playing '{video_title}' on YouTube." if is_playing else f"Failed to initiate playback for '{song_query}' on YouTube.",
                 "response": f"Playing '{video_title}' on YouTube." if is_playing else f"Failed to initiate playback for '{song_query}' on YouTube.",
                 "output": f"Playing '{video_title}' on YouTube." if is_playing else f"Failed to initiate playback for '{song_query}' on YouTube."
@@ -764,12 +870,6 @@ class BrowserAutomationAgent:
 
         # 6. Proof Screenshot
         page.screenshot(path=str(screenshot_dest))
-        try:
-            art_dir = Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\027db39b-f320-4348-9eff-8b57c946e55e")
-            if art_dir.exists():
-                shutil.copy(screenshot_dest, art_dir / screenshot_name)
-        except Exception:
-            pass
 
         # 7. Record in Action Memory
         action_memory_manager.record_web_session(
@@ -870,12 +970,6 @@ class BrowserAutomationAgent:
         time.sleep(3.0)
         page.screenshot(path=str(screenshot_dest))
 
-        try:
-            art_dir = Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\027db39b-f320-4348-9eff-8b57c946e55e")
-            if art_dir.exists():
-                shutil.copy(screenshot_dest, art_dir / screenshot_name)
-        except Exception:
-            pass
 
         current_url = page.url
         current_title = page.title()
@@ -1183,13 +1277,6 @@ class BrowserAutomationAgent:
 
         # Step 7: Proof screenshot
         page.screenshot(path=str(screenshot_dest))
-        try:
-            import shutil
-            for adir in [Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\c6bb32ea-77a4-490e-800c-743e433883b9"), Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\65337e1e-5d27-4941-8153-1cf1c5997512")]:
-                if adir.exists():
-                    shutil.copy(screenshot_dest, adir / screenshot_name)
-        except Exception:
-            pass
 
         return {
             "success": True,
@@ -1249,13 +1336,6 @@ class BrowserAutomationAgent:
             action_type="open_site"
         )
 
-        try:
-            import shutil
-            for adir in [Path(r"C:\Users\acer\.gemini\antigravity-ide\brain\65337e1e-5d27-4941-8153-1cf1c5997512")]:
-                if adir.exists():
-                    shutil.copy(screenshot_dest, adir / screenshot_name)
-        except Exception:
-            pass
 
         msg = f"Opened {clean_name} ({url}) in browser."
         return {
@@ -1299,8 +1379,16 @@ class BrowserAutomationAgent:
                 res["output"] = res["response"]
                 return res
 
-        # Fallback to chained search + click
-        return self.chained_search(site=clean_site, query=query, headless=headless, screenshot_filename=screenshot_filename)
+        return {
+            "success": False,
+            "status": "failed",
+            "action": "chained_play",
+            "site": clean_site,
+            "query": query,
+            "error": "Media playback could not be verified; no search-only fallback was executed.",
+            "response": f"I could not verify playback for '{query}'. I did not treat a search result as playback.",
+            "output": f"I could not verify playback for '{query}'. I did not treat a search result as playback.",
+        }
 
     def whatsapp_send_message(
         self,
@@ -1665,7 +1753,7 @@ class BrowserAutomationAgent:
         screenshot_name = inputs.get("screenshot_filename")
 
         # Show Active Browser Tabs and Bring Browser to Front
-        if action in ["show_tabs", "list_tabs", "active_tabs", "bring_to_front", "show_browser"]:
+        if action in ["show_tabs", "list_tabs", "active_tabs", "bring_to_front", "show_browser", "get_active_tab", "query_page"]:
             return self.show_active_tabs()
 
         # General Web Action (Astra-Style Observe-Decide-Execute)
@@ -1735,7 +1823,9 @@ class BrowserAutomationAgent:
                 play_duration_sec=play_duration_sec
             )
 
-        raw_target = query
+        raw_song_input = inputs.get("song")
+        normalized_song_input = raw_song_input.strip() if isinstance(raw_song_input, str) else ""
+        raw_target = normalized_song_input if action in ["play_youtube", "play_song", "play_music"] and normalized_song_input else str(query or "")
         import re
         # Strip command phrasing like "play", "a song", "new song", "on youtube", etc.
         cleaned = re.sub(r"\b(play|a song|new song|song|music|on youtube|in browser|the video|video|listen to)\b", "", raw_target, flags=re.IGNORECASE).strip()
@@ -1745,15 +1835,14 @@ class BrowserAutomationAgent:
         if any(w in raw_target.lower() for w in ["play that", "play it", "that song", "that video"]):
             from orchestrator.memory import memory_manager
             last_media = memory_manager.retrieve("last_media_result")
-            if last_media and isinstance(last_media, dict) and (last_media.get("title") or last_media.get("song_query")):
-                song = last_media.get("title") or last_media.get("song_query")
-                logger.info("[BrowserAgent Context] Resolved '%s' to previous media result: '%s'", raw_target, song)
-            else:
-                song = "trending top music hits"
+            song = (last_media or {}).get("title") or (last_media or {}).get("song_query") if isinstance(last_media, dict) else ""
         elif any(w in raw_target.lower() for w in ["play", "song", "music", "youtube"]):
-            song = cleaned if (cleaned and cleaned.lower() not in ["a", "the", "new", "track", "song"]) else "trending top music hits"
+            song = normalized_song_input or (cleaned if (cleaned and cleaned.lower() not in ["a", "the", "new", "track", "song"]) else "")
         else:
-            song = cleaned or inputs.get("song")
+            song = cleaned or normalized_song_input or ""
+
+        if action in ["play_youtube", "play_song", "play_music"] and not song:
+            return {"success": False, "error": "No media query was provided.", "response": "Which song or media would you like me to play?", "output": "Which song or media would you like me to play?"}
 
         if song and (action in ["play_youtube", "play_song", "play_music"] or any(w in raw_target.lower() for w in ["play", "song", "music", "youtube"])):
             logger.info("[BrowserAgent] Initiating chained song playback for: '%s'", song)
@@ -1779,7 +1868,9 @@ class BrowserAutomationAgent:
                 pass
             return res
 
-        task = inputs.get("task") or query or "Navigate to https://example.com"
+        task = inputs.get("task") or query
+        if not task:
+            return {"success": False, "error": "No browser task was provided.", "response": "What browser task should I perform?", "output": "What browser task should I perform?"}
         max_steps = int(inputs.get("max_steps", 4))
         res = self.run_task(task=task, max_steps=max_steps, screenshot_filename=screenshot_name)
         res["response"] = res.get("result") or f"Browser automation task '{task}' completed."

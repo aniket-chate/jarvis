@@ -1604,10 +1604,9 @@ class TaskPlanner:
                 required_agent_type="browser_automation_agent",
                 inputs={
                     "action": "chained_play",
-                    "site": "youtube",
+                    "site": settings.browser.get("default_media_site", ""),
                     "query": song_name,
-                    "song": song_name,
-                    "task": f"Go to https://www.youtube.com, search for '{song_name}', and initiate playback"
+                    "song": song_name
                 }
             )
 

@@ -186,6 +186,7 @@ def test_calendar_missing_duration_clarifies_and_preserves_request(arb):
     assert "duration" in intent.clarification_prompt.lower()
     assert intent.raw_query == query
     assert intent.params["calendar_request"] == query
+    assert intent.params.get("start_time")
 
 def test_calendar_complete_request_preserves_full_request(arb):
     query = "schedule a project review tomorrow at 3 PM for 30 minutes"
@@ -245,7 +246,7 @@ def test_confirmation_is_context_sensitive_and_non_mutating(arb):
     assert intent.params["path"] == tx.payload["path"]
     assert intent.params["_confirmation"]["original_request"] == tx.original_requestquest
     assert intent.params is not tx.payload
-    assert arb.context.pending is tx
+    assert ia.context_manager.pending is tx
 
 
 def test_cancellation_does_not_cancel_without_pending_transaction(arb):
@@ -254,7 +255,7 @@ def test_cancellation_does_not_cancel_without_pending_transaction(arb):
     assert intent.action == "respond"
 
 
-def test_demo_phrases_are_generic_not_special_cases(arb):
-    intent = arb.arbitrate("play music")
-    assert intent.action == "play_youtube"
-    assert intent.params["song"] == "lofi beats"
+def test_generic_media_request_is_not_a_fabricated_song(arb):
+    intent = arb.arbitrate("open youtube and play a song")
+    assert intent.action == "play_youtube_first_result"
+    assert intent.params["category"] in {"song", "music"}

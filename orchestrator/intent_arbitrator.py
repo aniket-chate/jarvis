@@ -138,7 +138,7 @@ class IntentArbitrator:
                 target=ref["resolved_target"] or "",
                 params={"action": ref["resolved_action"]},
             )
-        if ref["is_file_op"]:
+        if ref["is_file_op"] and not explicit_file_search:
             f_act = ref["resolved_action"]
             t_file = ref["resolved_target"]
             if f_act == "move_file":

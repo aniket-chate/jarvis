@@ -20,7 +20,7 @@ COMMANDS = [
     "What is the latest news about Python?",
     "Open GitHub.",
     "Search GitHub for FastAPI projects.",
-    f"Create a file named {TEST_NAME} and put this information inside it: Black-box 30-turn verification.",
+    f"Create a file named {TEST_NAME} in workspace and put this information inside it: Black-box 30-turn verification.",
     "Read the file I just created.",
     "Show me the file you just created.",
     f"Rename {TEST_NAME} to {RENAMED_NAME}.",
@@ -148,7 +148,7 @@ def main():
             print("     " + json.dumps(s, ensure_ascii=False, default=str)[:2500])
     finally:
         for name in (TEST_NAME, RENAMED_NAME):
-            p = ROOT / "workspace" / "documents" / name
+            p = ROOT / "workspace" / name
             if p.exists():
                 p.unlink()
         server.terminate()

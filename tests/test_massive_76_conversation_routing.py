@@ -138,3 +138,27 @@ def test_massive_conversation_routing_audit():
             failures.append((idx, prompt, repr(exc)))
     assert not failures, "Routing exceptions: " + repr(failures)
     assert len(PROMPTS) == 111
+
+    # Critical behavioral contracts exposed by the conversation:
+    checks = {
+        5: ("system", "open_application"),
+        12: ("system", "open_application"),
+        20: ("browser", "web_search"),
+        22: ("browser", "web_search"),
+        28: ("file", "delete_file"),
+        48: ("system", "multi_telemetry"),
+        50: ("system", "multi_telemetry"),
+        58: ("file", "delete_file"),
+        88: ("scheduler", "cancel"),
+    }
+    for idx, (domain, action) in checks.items():
+        intent = arb.arbitrate(PROMPTS[idx - 1])
+        assert intent.domain == domain and intent.action == action, (
+            f"utterance {idx} routed to {intent.domain}/{intent.action}, "
+            f"expected {domain}/{action}: {PROMPTS[idx - 1]!r}"
+        )
+
+    assert arb.arbitrate(PROMPTS[28 - 1]).requires_confirmation is True
+    assert arb.arbitrate(PROMPTS[58 - 1]).needs_clarification is True
+    assert arb.arbitrate(PROMPTS[20 - 1]).params.get("query")
+    assert arb.arbitrate(PROMPTS[22 - 1]).params.get("query")

@@ -91,9 +91,12 @@ class JarvisWebSocketClient(
         val wsUrl = settingsManager.getWebSocketUrl()
         Log.i(tag, "Connecting WebSocket to: $wsUrl")
 
-        val request = Request.Builder()
-            .url(wsUrl)
-            .build()
+        val token = settingsManager.authToken.ifBlank { settingsManager.userId }
+        val requestBuilder = Request.Builder().url(wsUrl)
+        if (token.isNotBlank()) {
+            requestBuilder.header("Authorization", "Bearer $token")
+        }
+        val request = requestBuilder.build()
 
         webSocket = okHttpClient.newWebSocket(request, this)
     }

@@ -51,12 +51,14 @@ class JarvisConnectionService : Service() {
     }
 
     override fun onDestroy() {
-        JarvisApp.instance.repository.stop()
-        Log.i(tag, "JARVIS background connection service stopped.")
+        // Android may recreate/destroy this service independently of the Activity/assistant.
+        // Keep the shared repository alive unless the user explicitly stops the connection.
+        Log.i(tag, "JARVIS background connection service destroyed.")
         super.onDestroy()
     }
 
     private fun stopConnectionService() {
+        JarvisApp.instance.repository.stop()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -81,7 +83,7 @@ class JarvisConnectionService : Service() {
         NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_mic)
             .setContentTitle("JARVIS Device Connection")
-            .setContentText("JARVIS is connected in the background.")
+            .setContentText("Maintaining the JARVIS device connection in the background.")
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setPriority(NotificationCompat.PRIORITY_LOW)

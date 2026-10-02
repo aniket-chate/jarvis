@@ -30,6 +30,4 @@ jobs:
         run: xvfb-run -a python tests/test_20_real_work_messages.py
 
       - name: Run 30-turn real conversation QA
-        env:
-          JARVIS_ALLOW_EXTERNAL_MEDIA_BLOCK: "true"
         run: xvfb-run -a python tests/test_30_real_conversation.py

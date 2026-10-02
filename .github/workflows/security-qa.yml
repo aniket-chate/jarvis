@@ -2,6 +2,10 @@ name: JARVIS Security QA
 # Final arbitration regression trigger
 
 on:
+concurrency:
+  group: jarvis-security-qa-${{ github.ref }}
+  cancel-in-progress: true
+
   push:
   pull_request:
 

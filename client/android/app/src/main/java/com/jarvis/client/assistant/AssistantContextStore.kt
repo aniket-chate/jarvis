@@ -39,8 +39,7 @@ object AssistantContextStore {
         snapshotRef.set(
             Snapshot(
                 packageName = packageName,
-                text = lines.joinToString("
-").take(MAX_CONTEXT_CHARS),
+                text = lines.joinToString("\n").take(MAX_CONTEXT_CHARS),
                 capturedAtEpochMs = System.currentTimeMillis()
             )
         )

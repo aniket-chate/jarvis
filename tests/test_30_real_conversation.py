@@ -106,15 +106,30 @@ def main():
                 result.get("status") == "external_access_required"
                 or (result.get("output") or {}).get("status") == "external_access_required"
             )
-            ok = (
-                (status == 200 and payload.get("status") == "ok" and s["plan_status"] in {"completed", "blocked"})
-                or (
-                    external_media_block
-                    and result.get("browser_tab_count") == 1
-                    and result.get("browser_tab_reused") is True
-                    and bool(result.get("url"))
-                )
-            )
+            ok = status == 200 and payload.get("status") == "ok" and s["plan_status"] in {"completed", "blocked"}
+            if external_media_block:
+                external_blocks.append(n)
+                ok = False
+
+            # A completed plan is not evidence that a side effect actually happened.
+            result_success = result.get("success") is True if isinstance(result, dict) else False
+            if n == 8:
+                ok &= s["action"] == "create" and result_success and TEST_NAME in json.dumps(result, ensure_ascii=False, default=str)
+            elif n in (9, 10, 12):
+                expected_name = RENAMED_NAME if n == 12 else TEST_NAME
+                ok &= s["action"] in {"read", "show"} and result_success
+                ok &= expected_name in json.dumps(result, ensure_ascii=False, default=str)
+            elif n == 11:
+                ok &= s["action"] in {"rename", "rename_file"} and result_success
+            elif n == 13:
+                ok &= s["action"] == "delete_file"
+                ok &= result.get("status") in {"pending_approval", "blocked", "awaiting_confirmation"} or "confirm" in response
+            elif n == 14:
+                ok &= s["action"] == "delete_file" and result_success
+            elif n == 15:
+                ok &= s["action"] in {"search", "search_file"} and result_success
+            elif n == 29:
+                ok &= s["action"] in {"multi_telemetry", "system_status"} and result_success
             if n == 2: ok &= "144" in response
             if n == 3: ok &= "can help" in response
             if n == 16: ok &= "what should i name the file" in response
@@ -123,12 +138,7 @@ def main():
             if n == 19: ok &= "when should" in response
             if n == 20: ok &= "which branch" in response
             if n == 22: ok &= "which song" in response or "which media" in response
-            if n in {23, 24} and (
-                result.get("status") == "external_access_required"
-                or (result.get("output") or {}).get("status") == "external_access_required"
-            ):
-                external_blocks.append(n)
-                ok = True
+            # external_access_required is tracked as blocked, never as a verified playback pass.
             if n == 23 and n not in external_blocks: ok &= result.get("is_playing") is True and float(result.get("delta_time", 0)) >= 0.4
             if n == 24 and n not in external_blocks: ok &= result.get("is_playing") is True and result.get("browser_tab_reused") is True
             if n == 25: ok &= "pause" in response

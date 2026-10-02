@@ -33,7 +33,7 @@ class JarvisAppGatewaySandboxTest {
 
         settings.backendBaseUrl = "http://10.0.2.2:8000"
         settings.userId = "sandbox_user"
-        settings.authToken = "ci-test-token"
+        settings.authToken = "ci-sandbox-token-2026-jarvis-device-mesh-test"
         settings.deviceName = "JARVIS Sandbox Android"
 
         val repository = JarvisRepository(settings)

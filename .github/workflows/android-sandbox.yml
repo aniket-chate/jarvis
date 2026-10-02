@@ -69,7 +69,13 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           working-directory: client/android
-          script: cd "$GITHUB_WORKSPACE/client/android" && bash ./gradlew connectedAndroidTest --stacktrace
+          script: >-
+            cd "$GITHUB_WORKSPACE/client/android" &&
+            bash ./gradlew connectedAndroidTest --stacktrace
+            -Pandroid.testInstrumentationRunnerArguments.backendUrl=http://10.0.2.2:8000
+            -Pandroid.testInstrumentationRunnerArguments.userId=sandbox_user
+            -Pandroid.testInstrumentationRunnerArguments.authToken=ci-sandbox-token-2026-jarvis-device-mesh-test
+            -Pandroid.testInstrumentationRunnerArguments.deviceName="JARVIS Sandbox Android"
 
       - name: Dump gateway log on failure
         if: failure()

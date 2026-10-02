@@ -235,8 +235,7 @@ class JarvisWebSocketClient(
                                     JarvisApp.instance,
                                     skillReq.requestId,
                                     skillReq.parameters?.get("target")?.toString(),
-                                    skillReq.parameters?.get("text")?.toString().orEmpty(),
-                                    skillReq.parameters?.get("allow_sensitive") as? Boolean ?: false
+                                    skillReq.parameters?.get("text")?.toString().orEmpty()
                                 )
                             "ui_scroll", "screen.scroll", "scroll_ui" ->
                                 UiAutomationEngine.scroll(

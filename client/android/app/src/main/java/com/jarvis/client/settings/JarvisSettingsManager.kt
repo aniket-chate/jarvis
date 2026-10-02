@@ -50,10 +50,15 @@ class JarvisSettingsManager(context: Context) {
 
             // One-time migration for installations created before the field vault existed.
             val legacyValue = prefs.getString(KEY_AUTH_TOKEN_LEGACY, "") ?: ""
-            if (legacyValue.isNotBlank() && secureVault.put(SECURE_AUTH_TOKEN_FIELD, legacyValue)) {
-                prefs.edit().remove(KEY_AUTH_TOKEN_LEGACY).apply()
+            if (legacyValue.isNotBlank()) {
+                if (secureVault.put(SECURE_AUTH_TOKEN_FIELD, legacyValue)) {
+                    prefs.edit().remove(KEY_AUTH_TOKEN_LEGACY).apply()
+                    return legacyValue
+                }
+                // Fail closed rather than returning a secret that could only be kept in plaintext.
+                return ""
             }
-            return legacyValue
+            return ""
         }
         set(value) {
             val trimmed = value.trim()

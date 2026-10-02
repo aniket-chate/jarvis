@@ -112,7 +112,14 @@ def main():
                 ok = False
 
             # A completed plan is not evidence that a side effect actually happened.
-            result_success = result.get("success") is True if isinstance(result, dict) else False
+            result_output = result.get("output") if isinstance(result, dict) else None
+            result_success = (
+                isinstance(result, dict)
+                and (
+                    result.get("success") is True
+                    or (isinstance(result_output, dict) and result_output.get("success") is True)
+                )
+            )
             if n == 8:
                 ok &= s["action"] == "create" and result_success and TEST_NAME in json.dumps(result, ensure_ascii=False, default=str)
             elif n in (9, 10, 12):
@@ -161,11 +168,17 @@ def main():
             LOG.unlink()
 
     passed = sum(1 for _, _, ok, _, _ in results if ok)
-    print(f"PASSED={passed}/30")
+    ci_skip_external_media = os.environ.get("JARVIS_CI_SKIP_EXTERNAL_MEDIA", "").strip().lower() == "true"
+    required_passes = 30 - len(external_blocks) if ci_skip_external_media else 30
+    print(f"PASSED={passed}/{required_passes}")
     if external_blocks:
         print(f"EXTERNAL_MEDIA_BLOCKED_TURNS={external_blocks}")
-        print("Manual playback acceptance is required when the browser session is not authenticated with YouTube.")
-    if passed != 30:
+        if ci_skip_external_media:
+            print("SKIPPED_EXTERNAL_MEDIA_TURNS=" + json.dumps(external_blocks))
+            print("Manual playback acceptance is still required for these blocked turns.")
+        else:
+            print("Manual playback acceptance is required when the browser session is not authenticated with YouTube.")
+    if passed != required_passes:
         raise SystemExit(1)
 
 if __name__ == "__main__":

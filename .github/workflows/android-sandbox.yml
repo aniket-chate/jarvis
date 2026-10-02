@@ -32,7 +32,7 @@ jobs:
 
       - name: Start real JARVIS gateway
         env:
-          GATEWAY_AUTH_TOKEN: ci-test-token
+          GATEWAY_AUTH_TOKEN: ci-sandbox-token-2026-jarvis-device-mesh-test
           JARVIS_CORS_ORIGINS: http://10.0.2.2,http://localhost,http://127.0.0.1
         run: |
           nohup python -m uvicorn server.app:app --host 0.0.0.0 --port 8000 > /tmp/jarvis-gateway.log 2>&1 &
@@ -63,7 +63,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           working-directory: client/android
-          script: ./gradlew connectedAndroidTest --tests com.jarvis.client.integration.JarvisAppGatewaySandboxTest --stacktrace
+          script: bash ./gradlew connectedAndroidTest --stacktrace
 
       - name: Dump gateway log on failure
         if: failure()

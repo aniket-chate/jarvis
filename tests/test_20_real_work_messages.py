@@ -7,18 +7,18 @@ ROOT = Path(__file__).resolve().parents[1]
 TEST_NAME = f"jarvis_blackbox_{uuid.uuid4().hex[:8]}.txt"
 RENAMED_NAME = f"jarvis_blackbox_renamed_{uuid.uuid4().hex[:8]}.txt"
 BASE_URL = "http://127.0.0.1:8765/api/chat"
-DOCUMENTS = ROOT / "workspace" / "documents"
+WORKSPACE = ROOT / "workspace"
 SERVER_LOG = ROOT / "blackbox_server.log"
 
 COMMANDS = [
     "Hi Jarvis, are you ready?",
     "What is 12 multiplied by 12?",
-    f"Create a file named {TEST_NAME} and put this information inside it:\nBlack-box runtime verification.",
+    f"Create a file named {TEST_NAME} in workspace and put this information inside it:\nBlack-box runtime verification.",
     "Read the file I just created.",
     "Show me the file you just created.",
-    f"Rename {TEST_NAME} to {RENAMED_NAME}.",
-    f"Read {RENAMED_NAME}.",
-    f"Delete {RENAMED_NAME}.",
+    f"Rename {TEST_NAME} to {RENAMED_NAME} in workspace.",
+    f"Read {RENAMED_NAME} in workspace.",
+    f"Delete {RENAMED_NAME} in workspace.",
     "yes",
     "List my active alarms.",
     "What is the weather in Pune right now?",
@@ -73,9 +73,9 @@ def main():
     os.environ["GATEWAY_AUTH_TOKEN"] = TOKEN
     os.environ.setdefault("JARVIS_LLM_PROVIDER", "ollama")
     os.environ.setdefault("JARVIS_LLM_FALLBACK_ENABLED", "false")
-    DOCUMENTS.mkdir(parents=True, exist_ok=True)
+    WORKSPACE.mkdir(parents=True, exist_ok=True)
     for name in (TEST_NAME, RENAMED_NAME):
-        p = DOCUMENTS / name
+        p = WORKSPACE / name
         if p.exists(): p.unlink()
 
     env = os.environ.copy()
@@ -108,7 +108,7 @@ def main():
                 print(f"[{i:02d}] FAIL {command}\n     exception={exc!r}")
     finally:
         for name in (TEST_NAME, RENAMED_NAME):
-            p = DOCUMENTS / name
+            p = WORKSPACE / name
             if p.exists(): p.unlink()
         server.terminate()
         try: server.wait(timeout=10)

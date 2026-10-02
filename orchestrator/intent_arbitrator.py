@@ -127,14 +127,18 @@ class IntentArbitrator:
                 target=ref["resolved_target"] or "",
                 params={"action": ref["resolved_action"]},
             )
-        if ref["is_browser_op"]:
+        explicit_file_search = (
+            bool(re.search(r"\b(?:search|find|locate)\b", low))
+            and bool(re.search(r"\b(?:file|files|document|documents)\b", low))
+        )
+        if ref["is_browser_op"] and not explicit_file_search:
             return StructuredIntent(
                 domain="browser",
                 action=ref["resolved_action"],
                 target=ref["resolved_target"] or "",
                 params={"action": ref["resolved_action"]},
             )
-        if ref["is_file_op"]:
+        if ref["is_file_op"] and not explicit_file_search:
             f_act = ref["resolved_action"]
             t_file = ref["resolved_target"]
             if f_act == "move_file":
@@ -160,6 +164,164 @@ class IntentArbitrator:
                     params={"action": "delete_file", "path": t_file, "file_path": t_file, "directory": ""},
                     requires_confirmation=True,
                 )
+
+        # Explicit UI/file navigation must not be mistaken for document operations.
+        if re.fullmatch(r"(?:open|launch)\s+(?:file\s+explorer|explorer)[.!?]?", low):
+            return StructuredIntent(
+                domain="system",
+                action="open_application",
+                target="explorer",
+                params={"app_name": "explorer", "query": clean},
+            )
+
+        # Explicit scoped project-folder navigation is an OS action, not personal search.
+        if re.search(r"\b(?:open|go to|navigate to)\b", low) and re.search(r"\b(?:project folder|jarvis project|backend folder|backend directory)\b", low):
+            target = "JARVIS project" if "project" in low else "backend"
+            return StructuredIntent(
+                domain="system",
+                action="open_application",
+                target=target,
+                params={"app_name": target, "query": clean},
+            )
+
+        # Explicit local-file search: use word boundaries so 'documentation' is not treated as 'document'.
+        m_scoped_search = re.search(
+            r"\b(?:search|find|locate)\s+(?:for\s+)?(?:my\s+)?(.+?)\s+in\s+(?:my\s+)?(documents|downloads|desktop|workspace)\b",
+            clean,
+            re.IGNORECASE,
+        )
+        if m_scoped_search:
+            requested = m_scoped_search.group(1).strip(" .?!")
+            scope = m_scoped_search.group(2).lower()
+            if re.search(r"\bpython\s+files?\b", requested, re.IGNORECASE):
+                pattern = "*.py"
+            elif re.search(r"\b(?:pdf|pdfs)\b", requested, re.IGNORECASE):
+                pattern = "*.pdf"
+            else:
+                pattern = f"*{requested}*"
+            return StructuredIntent(
+                domain="file",
+                action="search_file",
+                target=requested,
+                params={"action": "search", "pattern": pattern, "directory": scope, "filename": requested},
+            )
+
+        # Preserve explicit GitHub destination before the generic web-search rule.
+        if re.search(r"\bsearch\s+(?:github|on\s+github)\b", low):
+            m_g = re.search(r"\bsearch\s+(?:github|on\s+github)\s+(?:for\s+)?(.+)$", clean, re.IGNORECASE)
+            query_g = m_g.group(1).strip(" .?!") if m_g else clean
+            return StructuredIntent(
+                domain="browser",
+                action="github_search",
+                target=query_g,
+                params={"query": query_g},
+            )
+
+        # Specialized search destinations must outrank generic web search.
+        if re.search(r"\bsearch\s+(?:for\s+)?(?:cats|.+?)\s+on\s+google\b", low) or re.search(r"\bsearch\s+(?:for\s+)?(.+?)\s+on\s+google\b", low):
+            m_google = re.search(r"\bsearch\s+(?:for\s+)?(.+?)\s+on\s+google\b", clean, re.IGNORECASE)
+            query_google = m_google.group(1).strip(" .?!") if m_google else clean
+            return StructuredIntent(
+                domain="browser",
+                action="web_search",
+                target=query_google,
+                params={"query": query_google, "engine": "google"},
+            )
+
+        # Personal/notes search must outrank generic web search.
+        if re.search(r"\bsearch\s+(?:my\s+)?(?:notes?|personal\s+(?:notes?|files?|data))\b", low):
+            m_personal_search = re.search(r"\bsearch\s+(?:my\s+)?(.+)$", clean, re.IGNORECASE)
+            query_personal = m_personal_search.group(1).strip(" .?!") if m_personal_search else clean
+            return StructuredIntent(
+                domain="personal_search",
+                action="search_personal",
+                target=query_personal,
+                params={"query": query_personal, "raw_query": clean, "top_k": 5},
+                confidence=0.95,
+            )
+
+        # General web research/search must outrank the generic chat fallback.
+        if re.search(r"\b(?:search|find|look\s+up|research|browse)\b", low):
+            has_local_scope = bool(re.search(r"\b(?:file|files|document|documents|downloads|desktop|workspace)\b", low))
+            if not has_local_scope:
+                return StructuredIntent(
+                    domain="browser",
+                    action="web_search",
+                    target=clean,
+                    params={"query": clean},
+                )
+
+        # Broad folder/directory deletion is still a file-agent destructive operation.
+        if re.search(r"\b(?:delete|remove|erase)\b", low) and re.search(r"\b(?:folder|directory)\b", low):
+            return StructuredIntent(
+                domain="file",
+                action="delete_file",
+                target="",
+                params={"action": "delete_file", "path": "", "file_path": "", "directory": ""},
+                requires_confirmation=True,
+                needs_clarification=True,
+                clarification_prompt="Which folder or directory should I delete?",
+            )
+
+        # Reminder cancellation must outrank generic reminder creation.
+        if re.search(r"\b(?:stop|cancel|disable|remove)\b.*\b(?:reminder|alarm|timer)\b", low):
+            return StructuredIntent(
+                domain="scheduler",
+                action="cancel",
+                target="reminder",
+                params={"action": "cancel"},
+            )
+
+        # Live system connectivity queries should use telemetry/device state, not generic chat.
+        if re.search(r"\b(?:internet|wifi|wi-fi)\b", low):
+            return StructuredIntent(
+                domain="system",
+                action="multi_telemetry",
+                target="network",
+                params={"metrics": ["network"]},
+            )
+        if re.search(r"\b(?:phone|android)\b", low) and re.search(r"\b(?:connected|connection|online|reachable)\b", low):
+            return StructuredIntent(
+                domain="system",
+                action="multi_telemetry",
+                target="phone",
+                params={"metrics": ["phone"]},
+            )
+
+        # Explicit browser history navigation. Use the persistent browser session when active.
+        if low in {"go back", "back", "go to previous page", "previous page"}:
+            browser_ctx = context_manager.get_browser()
+            if getattr(browser_ctx, "url", ""):
+                return StructuredIntent(domain="browser", action="go_back", target=browser_ctx.url, params={"action": "go_back"})
+
+        # Device-mesh notification requests are routed to a real provider instead of chat.
+        m_phone_notice = re.search(r"\b(?:send|push)\s+(?:a\s+)?notification\s+to\s+(?:my\s+)?phone\s+(?:saying|that|with)\s+(.+)$", clean, re.IGNORECASE)
+        if m_phone_notice:
+            message = m_phone_notice.group(1).strip().strip('"')
+            return StructuredIntent(
+                domain="capability",
+                action="execute",
+                target="mesh.route_to_device",
+                params={
+                    "capability": "mesh.route_to_device",
+                    "parameters": {
+                        "target_device_id": "phone",
+                        "type": "skill_request",
+                        "skillId": "send_notification",
+                        "requestId": "jarvis_notification",
+                        "parameters": {"title": "JARVIS", "message": message},
+                        "message": message,
+                    },
+                },
+            )
+
+        # Wake-word management uses the existing local multi-persona provider.
+        if re.search(r"\b(?:test|check)\s+(?:the\s+)?wake[- ]?word\s+system\b", low):
+            return StructuredIntent(domain="capability", action="execute", target="wakeword.evaluate_false_positives", params={"capability": "wakeword.evaluate_false_positives", "parameters": {"sample_count": 10}})
+        if re.search(r"\b(?:change|configure|adjust)\s+(?:my\s+)?wake[- ]?word\b", low):
+            return StructuredIntent(domain="capability", action="execute", target="wakeword.configure", params={"capability": "wakeword.configure", "parameters": {}})
+        if re.search(r"\b(?:create|add)\s+(?:another|a new)\s+wake[- ]?word\s+profile\b", low):
+            return StructuredIntent(domain="capability", action="execute", target="wakeword.configure", params={"capability": "wakeword.configure", "parameters": {"active_personas": ["Jarvis", "Friday", "Ultron"]}})
 
         # 3. Session Grounding / Recall ("what did we actually do in this conversation?")
         if any(p in low for p in ["what did we actually do", "what did we do in this conversation", "summary of what we did", "what have we done"]):
@@ -327,7 +489,7 @@ class IntentArbitrator:
             "delete the file", "delete file", "remove the file", "move the file", "move file", "rename the file", "rename file"
         ]
         is_past_inquiry = bool(re.search(r"^(?:did\s+you|was\s+the|were\s+the|have\s+you|why\s+did\s+you)\b", low))
-        if not is_past_inquiry and (any(w in low for w in file_triggers) or bool(re.search(r"\b(?:read|open|view|show|inspect)\s+(?:[a-zA-Z]:[\\/]|/|~)", clean, re.IGNORECASE)) or (("search" in low or "find" in low or "locate" in low) and any(k in low for k in ["file", "files", "document", "documents"])) or (any(k in low for k in ["file", "document", "notes", ".txt", ".json", ".csv", ".md"]) and any(v in low for v in ["create", "write", "make", "read", "show", "open", "delete", "remove", "move", "rename"]))):
+        if not is_past_inquiry and (any(w in low for w in file_triggers) or bool(re.search(r"\b(?:read|open|view|show|inspect)\s+(?:[a-zA-Z]:[\\/]|/|~)", clean, re.IGNORECASE)) or (bool(re.search(r"\b(?:search|find|locate)\b", low)) and bool(re.search(r"\b(?:file|files|document|documents)\b", low))) or (bool(re.search(r"\b(?:file|document|notes)\b|\.(?:txt|json|csv|md|pdf)\b", low)) and any(v in low for v in ["create", "write", "make", "read", "show", "open", "delete", "remove", "move", "rename"]))):
             from orchestrator.parameter_extractor import parameter_extractor
             f_params = parameter_extractor.extract_file_parameters(clean)
             if f_params.get("requires_clarification"):
@@ -403,6 +565,15 @@ class IntentArbitrator:
                     action="rename_file",
                     target=target_path,
                     params={"action": "rename", "source": target_path, "path": target_path, "new_name": f_new, "destination": f_new},
+                    requires_confirmation=False,
+                )
+            elif f_action == "search":
+                pattern = f_params.get("pattern") or f"*{filename}*"
+                return StructuredIntent(
+                    domain="file",
+                    action="search_file",
+                    target=filename,
+                    params={"action": "search", "pattern": pattern, "directory": dir_target, "filename": filename},
                     requires_confirmation=False,
                 )
 

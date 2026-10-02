@@ -335,8 +335,8 @@ class TaskPlanner:
                     "path": target,
                     "filename": params.get("filename", target),
                     "content": params.get("content", ""),
-                    "user_confirmed": True,
                     "directory": params.get("directory", ""),
+                    "user_confirmed": act == "confirmed_create_file" or bool(params.get("user_confirmed", False)),
                 }
                 if params.get("_confirmation"):
                     file_inputs["_confirmation"] = params["_confirmation"]
@@ -362,6 +362,8 @@ class TaskPlanner:
                     "file_path": p,
                     "directory": params.get("directory", ""),
                 }
+                if act == "confirmed_delete_file":
+                    delete_inputs["user_confirmed"] = bool(params.get("user_confirmed", True))
                 if params.get("_confirmation"):
                     delete_inputs["_confirmation"] = params["_confirmation"]
                 return TaskStep(
@@ -390,7 +392,7 @@ class TaskPlanner:
                     step_id=f"{plan_id}_step_1",
                     description=f"Search for file: {target}",
                     required_agent_type="file_agent",
-                    inputs={"action": "search", "pattern": params.get("pattern", f"*{target}*"), "directory": "workspace"}
+                    inputs={"action": "search", "pattern": params.get("pattern", f"*{target}*"), "directory": params.get("directory") or "documents"}
                 )
 
         elif d == "git":
@@ -423,6 +425,13 @@ class TaskPlanner:
                     description=f"Browser media {act}",
                     required_agent_type="browser_automation_agent",
                     inputs={"action": act}
+                )
+            if act == "go_back":
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description="Navigate browser back one history entry",
+                    required_agent_type="browser_automation_agent",
+                    inputs={"action": "go_back"},
                 )
             elif act == "close_tab":
                 return TaskStep(
@@ -492,6 +501,13 @@ class TaskPlanner:
                 )
 
         elif d == "system":
+            if act in ["open_application", "open_app", "launch_app"]:
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description=f"Launch application: {target}",
+                    required_agent_type="system_control_agent",
+                    inputs={"action": "open_application", "target": target, "app_name": target, "query": text},
+                )
             if act == "multi_telemetry":
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
@@ -527,6 +543,19 @@ class TaskPlanner:
                 description=f"Search personal knowledge: {target}",
                 required_agent_type="personal_search_agent",
                 inputs={"action": "search_personal", "query": target or text, "top_k": params.get("top_k", 5)}
+            )
+
+        elif d == "capability":
+            capability_name = params.get("capability") or target
+            return TaskStep(
+                step_id=f"{plan_id}_step_1",
+                description=f"Execute capability: {capability_name}",
+                required_agent_type="capability_agent",
+                inputs={
+                    "capability": capability_name,
+                    "parameters": params.get("parameters", {}),
+                    "context": params.get("context", {}),
+                },
             )
 
         elif d == "synthesis":

@@ -20,12 +20,12 @@ COMMANDS = [
     "What is the latest news about Python?",
     "Open GitHub.",
     "Search GitHub for FastAPI projects.",
-    f"Create a file named {TEST_NAME} and put this information inside it: Black-box 30-turn verification.",
+    f"Create a file named {TEST_NAME} in workspace and put this information inside it: Black-box 30-turn verification.",
     "Read the file I just created.",
     "Show me the file you just created.",
-    f"Rename {TEST_NAME} to {RENAMED_NAME}.",
-    f"Read {RENAMED_NAME}.",
-    f"Delete {RENAMED_NAME}.",
+    f"Rename {TEST_NAME} to {RENAMED_NAME} in workspace.",
+    f"Read {RENAMED_NAME} in workspace.",
+    f"Delete {RENAMED_NAME} in workspace.",
     "yes",
     "Search for Python files in my documents.",
     "Create a file without telling you its name.",
@@ -106,15 +106,37 @@ def main():
                 result.get("status") == "external_access_required"
                 or (result.get("output") or {}).get("status") == "external_access_required"
             )
-            ok = (
-                (status == 200 and payload.get("status") == "ok" and s["plan_status"] in {"completed", "blocked"})
-                or (
-                    external_media_block
-                    and result.get("browser_tab_count") == 1
-                    and result.get("browser_tab_reused") is True
-                    and bool(result.get("url"))
+            ok = status == 200 and payload.get("status") == "ok" and s["plan_status"] in {"completed", "blocked"}
+            if external_media_block:
+                external_blocks.append(n)
+                ok = False
+
+            # A completed plan is not evidence that a side effect actually happened.
+            result_output = result.get("output") if isinstance(result, dict) else None
+            result_success = (
+                isinstance(result, dict)
+                and (
+                    result.get("success") is True
+                    or (isinstance(result_output, dict) and result_output.get("success") is True)
                 )
             )
+            if n == 8:
+                ok &= s["action"] == "create" and result_success and TEST_NAME in json.dumps(result, ensure_ascii=False, default=str)
+            elif n in (9, 10, 12):
+                expected_name = RENAMED_NAME if n == 12 else TEST_NAME
+                ok &= s["action"] in {"read", "show"} and result_success
+                ok &= expected_name in json.dumps(result, ensure_ascii=False, default=str)
+            elif n == 11:
+                ok &= s["action"] in {"rename", "rename_file"} and result_success
+            elif n == 13:
+                ok &= s["action"] == "delete_file"
+                ok &= result.get("status") in {"pending_approval", "blocked", "awaiting_confirmation"} or "confirm" in response
+            elif n == 14:
+                ok &= s["action"] == "delete_file" and result_success
+            elif n == 15:
+                ok &= s["action"] in {"search", "search_file"} and result_success
+            elif n == 29:
+                ok &= s["action"] in {"multi_telemetry", "system_status"} and result_success
             if n == 2: ok &= "144" in response
             if n == 3: ok &= "can help" in response
             if n == 16: ok &= "what should i name the file" in response
@@ -123,12 +145,7 @@ def main():
             if n == 19: ok &= "when should" in response
             if n == 20: ok &= "which branch" in response
             if n == 22: ok &= "which song" in response or "which media" in response
-            if n in {23, 24} and (
-                result.get("status") == "external_access_required"
-                or (result.get("output") or {}).get("status") == "external_access_required"
-            ):
-                external_blocks.append(n)
-                ok = True
+            # external_access_required is tracked as blocked, never as a verified playback pass.
             if n == 23 and n not in external_blocks: ok &= result.get("is_playing") is True and float(result.get("delta_time", 0)) >= 0.4
             if n == 24 and n not in external_blocks: ok &= result.get("is_playing") is True and result.get("browser_tab_reused") is True
             if n == 25: ok &= "pause" in response
@@ -138,7 +155,7 @@ def main():
             print("     " + json.dumps(s, ensure_ascii=False, default=str)[:2500])
     finally:
         for name in (TEST_NAME, RENAMED_NAME):
-            p = ROOT / "workspace" / "documents" / name
+            p = ROOT / "workspace" / name
             if p.exists():
                 p.unlink()
         server.terminate()
@@ -151,11 +168,18 @@ def main():
             LOG.unlink()
 
     passed = sum(1 for _, _, ok, _, _ in results if ok)
-    print(f"PASSED={passed}/30")
+    ci_skip_external_media = os.environ.get("JARVIS_CI_SKIP_EXTERNAL_MEDIA", "").strip().lower() == "true"
+    required_passes = 30 - len(external_blocks) if ci_skip_external_media else 30
+    print(f"PASSED={passed}/{required_passes}")
     if external_blocks:
         print(f"EXTERNAL_MEDIA_BLOCKED_TURNS={external_blocks}")
-        print("Manual playback acceptance is required when the browser session is not authenticated with YouTube.")
-    if passed != 30:
+        if ci_skip_external_media:
+            print("SKIPPED_EXTERNAL_MEDIA_TURNS=" + json.dumps(external_blocks))
+            print("Manual playback acceptance is still required for these blocked turns.")
+        else:
+            print("Manual playback acceptance is required when the browser session is not authenticated with YouTube.")
+    failed_unblocked = [n for n, _, ok, _, _ in results if not ok and n not in external_blocks]
+    if failed_unblocked or len(results) != len(COMMANDS) or (not ci_skip_external_media and external_blocks):
         raise SystemExit(1)
 
 if __name__ == "__main__":

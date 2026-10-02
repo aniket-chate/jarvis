@@ -268,3 +268,47 @@ def test_explicit_github_search_preserves_destination(arb):
     assert intent.domain == "browser"
     assert intent.action == "github_search"
     assert intent.params["query"] == "FastAPI projects"
+
+
+def test_specialized_google_search_precedes_generic_web_search(arb):
+    intent = arb.arbitrate("search for cats on Google")
+    assert intent.domain == "browser"
+    assert intent.action == "web_search"
+    assert intent.params["engine"] == "google"
+    assert intent.params["query"] == "cats"
+
+
+def test_personal_notes_search_precedes_generic_web_search(arb):
+    intent = arb.arbitrate("search my notes")
+    assert intent.domain == "personal_search"
+    assert intent.action == "search_personal"
+    assert intent.params["query"] == "notes"
+
+
+def test_scoped_file_search_preserves_selected_directory(arb):
+    intent = arb.arbitrate("search for Python files in my documents")
+    assert intent.domain == "file"
+    assert intent.action == "search_file"
+    assert intent.params["directory"] == "documents"
+    assert intent.params["pattern"] == "*.py"
+
+
+def test_explicit_workspace_prefix_is_not_double_stripped():
+    from agents.file_document_agent import FileDocumentAgent
+    agent = FileDocumentAgent()
+    root = agent._resolve_scoped_path("workspace:workspace/report.txt")
+    assert str(root).endswith("workspace\\workspace\\report.txt") or str(root).endswith("workspace/workspace/report.txt")
+
+
+def test_workspace_named_file_is_not_mangled():
+    from agents.file_document_agent import FileDocumentAgent
+    agent = FileDocumentAgent()
+    root = agent._resolve_scoped_path("workspace/workspace_notes.txt")
+    assert root.name == "workspace_notes.txt"
+
+
+def test_read_path_is_preserved_when_read_pattern_also_matches(arb):
+    intent = arb.arbitrate('read report.pdf from ~/x/report.pdf')
+    assert intent.domain == "file"
+    assert intent.action == "read_file"
+    assert "x" in str(intent.params.get("path") or intent.params.get("file_path"))

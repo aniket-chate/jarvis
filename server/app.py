@@ -997,6 +997,21 @@ async def websocket_gateway(
                 gateway_registry.touch(active_device_id)
                 await websocket.send_json({"type": "pong", "timestamp": time.time()})
 
+            elif msg_type == "skill_result":
+                request_id = data.get("request_id")
+                gateway_registry.touch(active_device_id)
+                if request_id:
+                    resolved = gateway_registry.resolve_pending_ack(str(request_id), data)
+                    logger.info(
+                        "[WebSocket] Device skill result received: device=%s request_id=%s success=%s resolved=%s",
+                        active_device_id,
+                        request_id,
+                        data.get("success"),
+                        resolved,
+                    )
+                else:
+                    logger.warning("[WebSocket] Ignoring skill_result without request_id from device=%s", active_device_id)
+
             elif msg_type == "voice_turn":
                 # Structured voice turn merged from legacy api/routes/websocket.py
                 turn_id = data.get("voice_turn_id") or data.get("request_id") or f"turn_{int(time.time() * 1000)}"
@@ -1006,7 +1021,12 @@ async def websocket_gateway(
                 if query:
                     event = PerceptionEvent(
                         type="voice_input",
-                        payload={"text": query, "source_device": active_device_id, "voice_turn_id": turn_id},
+                        payload={
+                            "text": query,
+                            "source_device": active_device_id,
+                            "voice_turn_id": turn_id,
+                            "assistant_context": data.get("assistant_context"),
+                        },
                         source=f"ws_voice_{active_device_id}",
                         active_persona=persona,
                     )

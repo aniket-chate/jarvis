@@ -2,6 +2,7 @@ package com.jarvis.client.websocket
 
 import android.util.Log
 import com.google.gson.Gson
+import com.jarvis.client.JarvisApp
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.jarvis.client.model.ConnectionState
@@ -18,6 +19,8 @@ import com.jarvis.client.model.WsVoiceResponse
 import com.jarvis.client.model.WsVoiceTurn
 import com.jarvis.client.settings.JarvisSettingsManager
 import com.jarvis.client.skill.AndroidSkillExecutor
+import com.jarvis.client.accessibility.UiAutomationEngine
+import com.jarvis.client.assistant.AssistantContextStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -88,9 +91,12 @@ class JarvisWebSocketClient(
         val wsUrl = settingsManager.getWebSocketUrl()
         Log.i(tag, "Connecting WebSocket to: $wsUrl")
 
-        val request = Request.Builder()
-            .url(wsUrl)
-            .build()
+        val token = settingsManager.authToken.ifBlank { settingsManager.userId }
+        val requestBuilder = Request.Builder().url(wsUrl)
+        if (token.isNotBlank()) {
+            requestBuilder.header("Authorization", "Bearer $token")
+        }
+        val request = requestBuilder.build()
 
         webSocket = okHttpClient.newWebSocket(request, this)
     }
@@ -141,7 +147,14 @@ class JarvisWebSocketClient(
             wakeProfileId = wakeProfileId,
             wakePhrase = wakePhrase,
             text = text,
-            timestamp = System.currentTimeMillis().toString()
+            timestamp = System.currentTimeMillis().toString(),
+            assistantContext = AssistantContextStore.current().let { ctx ->
+                mapOf(
+                    "package_name" to ctx.packageName,
+                    "text" to ctx.text,
+                    "captured_at_epoch_ms" to ctx.capturedAtEpochMs
+                )
+            }
         )
         val json = gson.toJson(voiceTurn)
         val sent = sendRaw(json)
@@ -207,15 +220,38 @@ class JarvisWebSocketClient(
                     "skill_request" -> {
                         val skillReq = gson.fromJson(jsonObject, WsSkillRequest::class.java)
                         Log.i(tag, "Handling incoming skill request: ${skillReq.skillId} (req_id=${skillReq.requestId})")
-                        val result = skillExecutor?.execute(
-                            requestId = skillReq.requestId,
-                            skillId = skillReq.skillId,
-                            parameters = skillReq.parameters
-                        ) ?: WsSkillResult(
-                            requestId = skillReq.requestId,
-                            success = false,
-                            error = "No AndroidSkillExecutor attached to client"
-                        )
+                        val result = when (skillReq.skillId.trim().lowercase()) {
+                            "ui_observe", "screen.observe", "observe_screen" ->
+                                UiAutomationEngine.observe(JarvisApp.instance, skillReq.requestId)
+                            "ui_tap", "screen.tap", "tap_ui" ->
+                                UiAutomationEngine.tap(
+                                    JarvisApp.instance,
+                                    skillReq.requestId,
+                                    skillReq.parameters?.get("target")?.toString().orEmpty(),
+                                    skillReq.parameters?.get("human_approved") as? Boolean ?: false
+                                )
+                            "ui_type", "screen.type", "type_ui" ->
+                                UiAutomationEngine.typeText(
+                                    JarvisApp.instance,
+                                    skillReq.requestId,
+                                    skillReq.parameters?.get("target")?.toString(),
+                                    skillReq.parameters?.get("text")?.toString().orEmpty()
+                                )
+                            "ui_scroll", "screen.scroll", "scroll_ui" ->
+                                UiAutomationEngine.scroll(
+                                    skillReq.requestId,
+                                    skillReq.parameters?.get("direction")?.toString().orEmpty()
+                                )
+                            else -> skillExecutor?.execute(
+                                requestId = skillReq.requestId,
+                                skillId = skillReq.skillId,
+                                parameters = skillReq.parameters
+                            ) ?: WsSkillResult(
+                                requestId = skillReq.requestId,
+                                success = false,
+                                error = "No AndroidSkillExecutor attached to client"
+                            )
+                        }
                         val resultJson = gson.toJson(result)
                         webSocket.send(resultJson)
                     }

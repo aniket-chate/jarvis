@@ -215,11 +215,33 @@ class DeviceMeshProvider(BaseCapabilityProvider):
             if loop.is_running():
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    result = pool.submit(asyncio.run, self.registry.dispatch_to_device(target_id, payload, require_trusted=self.config.require_trust_for_routing)).result()
+                    result = pool.submit(
+                        asyncio.run,
+                        self.registry.dispatch_to_device(
+                            target_id,
+                            payload,
+                            require_trusted=self.config.require_trust_for_routing,
+                            await_ack=payload.get("type") == "skill_request" and bool(payload.get("request_id")),
+                        ),
+                    ).result()
             else:
-                result = loop.run_until_complete(self.registry.dispatch_to_device(target_id, payload, require_trusted=self.config.require_trust_for_routing))
+                result = loop.run_until_complete(
+                    self.registry.dispatch_to_device(
+                        target_id,
+                        payload,
+                        require_trusted=self.config.require_trust_for_routing,
+                        await_ack=payload.get("type") == "skill_request" and bool(payload.get("request_id")),
+                    )
+                )
         except RuntimeError:
-            result = asyncio.run(self.registry.dispatch_to_device(target_id, payload, require_trusted=self.config.require_trust_for_routing))
+            result = asyncio.run(
+                self.registry.dispatch_to_device(
+                    target_id,
+                    payload,
+                    require_trusted=self.config.require_trust_for_routing,
+                    await_ack=payload.get("type") == "skill_request" and bool(payload.get("request_id")),
+                )
+            )
 
         return result
 

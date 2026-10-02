@@ -41,7 +41,8 @@ data class WsVoiceTurn(
     @SerializedName("wake_profile_id") val wakeProfileId: String? = null,
     @SerializedName("wake_phrase") val wakePhrase: String? = null,
     @SerializedName("text") val text: String,
-    @SerializedName("timestamp") val timestamp: String? = null
+    @SerializedName("timestamp") val timestamp: String? = null,
+    @SerializedName("assistant_context") val assistantContext: Map<String, Any?>? = null
 )
 
 data class WsSkillResult(

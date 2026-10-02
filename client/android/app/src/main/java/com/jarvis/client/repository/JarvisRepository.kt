@@ -1,5 +1,6 @@
 package com.jarvis.client.repository
 
+import android.os.Build
 import android.util.Log
 import com.jarvis.client.accessibility.JarvisAccessibilityService
 import com.jarvis.client.device.DeviceHeartbeatManager
@@ -257,7 +258,7 @@ class JarvisRepository(
                 deviceType = "android",
                 platform = "android",
                 capabilities = capabilities,
-                metadata = mapOf("model" to "Vivo V29", "client" to "Jarvis Mobile Android")
+                metadata = mapOf("model" to "${Build.MANUFACTURER} ${Build.MODEL}".trim(), "client" to "Jarvis Mobile Android")
             )
             val result = apiClient.registerDevice(req)
             result.onSuccess {

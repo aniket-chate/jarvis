@@ -5,6 +5,10 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: jarvis-security-qa-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   security-qa:
     runs-on: ubuntu-latest

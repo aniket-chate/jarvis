@@ -34,4 +34,6 @@ jobs:
         run: pytest -q tests/test_real_world_all_50_routed.py
 
       - name: Run 30-turn real conversation QA
+        env:
+          JARVIS_CI_SKIP_EXTERNAL_MEDIA: "true"
         run: xvfb-run -a python tests/test_30_real_conversation.py

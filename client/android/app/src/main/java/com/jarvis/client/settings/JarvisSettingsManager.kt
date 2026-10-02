@@ -6,6 +6,7 @@ import android.os.Build
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
+import com.jarvis.client.security.SecureFieldVault
 
 /**
  * Manages persistent configuration for the Android Jarvis Client.
@@ -16,6 +17,8 @@ class JarvisSettingsManager(context: Context) {
 
     private val prefs: SharedPreferences =
         this.context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    private val secureVault = SecureFieldVault(this.context)
 
     var backendBaseUrl: String
         get() = prefs.getString(KEY_BACKEND_URL, DEFAULT_BACKEND_URL) ?: DEFAULT_BACKEND_URL
@@ -41,8 +44,27 @@ class JarvisSettingsManager(context: Context) {
         set(value) = prefs.edit().putString(KEY_DEVICE_NAME, value.trim()).apply()
 
     var authToken: String
-        get() = prefs.getString(KEY_AUTH_TOKEN, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_AUTH_TOKEN, value.trim()).apply()
+        get() {
+            val secureValue = secureVault.get(SECURE_AUTH_TOKEN_FIELD)
+            if (secureValue != null) return secureValue
+
+            // One-time migration for installations created before the field vault existed.
+            val legacyValue = prefs.getString(KEY_AUTH_TOKEN_LEGACY, "") ?: ""
+            if (legacyValue.isNotBlank() && secureVault.put(SECURE_AUTH_TOKEN_FIELD, legacyValue)) {
+                prefs.edit().remove(KEY_AUTH_TOKEN_LEGACY).apply()
+            }
+            return legacyValue
+        }
+        set(value) {
+            val trimmed = value.trim()
+            if (trimmed.isBlank()) {
+                secureVault.remove(SECURE_AUTH_TOKEN_FIELD)
+            } else if (!secureVault.put(SECURE_AUTH_TOKEN_FIELD, trimmed)) {
+                // Fail closed: do not write the secret back to plaintext preferences.
+                throw IllegalStateException("Unable to store JARVIS auth token in Android Keystore")
+            }
+            prefs.edit().remove(KEY_AUTH_TOKEN_LEGACY).apply()
+        }
 
     val sessionId: String by lazy {
         val existing = prefs.getString(KEY_SESSION_ID, null)
@@ -115,7 +137,8 @@ class JarvisSettingsManager(context: Context) {
         private const val KEY_USER_ID = "user_id"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_DEVICE_NAME = "device_name"
-        private const val KEY_AUTH_TOKEN = "auth_token"
+        private const val KEY_AUTH_TOKEN_LEGACY = "auth_token"
+        private const val SECURE_AUTH_TOKEN_FIELD = "gateway_auth_token"
         private const val KEY_SESSION_ID = "session_id"
         private const val KEY_CUSTOM_THRESHOLD = "custom_wake_threshold"
         private const val KEY_CUSTOM_THRESHOLD_ENABLED = "custom_threshold_enabled"

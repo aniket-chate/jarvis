@@ -206,6 +206,17 @@ class IntentArbitrator:
                 params={"action": "search", "pattern": pattern, "directory": scope, "filename": requested},
             )
 
+        # General web research/search must outrank the generic chat fallback.
+        if re.search(r"\b(?:search|find|look\s+up|research|browse)\b", low):
+            has_local_scope = bool(re.search(r"\b(?:file|files|document|documents|downloads|desktop|workspace)\b", low))
+            if not has_local_scope:
+                return StructuredIntent(
+                    domain="browser",
+                    action="web_search",
+                    target=clean,
+                    params={"query": clean},
+                )
+
         # Broad folder/directory deletion is still a file-agent destructive operation.
         if re.search(r"\b(?:delete|remove|erase)\b", low) and re.search(r"\b(?:folder|directory)\b", low):
             return StructuredIntent(

@@ -128,8 +128,8 @@ class IntentArbitrator:
                 params={"action": ref["resolved_action"]},
             )
         explicit_file_search = (
-            any(word in low for word in ["search", "find", "locate"])
-            and any(scope in low for scope in ["file", "files", "document", "documents"])
+            bool(re.search(r"\b(?:search|find|locate)\b", low))
+            and bool(re.search(r"\b(?:file|files|document|documents)\b", low))
         )
         if ref["is_browser_op"] and not explicit_file_search:
             return StructuredIntent(
@@ -164,6 +164,84 @@ class IntentArbitrator:
                     params={"action": "delete_file", "path": t_file, "file_path": t_file, "directory": ""},
                     requires_confirmation=True,
                 )
+
+        # Explicit UI/file navigation must not be mistaken for document operations.
+        if re.fullmatch(r"(?:open|launch)\s+(?:file\s+explorer|explorer)[.!?]?", low):
+            return StructuredIntent(
+                domain="system",
+                action="open_application",
+                target="explorer",
+                params={"app_name": "explorer", "query": clean},
+            )
+
+        # Explicit scoped project-folder navigation is an OS action, not personal search.
+        if re.search(r"\b(?:open|go to|navigate to)\b", low) and re.search(r"\b(?:project folder|jarvis project|backend folder|backend directory)\b", low):
+            target = "JARVIS project" if "project" in low else "backend"
+            return StructuredIntent(
+                domain="system",
+                action="open_application",
+                target=target,
+                params={"app_name": target, "query": clean},
+            )
+
+        # Explicit local-file search: use word boundaries so 'documentation' is not treated as 'document'.
+        m_scoped_search = re.search(
+            r"\b(?:search|find|locate)\s+(?:for\s+)?(?:my\s+)?(.+?)\s+in\s+(?:my\s+)?(documents|downloads|desktop|workspace)\b",
+            clean,
+            re.IGNORECASE,
+        )
+        if m_scoped_search:
+            requested = m_scoped_search.group(1).strip(" .?!")
+            scope = m_scoped_search.group(2).lower()
+            if re.search(r"\bpython\s+files?\b", requested, re.IGNORECASE):
+                pattern = "*.py"
+            elif re.search(r"\b(?:pdf|pdfs)\b", requested, re.IGNORECASE):
+                pattern = "*.pdf"
+            else:
+                pattern = f"*{requested}*"
+            return StructuredIntent(
+                domain="file",
+                action="search_file",
+                target=requested,
+                params={"action": "search", "pattern": pattern, "directory": scope, "filename": requested},
+            )
+
+        # Broad folder/directory deletion is still a file-agent destructive operation.
+        if re.search(r"\b(?:delete|remove|erase)\b", low) and re.search(r"\b(?:folder|directory)\b", low):
+            return StructuredIntent(
+                domain="file",
+                action="delete_file",
+                target="",
+                params={"action": "delete_file", "path": "", "file_path": "", "directory": ""},
+                requires_confirmation=True,
+                needs_clarification=True,
+                clarification_prompt="Which folder or directory should I delete?",
+            )
+
+        # Reminder cancellation must outrank generic reminder creation.
+        if re.search(r"\b(?:stop|cancel|disable|remove)\b.*\b(?:reminder|alarm|timer)\b", low):
+            return StructuredIntent(
+                domain="scheduler",
+                action="cancel",
+                target="reminder",
+                params={"action": "cancel"},
+            )
+
+        # Live system connectivity queries should use telemetry/device state, not generic chat.
+        if re.search(r"\b(?:internet|wifi|wi-fi)\b", low):
+            return StructuredIntent(
+                domain="system",
+                action="multi_telemetry",
+                target="network",
+                params={"metrics": ["network"]},
+            )
+        if re.search(r"\b(?:phone|android)\b", low) and re.search(r"\b(?:connected|connection|online|reachable)\b", low):
+            return StructuredIntent(
+                domain="system",
+                action="multi_telemetry",
+                target="phone",
+                params={"metrics": ["phone"]},
+            )
 
         # 3. Session Grounding / Recall ("what did we actually do in this conversation?")
         if any(p in low for p in ["what did we actually do", "what did we do in this conversation", "summary of what we did", "what have we done"]):

@@ -82,6 +82,7 @@ class AgentRegistry:
         from agents.notification_triage_agent import notification_triage_agent
         from agents.personal_search_agent import personal_search_agent
         from agents.device_mesh_agent import device_mesh_agent
+        from agents.capability_agent import capability_agent
 
         real_agent_map: Dict[str, Any] = {
             "web_agent": web_agent,
@@ -103,6 +104,7 @@ class AgentRegistry:
             "personal_knowledge_base": personal_knowledge_base,
             "personal_search_agent": personal_search_agent,
             "device_mesh_agent": device_mesh_agent,
+            "capability_agent": capability_agent,
             "core_llm_agent": core_llm_agent,
             "scheduler_agent": scheduler_agent,
             "dev_tool_agent": dev_tool_agent,

@@ -416,6 +416,22 @@ class MainActivity : AppCompatActivity() {
         binding.tvBackendUrlLabel.text = settings.backendBaseUrl
     }
 
+    @Deprecated("Use Activity Result APIs for new code; retained here for API compatibility with the role chooser.")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_ASSISTANT_ROLE) {
+            val roleManager = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                getSystemService(android.app.role.RoleManager::class.java)
+            } else null
+            val held = roleManager?.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT) == true
+            Toast.makeText(
+                this,
+                if (held) "JARVIS is now the default assistant." else "JARVIS was not selected as the default assistant.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     private fun showSettingsDialog() {
         val settings = viewModel.settingsManager
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_settings, null)
@@ -431,6 +447,34 @@ class MainActivity : AppCompatActivity() {
         etDeviceId.setText(settings.deviceId)
         etDeviceName.setText(settings.deviceName)
         etAuthToken.setText(settings.authToken)
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            val roleManager = getSystemService(android.app.role.RoleManager::class.java)
+            if (roleManager != null && roleManager.isRoleAvailable(android.app.role.RoleManager.ROLE_ASSISTANT)) {
+                val assistantButton = Button(this).apply {
+                    text = if (roleManager.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT)) {
+                        "JARVIS is Default Assistant"
+                    } else {
+                        "Set JARVIS as Default Assistant"
+                    }
+                    isEnabled = !roleManager.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT)
+                    setOnClickListener {
+                        startActivityForResult(
+                            roleManager.createRequestRoleIntent(android.app.role.RoleManager.ROLE_ASSISTANT),
+                            REQUEST_ASSISTANT_ROLE
+                        )
+                    }
+                }
+                (dialogView as? android.view.ViewGroup)?.addView(
+                    assistantButton,
+                    0,
+                    android.view.ViewGroup.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+                )
+            }
+        }
 
         val tvSettingsWakeWordSummary: TextView = dialogView.findViewById(R.id.tvSettingsWakeWordSummary)
         val btnChangeWakeWord: Button = dialogView.findViewById(R.id.btnChangeWakeWord)
@@ -1248,4 +1292,8 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Error starting STT isolation test: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
+    companion object {
+        private const val REQUEST_ASSISTANT_ROLE = 4102
+    }
+
 }

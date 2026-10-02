@@ -1,5 +1,7 @@
 package com.jarvis.client.assistant
 
+import android.app.assist.AssistContent
+import android.app.assist.AssistStructure
 import android.graphics.Color
 import android.os.Bundle
 import android.service.voice.VoiceInteractionSession
@@ -72,6 +74,27 @@ class JarvisVoiceInteractionSession(
             topMargin = 8
         })
         return root
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onHandleAssist(
+        data: Bundle?,
+        structure: AssistStructure?,
+        content: AssistContent?
+    ) {
+        AssistantContextStore.update(structure)
+        val packageName = AssistantContextStore.current().packageName
+        statusView?.text = if (packageName.isNullOrBlank()) {
+            "Ready"
+        } else {
+            "Context captured"
+        }
+    }
+
+    override fun onHandleScreenshot(screenshot: android.graphics.Bitmap?) {
+        // Screenshot transport is intentionally not automatic in v1. The textual AssistStructure
+        // path is available to the brain; visual capture will be an explicit, consented action.
+        statusView?.text = if (screenshot != null) "Screen available" else "Screen capture unavailable"
     }
 
     override fun onShow(args: Bundle?, showFlags: Int) {

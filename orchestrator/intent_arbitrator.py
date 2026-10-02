@@ -218,8 +218,8 @@ class IntentArbitrator:
             )
 
         # Specialized search destinations must outrank generic web search.
-        if re.search(r"\\bsearch\\s+(?:for\\s+)?(?:cats|.+?)\\s+on\\s+google\\b", low) or re.search(r"\\bsearch\\s+(?:for\\s+)?(.+?)\\s+on\\s+google\\b", low):
-            m_google = re.search(r"\\bsearch\\s+(?:for\\s+)?(.+?)\\s+on\\s+google\\b", clean, re.IGNORECASE)
+        if re.search(r"\bsearch\s+(?:for\s+)?(?:cats|.+?)\s+on\s+google\b", low) or re.search(r"\bsearch\s+(?:for\s+)?(.+?)\s+on\s+google\b", low):
+            m_google = re.search(r"\bsearch\s+(?:for\s+)?(.+?)\s+on\s+google\b", clean, re.IGNORECASE)
             query_google = m_google.group(1).strip(" .?!") if m_google else clean
             return StructuredIntent(
                 domain="browser",
@@ -229,8 +229,8 @@ class IntentArbitrator:
             )
 
         # Personal/notes search must outrank generic web search.
-        if re.search(r"\\bsearch\\s+(?:my\\s+)?(?:notes?|personal\\s+(?:notes?|files?|data))\\b", low):
-            m_personal_search = re.search(r"\\bsearch\\s+(?:my\\s+)?(.+)$", clean, re.IGNORECASE)
+        if re.search(r"\bsearch\s+(?:my\s+)?(?:notes?|personal\s+(?:notes?|files?|data))\b", low):
+            m_personal_search = re.search(r"\bsearch\s+(?:my\s+)?(.+)$", clean, re.IGNORECASE)
             query_personal = m_personal_search.group(1).strip(" .?!") if m_personal_search else clean
             return StructuredIntent(
                 domain="personal_search",

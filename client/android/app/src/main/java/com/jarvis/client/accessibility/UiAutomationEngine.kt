@@ -78,11 +78,19 @@ object UiAutomationEngine {
         }
     }
 
-    fun tap(context: Context, requestId: String, target: String): WsSkillResult {
+    fun tap(context: Context, requestId: String, target: String, humanApproved: Boolean = false): WsSkillResult {
         val service = JarvisAccessibilityService.getInstance()
             ?: return failure(requestId, "Accessibility service is not enabled.", "accessibility_disabled")
         val root = service.rootInActiveWindow
             ?: return failure(requestId, "The active window is not accessible.", "screen_unavailable")
+        val policy = UiActionPolicy.evaluateTap(target, humanApproved)
+        if (policy == UiActionPolicy.Decision.REQUIRE_HUMAN_APPROVAL) {
+            return failure(requestId, "The action '$target' requires explicit human approval before JARVIS can perform it.", "human_approval_required")
+        }
+        if (policy == UiActionPolicy.Decision.DENY_HUMAN_INPUT) {
+            return failure(requestId, "Biometric/security actions must be completed directly by the human.", "human_only_action")
+        }
+
         val node = findBestNode(root, target, clickableOnly = true)
             ?: return failure(requestId, "No unique clickable UI element matched '$target'.", "target_not_found")
 
@@ -110,8 +118,7 @@ object UiAutomationEngine {
         context: Context,
         requestId: String,
         target: String?,
-        text: String,
-        allowSensitive: Boolean = false
+        text: String
     ): WsSkillResult {
         val service = JarvisAccessibilityService.getInstance()
             ?: return failure(requestId, "Accessibility service is not enabled.", "accessibility_disabled")
@@ -124,12 +131,23 @@ object UiAutomationEngine {
         } ?: return failure(requestId, "No unique editable field matched the requested target.", "input_target_not_found")
 
         return try {
-            if (node.isPassword && !allowSensitive) {
-                return failure(
-                    requestId,
-                    "Password input requires direct human entry; JARVIS will not type a password remotely.",
-                    "sensitive_input_requires_human"
-                )
+            when (UiActionPolicy.evaluateTextInput(
+                isPassword = node.isPassword,
+                hint = node.hintText?.toString(),
+                resourceId = node.viewIdResourceName,
+                target = target
+            )) {
+                UiActionPolicy.Decision.DENY_HUMAN_INPUT -> {
+                    return failure(
+                        requestId,
+                        "Password, OTP, CAPTCHA, PIN, CVV and biometric/security input must be completed directly by the human.",
+                        "sensitive_input_requires_human"
+                    )
+                }
+                UiActionPolicy.Decision.REQUIRE_HUMAN_APPROVAL -> {
+                    return failure(requestId, "This input requires explicit human approval.", "human_approval_required")
+                }
+                UiActionPolicy.Decision.ALLOW -> Unit
             }
             if (!node.isEditable) {
                 return failure(requestId, "Target '$target' is not editable.", "target_not_editable")

@@ -30,11 +30,14 @@ class JarvisAppGatewaySandboxTest {
             .getInstrumentation()
             .targetContext
         val settings = JarvisSettingsManager(context)
+        val args = androidx.test.platform.app.InstrumentationRegistry
+            .getInstrumentation()
+            .arguments
 
-        settings.backendBaseUrl = "http://10.0.2.2:8000"
-        settings.userId = "sandbox_user"
-        settings.authToken = "ci-sandbox-token-2026-jarvis-device-mesh-test"
-        settings.deviceName = "JARVIS Sandbox Android"
+        settings.backendBaseUrl = requireArgument(args, "backendUrl")
+        settings.userId = requireArgument(args, "userId")
+        settings.authToken = requireArgument(args, "authToken")
+        settings.deviceName = requireArgument(args, "deviceName")
 
         val repository = JarvisRepository(settings)
 
@@ -87,6 +90,12 @@ class JarvisAppGatewaySandboxTest {
             settings.authToken = ""
         }
     }
+
+    private fun requireArgument(
+        args: android.os.Bundle,
+        key: String,
+    ): String = args.getString(key)?.takeIf { it.isNotBlank() }
+        ?: error("Missing instrumentation argument: $key")
 
     companion object {
         private const val CONNECTION_TIMEOUT_MS = 30_000L

@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- Package Visibility for Android 11+ App Launching -->
     <queries>
@@ -64,6 +65,18 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- Persistent JARVIS Device Mesh connection. Uses Android's special-use FGS
+             because a long-lived authenticated device connection is not a data-sync job. -->
+        <service
+            android:name=".device.JarvisConnectionService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="authenticated device mesh connection for user-requested JARVIS assistant control" />
         </service>
 
         <!-- Background Voice Standby Foreground Service -->

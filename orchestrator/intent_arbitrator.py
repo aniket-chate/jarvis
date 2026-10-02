@@ -127,7 +127,11 @@ class IntentArbitrator:
                 target=ref["resolved_target"] or "",
                 params={"action": ref["resolved_action"]},
             )
-        if ref["is_browser_op"]:
+        explicit_file_search = (
+            any(word in low for word in ["search", "find", "locate"])
+            and any(scope in low for scope in ["file", "files", "document", "documents"])
+        )
+        if ref["is_browser_op"] and not explicit_file_search:
             return StructuredIntent(
                 domain="browser",
                 action=ref["resolved_action"],

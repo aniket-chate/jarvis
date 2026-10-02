@@ -532,13 +532,16 @@ class BrowserAutomationAgent:
                     large_play = page.locator(".ytp-large-play-button").first
                     if large_play.is_visible(timeout=1000):
                         large_play.click(force=True)
-                    play_btn = page.locator("button.ytp-play-button").first
-                    if play_btn.is_visible(timeout=1500):
-                        play_btn.click(force=True)
-                    else:
-                        page.locator("video.html5-main-video").first.click(force=True)
-                except Exception:
-                    pass
+                    still_paused = page.evaluate("""() => {
+                        const v = document.querySelector('video.html5-main-video');
+                        return !!v && v.paused;
+                    }""")
+                    if still_paused:
+                        play_btn = page.locator("button.ytp-play-button").first
+                        if play_btn.is_visible(timeout=1500):
+                            play_btn.click(force=True)
+                except Exception as exc:
+                    logger.debug("[BrowserAgent FastPath] Player-button gesture failed: %s", exc)
 
                 play_attempt = page.evaluate("""() => {
                     const v = document.querySelector('video.html5-main-video');

@@ -2,6 +2,7 @@ package com.jarvis.client.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
@@ -25,11 +26,18 @@ class JarvisSettingsManager(context: Context) {
         set(value) = prefs.edit().putString(KEY_USER_ID, value.trim()).apply()
 
     var deviceId: String
-        get() = prefs.getString(KEY_DEVICE_ID, DEFAULT_DEVICE_ID) ?: DEFAULT_DEVICE_ID
+        get() {
+            val existing = prefs.getString(KEY_DEVICE_ID, null)
+            if (!existing.isNullOrBlank()) return existing
+            val generated = "android_" + UUID.randomUUID().toString()
+            prefs.edit().putString(KEY_DEVICE_ID, generated).apply()
+            return generated
+        }
         set(value) = prefs.edit().putString(KEY_DEVICE_ID, value.trim()).apply()
 
     var deviceName: String
-        get() = prefs.getString(KEY_DEVICE_NAME, DEFAULT_DEVICE_NAME) ?: DEFAULT_DEVICE_NAME
+        get() = prefs.getString(KEY_DEVICE_NAME, null)
+            ?: "${Build.MANUFACTURER} ${Build.MODEL}".trim().ifBlank { "Android Device" }
         set(value) = prefs.edit().putString(KEY_DEVICE_NAME, value.trim()).apply()
 
     var authToken: String

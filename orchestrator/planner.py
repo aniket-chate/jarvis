@@ -494,6 +494,13 @@ class TaskPlanner:
                 )
 
         elif d == "system":
+            if act in ["open_application", "open_app", "launch_app"]:
+                return TaskStep(
+                    step_id=f"{plan_id}_step_1",
+                    description=f"Launch application: {target}",
+                    required_agent_type="system_control_agent",
+                    inputs={"action": "open_application", "target": target, "app_name": target, "query": text},
+                )
             if act == "multi_telemetry":
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",

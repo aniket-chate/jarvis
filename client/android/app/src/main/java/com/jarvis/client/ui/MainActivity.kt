@@ -2,6 +2,7 @@ package com.jarvis.client.ui
 
 import android.Manifest
 import android.app.AlertDialog
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
@@ -27,6 +28,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.jarvis.client.R
 import com.jarvis.client.databinding.ActivityMainBinding
+import com.jarvis.client.device.JarvisConnectionService
 import com.jarvis.client.model.ConnectionState
 import com.jarvis.client.settings.JarvisSettingsManager
 import com.jarvis.client.voice.VoiceState
@@ -83,6 +85,7 @@ class MainActivity : AppCompatActivity() {
         observeViewModel()
         updateHeaderLabels()
         checkAndRequestNotificationPermission()
+        startBackgroundConnection()
     }
 
     override fun onResume() {
@@ -146,6 +149,16 @@ class MainActivity : AppCompatActivity() {
                     binding.recyclerViewChat.smoothScrollToPosition(chatAdapter.itemCount - 1)
                 }
             }
+        }
+    }
+
+    private fun startBackgroundConnection() {
+        try {
+            val intent = Intent(this, JarvisConnectionService::class.java)
+            ContextCompat.startForegroundService(this, intent)
+        } catch (e: Exception) {
+            Log.e(tag, "Unable to start background JARVIS connection: ${e.message}", e)
+            Toast.makeText(this, "Background JARVIS connection could not start.", Toast.LENGTH_LONG).show()
         }
     }
 

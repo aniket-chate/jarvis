@@ -32,3 +32,6 @@ jobs:
         env:
           GATEWAY_AUTH_TOKEN: ci-test-token
         run: pytest -q tests/test_real_world_all_50_routed.py
+
+      - name: Run 30-turn real conversation QA
+        run: xvfb-run -a python tests/test_30_real_conversation.py

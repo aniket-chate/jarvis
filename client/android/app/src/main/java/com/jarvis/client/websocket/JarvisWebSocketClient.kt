@@ -224,7 +224,8 @@ class JarvisWebSocketClient(
                                 UiAutomationEngine.tap(
                                     JarvisApp.instance,
                                     skillReq.requestId,
-                                    skillReq.parameters?.get("target")?.toString().orEmpty()
+                                    skillReq.parameters?.get("target")?.toString().orEmpty(),
+                                    skillReq.parameters?.get("human_approved") as? Boolean ?: false
                                 )
                             "ui_type", "screen.type", "type_ui" ->
                                 UiAutomationEngine.typeText(

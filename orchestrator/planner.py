@@ -426,14 +426,14 @@ class TaskPlanner:
                     required_agent_type="browser_automation_agent",
                     inputs={"action": act}
                 )
-                if act == "go_back":
+            if act == "go_back":
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
                     description="Navigate browser back one history entry",
                     required_agent_type="browser_automation_agent",
                     inputs={"action": "go_back"},
                 )
-        elif act == "close_tab":
+            elif act == "close_tab":
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
                     description="Close active browser tab",

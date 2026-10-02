@@ -31,8 +31,7 @@ class JarvisAppGatewaySandboxTest {
             .targetContext
         val settings = JarvisSettingsManager(context)
         val args = androidx.test.platform.app.InstrumentationRegistry
-            .getInstrumentation()
-            .arguments
+            .getArguments()
 
         settings.backendBaseUrl = requireArgument(args, "backendUrl")
         settings.userId = requireArgument(args, "userId")

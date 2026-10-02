@@ -385,17 +385,21 @@ class CoreLLMAgent:
         math_match = re.search(r"\b(\d+(?:\.\d+)?)\s+(plus|minus|times|multiplied by|divided by)\s+(\d+(?:\.\d+)?)\b", low_prompt)
         if math_match:
             left, operation, right = float(math_match.group(1)), math_match.group(2), float(math_match.group(3))
-            if operation == "divided by" and right == 0:
-                response_text = "I can't divide by zero."
+            if operation == "plus":
+                result = left + right
+            elif operation == "minus":
+                result = left - right
+            elif operation in {"times", "multiplied by"}:
+                result = left * right
+            elif operation == "divided by":
+                if right == 0:
+                    response_text = "I can't divide by zero."
+                    return {"success": True, "response": response_text, "output": response_text, "persona": persona}
+                result = left / right
             else:
-                result = {
-                    "plus": left + right,
-                    "minus": left - right,
-                    "times": left * right,
-                    "multiplied by": left * right,
-                    "divided by": left / right,
-                }[operation]
-                response_text = f"The answer is {int(result) if result.is_integer() else result}."
+                response_text = "I couldn't determine the arithmetic operation."
+                return {"success": True, "response": response_text, "output": response_text, "persona": persona}
+            response_text = f"The answer is {int(result) if result.is_integer() else result}."
             return {"success": True, "response": response_text, "output": response_text, "persona": persona}
 
         if "what can you do" in low_prompt or any(p in low_prompt for p in ["what can you actually do right now", "what can you do right now", "list your capabilities", "what are your capabilities"]):

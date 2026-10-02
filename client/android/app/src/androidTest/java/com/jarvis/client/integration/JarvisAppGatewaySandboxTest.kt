@@ -47,6 +47,15 @@ class JarvisAppGatewaySandboxTest {
                     .first()
             }
 
+            val pong = async {
+                withTimeout(COMMAND_TIMEOUT_MS) {
+                    repository.webSocketClientPong()
+                }
+            }
+
+            repository.sendPing()
+            pong.await()
+
             val response = async {
                 withTimeout(COMMAND_TIMEOUT_MS) {
                     repository.chatResponses
@@ -61,6 +70,18 @@ class JarvisAppGatewaySandboxTest {
             assertEquals("Stopped.", result.payload.text)
             assertEquals("cancel", result.payload.intent)
             assertEquals(false, result.payload.requiresConfirmation)
+
+            val voiceResponse = async {
+                withTimeout(COMMAND_TIMEOUT_MS) {
+                    repository.voiceResponses.first()
+                }
+            }
+
+            repository.sendVoiceTurn("stop")
+            val voiceResult = voiceResponse.await()
+
+            assertEquals("success", voiceResult.status)
+            assertEquals(true, voiceResult.text.isNotBlank())
         } finally {
             repository.stop()
             settings.authToken = ""

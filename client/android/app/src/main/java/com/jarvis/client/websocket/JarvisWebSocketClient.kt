@@ -2,6 +2,7 @@ package com.jarvis.client.websocket
 
 import android.util.Log
 import com.google.gson.Gson
+import com.jarvis.client.JarvisApp
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.jarvis.client.model.ConnectionState

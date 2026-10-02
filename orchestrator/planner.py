@@ -538,6 +538,19 @@ class TaskPlanner:
                 inputs={"action": "search_personal", "query": target or text, "top_k": params.get("top_k", 5)}
             )
 
+        elif d == "capability":
+            capability_name = params.get("capability") or target
+            return TaskStep(
+                step_id=f"{plan_id}_step_1",
+                description=f"Execute capability: {capability_name}",
+                required_agent_type="capability_agent",
+                inputs={
+                    "capability": capability_name,
+                    "parameters": params.get("parameters", {}),
+                    "context": params.get("context", {}),
+                },
+            )
+
         elif d == "synthesis":
             return TaskStep(
                 step_id=f"{plan_id}_step_1",

@@ -76,7 +76,11 @@ class JarvisSettingsManager(context: Context) {
         "messaging",
         "apps",
         "media",
-        "youtube"
+        "youtube",
+        "screen_observation",
+        "ui_actions",
+        "background_connection",
+        "voice_assistant"
     )
 
     /**

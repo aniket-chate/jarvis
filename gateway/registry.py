@@ -349,9 +349,24 @@ class DeviceGatewayRegistry:
                 }
             except Exception as e:
                 logger.warning("[Device Gateway] Failed delivering via WebSocket to %s: %s", device.name, str(e))
+                if ack_future is not None and request_id:
+                    self.cancel_pending_ack(str(request_id))
                 device.websocket = None
 
-        # Queue message if WebSocket not active
+        # A command requiring immediate ACK must never be reported as executed while offline.
+        if await_ack:
+            return {
+                "success": False,
+                "target_device_id": device.device_id,
+                "target_name": device.name,
+                "target_type": device.client_type,
+                "ip": device.ip_address,
+                "status": "not_connected",
+                "error": "Target device has no active WebSocket connection; command was not executed.",
+                "payload": payload,
+            }
+
+        # Non-command payloads may be queued for later delivery.
         device.pending_messages.append(payload)
         return {
             "success": True,

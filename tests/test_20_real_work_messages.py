@@ -16,9 +16,9 @@ COMMANDS = [
     f"Create a file named {TEST_NAME} in workspace and put this information inside it:\nBlack-box runtime verification.",
     "Read the file I just created.",
     "Show me the file you just created.",
-    f"Rename {TEST_NAME} to {RENAMED_NAME}.",
-    f"Read {RENAMED_NAME}.",
-    f"Delete {RENAMED_NAME}.",
+    f"Rename {TEST_NAME} to {RENAMED_NAME} in workspace.",
+    f"Read {RENAMED_NAME} in workspace.",
+    f"Delete {RENAMED_NAME} in workspace.",
     "yes",
     "List my active alarms.",
     "What is the weather in Pune right now?",
@@ -108,7 +108,7 @@ def main():
                 print(f"[{i:02d}] FAIL {command}\n     exception={exc!r}")
     finally:
         for name in (TEST_NAME, RENAMED_NAME):
-            p = DOCUMENTS / name
+            p = WORKSPACE / name
             if p.exists(): p.unlink()
         server.terminate()
         try: server.wait(timeout=10)

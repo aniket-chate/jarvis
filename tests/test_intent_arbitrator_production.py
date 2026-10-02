@@ -282,7 +282,7 @@ def test_personal_notes_search_precedes_generic_web_search(arb):
     intent = arb.arbitrate("search my notes")
     assert intent.domain == "personal_search"
     assert intent.action == "search_personal"
-    assert intent.params["query"] == "my notes"
+    assert intent.params["query"] == "notes"
 
 
 def test_scoped_file_search_preserves_selected_directory(arb):

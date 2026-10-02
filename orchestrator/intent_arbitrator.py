@@ -306,8 +306,10 @@ class IntentArbitrator:
                     "capability": "mesh.route_to_device",
                     "parameters": {
                         "target_device_id": "phone",
-                        "type": "notification",
-                        "data": {"title": "JARVIS", "message": message},
+                        "type": "skill_request",
+                        "skillId": "send_notification",
+                        "requestId": "jarvis_notification",
+                        "parameters": {"title": "JARVIS", "message": message},
                         "message": message,
                     },
                 },

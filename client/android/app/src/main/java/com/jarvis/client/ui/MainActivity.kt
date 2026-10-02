@@ -491,8 +491,8 @@ class MainActivity : AppCompatActivity() {
                 viewModel.updateSettings(
                     backendUrl = newUrl.ifBlank { JarvisSettingsManager.DEFAULT_BACKEND_URL },
                     userId = newUserId.ifBlank { JarvisSettingsManager.DEFAULT_USER_ID },
-                    deviceId = newDeviceId.ifBlank { JarvisSettingsManager.DEFAULT_DEVICE_ID },
-                    deviceName = newDeviceName.ifBlank { JarvisSettingsManager.DEFAULT_DEVICE_NAME },
+                    deviceId = newDeviceId.ifBlank { settings.deviceId },
+                    deviceName = newDeviceName.ifBlank { settings.deviceName },
                     authToken = newAuthToken
                 )
                 updateHeaderLabels()

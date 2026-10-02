@@ -9,8 +9,10 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import com.jarvis.client.JarvisApp
 import com.jarvis.client.R
+import android.content.pm.ServiceInfo
 
 /**
  * Keeps the JARVIS device-mesh connection alive when the app UI is not visible.
@@ -24,7 +26,17 @@ class JarvisConnectionService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        val notification = buildNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
         JarvisApp.instance.repository.start()
         Log.i(tag, "JARVIS background connection service started.")
     }

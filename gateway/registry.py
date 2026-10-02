@@ -7,6 +7,8 @@ Tracks and routes commands, audio casting, and notifications to other JARVIS cli
 import time
 import asyncio
 import logging
+import threading
+from concurrent.futures import Future, TimeoutError as FutureTimeoutError
 from typing import Dict, List, Optional, Any
 from fastapi import WebSocket
 
@@ -86,6 +88,8 @@ class DeviceGatewayRegistry:
 
     def __init__(self):
         self._devices: Dict[str, ClientDevice] = {}
+        self._ack_lock = threading.Lock()
+        self._pending_acks: Dict[str, Future] = {}
         # Pre-register the Host PC
         self._init_host_pc()
 
@@ -122,6 +126,8 @@ class DeviceGatewayRegistry:
             # Security Rule: If a device is already REVOKED, re-registration cannot silently un-revoke it!
             if dev.trust_state == DeviceTrustState.REVOKED:
                 logger.warning("[Device Gateway] Attempted re-registration of REVOKED device '%s' blocked. Trust state remains REVOKED.", device_id)
+            elif dev.trust_state == DeviceTrustState.TRUSTED and trust_state == DeviceTrustState.PENDING:
+                logger.debug("[Device Gateway] Preserving TRUSTED state for reconnecting device '%s'.", device_id)
             else:
                 dev.trust_state = trust_state
             dev.latency_ms = latency_ms
@@ -259,8 +265,15 @@ class DeviceGatewayRegistry:
         """Returns all devices in registry with live online status."""
         return [dev.to_dict() for dev in self._devices.values()]
 
-    async def dispatch_to_device(self, target_identifier: str, payload: Dict[str, Any], require_trusted: bool = True) -> Dict[str, Any]:
-        """Routes media or notification casting to target registered device."""
+    async def dispatch_to_device(
+        self,
+        target_identifier: str,
+        payload: Dict[str, Any],
+        require_trusted: bool = True,
+        await_ack: bool = False,
+        ack_timeout_sec: float = 15.0,
+    ) -> Dict[str, Any]:
+        """Route a payload and optionally wait for a correlated device ACK."""
         device = self.find_device(target_identifier)
         if not device:
             return {
@@ -291,8 +304,40 @@ class DeviceGatewayRegistry:
         # If device has active WebSocket, send directly
         if device.websocket:
             try:
+                ack_future = None
+                request_id = payload.get("request_id") if isinstance(payload, dict) else None
+                if await_ack and request_id:
+                    ack_future = self.register_pending_ack(str(request_id))
+
                 await device.websocket.send_json(payload)
                 device.touch()
+
+                if ack_future is not None:
+                    try:
+                        ack = await asyncio.to_thread(ack_future.result, ack_timeout_sec)
+                        return {
+                            "success": bool(ack.get("success")),
+                            "target_device_id": device.device_id,
+                            "target_name": device.name,
+                            "target_type": device.client_type,
+                            "ip": device.ip_address,
+                            "status": "acknowledged" if ack.get("success") else "device_rejected",
+                            "ack": ack,
+                            "payload": payload,
+                        }
+                    except FutureTimeoutError:
+                        self.cancel_pending_ack(str(request_id))
+                        return {
+                            "success": False,
+                            "target_device_id": device.device_id,
+                            "target_name": device.name,
+                            "target_type": device.client_type,
+                            "ip": device.ip_address,
+                            "status": "ack_timeout",
+                            "error": f"No device ACK received within {ack_timeout_sec:.1f}s.",
+                            "payload": payload,
+                        }
+
                 return {
                     "success": True,
                     "target_device_id": device.device_id,
@@ -318,6 +363,32 @@ class DeviceGatewayRegistry:
             "payload": payload,
         }
 
+
+    def register_pending_ack(self, request_id: str) -> Future:
+        """Register a thread-safe ACK waiter for a device command."""
+        future = Future()
+        with self._ack_lock:
+            previous = self._pending_acks.pop(request_id, None)
+            if previous and not previous.done():
+                previous.cancel()
+            self._pending_acks[request_id] = future
+        return future
+
+    def resolve_pending_ack(self, request_id: str, result: Dict[str, Any]) -> bool:
+        """Resolve a device command waiter from an incoming skill_result."""
+        with self._ack_lock:
+            future = self._pending_acks.pop(request_id, None)
+        if future is None:
+            return False
+        if not future.done():
+            future.set_result(result)
+        return True
+
+    def cancel_pending_ack(self, request_id: str) -> None:
+        with self._ack_lock:
+            future = self._pending_acks.pop(request_id, None)
+        if future and not future.done():
+            future.cancel()
 
     async def broadcast_all(self, payload: Dict[str, Any], exclude_ws: Optional[Any] = None) -> int:
         """Broadcasts payload to all currently connected WebSockets, optionally skipping sender."""

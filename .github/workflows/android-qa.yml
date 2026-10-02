@@ -1,6 +1,10 @@
 name: Android Mobile Agent QA
 
 on:
+concurrency:
+  group: android-mobile-agent-qa-${{ github.ref }}
+  cancel-in-progress: true
+
   push:
     branches:
       - "feature/android-mobile-agent-v1"

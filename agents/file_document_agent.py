@@ -95,11 +95,12 @@ class FileDocumentAgent:
             rel_portion = clean_path.replace("desktop:", "").replace("Desktop:", "").strip("/\\")
             if rel_portion.lower().startswith("desktop"):
                 rel_portion = rel_portion[len("desktop"):].strip("/\\")
-        elif lower.startswith("workspace:") or lower.startswith("workspace/") or lower.startswith("workspace\\"):
+        elif lower.startswith("workspace:"):
             matched_root = WORKSPACE_DIR
-            rel_portion = clean_path.replace("workspace:", "").replace("Workspace:", "").strip("/\\")
-            if rel_portion.lower().startswith("workspace"):
-                rel_portion = rel_portion[len("workspace"):].strip("/\\")
+            rel_portion = clean_path[len("workspace:"):].strip("/\\")
+        elif lower.startswith("workspace/") or lower.startswith("workspace\\"):
+            matched_root = WORKSPACE_DIR
+            rel_portion = clean_path[len("workspace"):].strip("/\\")
         else:
             matched_root = self.allowed_roots.get(default_dir.lower(), self.sandbox_root)
 

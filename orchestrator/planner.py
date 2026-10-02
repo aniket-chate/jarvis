@@ -335,8 +335,8 @@ class TaskPlanner:
                     "path": target,
                     "filename": params.get("filename", target),
                     "content": params.get("content", ""),
-                    "user_confirmed": True,
                     "directory": params.get("directory", ""),
+                    "user_confirmed": act == "confirmed_create_file" or bool(params.get("user_confirmed", False)),
                 }
                 if params.get("_confirmation"):
                     file_inputs["_confirmation"] = params["_confirmation"]
@@ -362,6 +362,8 @@ class TaskPlanner:
                     "file_path": p,
                     "directory": params.get("directory", ""),
                 }
+                if act == "confirmed_delete_file":
+                    delete_inputs["user_confirmed"] = bool(params.get("user_confirmed", True))
                 if params.get("_confirmation"):
                     delete_inputs["_confirmation"] = params["_confirmation"]
                 return TaskStep(

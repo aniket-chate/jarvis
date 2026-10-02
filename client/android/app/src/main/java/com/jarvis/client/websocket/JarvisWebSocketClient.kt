@@ -20,6 +20,7 @@ import com.jarvis.client.model.WsVoiceTurn
 import com.jarvis.client.settings.JarvisSettingsManager
 import com.jarvis.client.skill.AndroidSkillExecutor
 import com.jarvis.client.accessibility.UiAutomationEngine
+import com.jarvis.client.assistant.AssistantContextStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -143,7 +144,14 @@ class JarvisWebSocketClient(
             wakeProfileId = wakeProfileId,
             wakePhrase = wakePhrase,
             text = text,
-            timestamp = System.currentTimeMillis().toString()
+            timestamp = System.currentTimeMillis().toString(),
+            assistantContext = AssistantContextStore.current().let { ctx ->
+                mapOf(
+                    "package_name" to ctx.packageName,
+                    "text" to ctx.text,
+                    "captured_at_epoch_ms" to ctx.capturedAtEpochMs
+                )
+            }
         )
         val json = gson.toJson(voiceTurn)
         val sent = sendRaw(json)

@@ -19,11 +19,11 @@ class JarvisAssistantActivity : AppCompatActivity() {
             )
         }
         super.onCreate(savedInstanceState)
-        startActivity(Intent(this, com.jarvis.client.ui.MainActivity::class.java))
+        startActivity(Intent(this, com.jarvis.client.ui.MainActivity::class.java).apply { if (intent.getBooleanExtra(EXTRA_FROM_KEYGUARD, false)) { addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON) } })
         finish()
     }
 
     companion object {
-        const val EXTRA_FROM_KEYGUARD = "from_keyguard"
+        const val EXTRA_FROM_KEYGUARD = JarvisVoiceInteractionService.EXTRA_FROM_KEYGUARD
     }
 }

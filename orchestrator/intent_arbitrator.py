@@ -206,6 +206,17 @@ class IntentArbitrator:
                 params={"action": "search", "pattern": pattern, "directory": scope, "filename": requested},
             )
 
+        # Preserve explicit GitHub destination before the generic web-search rule.
+        if re.search(r"\bsearch\s+(?:github|on\s+github)\b", low):
+            m_g = re.search(r"\bsearch\s+(?:github|on\s+github)\s+(?:for\s+)?(.+)$", clean, re.IGNORECASE)
+            query_g = m_g.group(1).strip(" .?!") if m_g else clean
+            return StructuredIntent(
+                domain="browser",
+                action="github_search",
+                target=query_g,
+                params={"query": query_g},
+            )
+
         # General web research/search must outrank the generic chat fallback.
         if re.search(r"\b(?:search|find|look\s+up|research|browse)\b", low):
             has_local_scope = bool(re.search(r"\b(?:file|files|document|documents|downloads|desktop|workspace)\b", low))

@@ -63,7 +63,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           working-directory: client/android
-          script: bash ./gradlew connectedAndroidTest --stacktrace
+          script: cd client/android && bash gradlew connectedAndroidTest --stacktrace
 
       - name: Dump gateway log on failure
         if: failure()

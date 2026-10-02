@@ -49,7 +49,7 @@ class JarvisAppGatewaySandboxTest {
 
             val pong = async {
                 withTimeout(COMMAND_TIMEOUT_MS) {
-                    repository.webSocketClientPong()
+                    repository.webSocketClient.pongEvents.first()
                 }
             }
 

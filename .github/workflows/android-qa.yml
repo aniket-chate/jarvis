@@ -1,10 +1,6 @@
 name: Android Mobile Agent QA
 
 on:
-concurrency:
-  group: android-mobile-agent-qa-${{ github.ref }}
-  cancel-in-progress: true
-
   push:
     branches:
       - "feature/android-mobile-agent-v1"
@@ -13,6 +9,10 @@ concurrency:
     paths:
       - "client/android/**"
       - ".github/workflows/android-qa.yml"
+
+concurrency:
+  group: android-mobile-agent-qa-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   android-build:

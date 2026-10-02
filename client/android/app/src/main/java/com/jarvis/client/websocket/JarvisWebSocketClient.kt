@@ -18,6 +18,7 @@ import com.jarvis.client.model.WsVoiceResponse
 import com.jarvis.client.model.WsVoiceTurn
 import com.jarvis.client.settings.JarvisSettingsManager
 import com.jarvis.client.skill.AndroidSkillExecutor
+import com.jarvis.client.accessibility.UiAutomationEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -207,15 +208,38 @@ class JarvisWebSocketClient(
                     "skill_request" -> {
                         val skillReq = gson.fromJson(jsonObject, WsSkillRequest::class.java)
                         Log.i(tag, "Handling incoming skill request: ${skillReq.skillId} (req_id=${skillReq.requestId})")
-                        val result = skillExecutor?.execute(
-                            requestId = skillReq.requestId,
-                            skillId = skillReq.skillId,
-                            parameters = skillReq.parameters
-                        ) ?: WsSkillResult(
-                            requestId = skillReq.requestId,
-                            success = false,
-                            error = "No AndroidSkillExecutor attached to client"
-                        )
+                        val result = when (skillReq.skillId.trim().lowercase()) {
+                            "ui_observe", "screen.observe", "observe_screen" ->
+                                UiAutomationEngine.observe(JarvisApp.instance, skillReq.requestId)
+                            "ui_tap", "screen.tap", "tap_ui" ->
+                                UiAutomationEngine.tap(
+                                    JarvisApp.instance,
+                                    skillReq.requestId,
+                                    skillReq.parameters?.get("target")?.toString().orEmpty()
+                                )
+                            "ui_type", "screen.type", "type_ui" ->
+                                UiAutomationEngine.typeText(
+                                    JarvisApp.instance,
+                                    skillReq.requestId,
+                                    skillReq.parameters?.get("target")?.toString(),
+                                    skillReq.parameters?.get("text")?.toString().orEmpty(),
+                                    skillReq.parameters?.get("allow_sensitive") as? Boolean ?: false
+                                )
+                            "ui_scroll", "screen.scroll", "scroll_ui" ->
+                                UiAutomationEngine.scroll(
+                                    skillReq.requestId,
+                                    skillReq.parameters?.get("direction")?.toString().orEmpty()
+                                )
+                            else -> skillExecutor?.execute(
+                                requestId = skillReq.requestId,
+                                skillId = skillReq.skillId,
+                                parameters = skillReq.parameters
+                            ) ?: WsSkillResult(
+                                requestId = skillReq.requestId,
+                                success = false,
+                                error = "No AndroidSkillExecutor attached to client"
+                            )
+                        }
                         val resultJson = gson.toJson(result)
                         webSocket.send(resultJson)
                     }

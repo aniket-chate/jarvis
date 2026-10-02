@@ -178,7 +178,8 @@ def main():
             print("Manual playback acceptance is still required for these blocked turns.")
         else:
             print("Manual playback acceptance is required when the browser session is not authenticated with YouTube.")
-    if passed != required_passes:
+    failed_unblocked = [n for n, _, ok, _, _ in results if not ok and n not in external_blocks]
+    if failed_unblocked or len(results) != len(COMMANDS) or (not ci_skip_external_media and external_blocks):
         raise SystemExit(1)
 
 if __name__ == "__main__":

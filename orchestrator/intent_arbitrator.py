@@ -288,6 +288,39 @@ class IntentArbitrator:
                 params={"metrics": ["phone"]},
             )
 
+        # Explicit browser history navigation. Use the persistent browser session when active.
+        if low in {"go back", "back", "go to previous page", "previous page"}:
+            browser_ctx = context_manager.get_browser()
+            if getattr(browser_ctx, "url", ""):
+                return StructuredIntent(domain="browser", action="go_back", target=browser_ctx.url, params={"action": "go_back"})
+
+        # Device-mesh notification requests are routed to a real provider instead of chat.
+        m_phone_notice = re.search(r"\\b(?:send|push)\\s+(?:a\\s+)?notification\\s+to\\s+(?:my\\s+)?phone\\s+(?:saying|that|with)\\s+(.+)$", clean, re.IGNORECASE)
+        if m_phone_notice:
+            message = m_phone_notice.group(1).strip().strip('"')
+            return StructuredIntent(
+                domain="capability",
+                action="execute",
+                target="mesh.route_to_device",
+                params={
+                    "capability": "mesh.route_to_device",
+                    "parameters": {
+                        "target_device_id": "phone",
+                        "type": "notification",
+                        "data": {"title": "JARVIS", "message": message},
+                        "message": message,
+                    },
+                },
+            )
+
+        # Wake-word management uses the existing local multi-persona provider.
+        if re.search(r"\\b(?:test|check)\\s+(?:the\\s+)?wake[- ]?word\\s+system\\b", low):
+            return StructuredIntent(domain="capability", action="execute", target="wakeword.evaluate_false_positives", params={"capability": "wakeword.evaluate_false_positives", "parameters": {"sample_count": 10}})
+        if re.search(r"\\b(?:change|configure|adjust)\\s+(?:my\\s+)?wake[- ]?word\\b", low):
+            return StructuredIntent(domain="capability", action="execute", target="wakeword.configure", params={"capability": "wakeword.configure", "parameters": {}})
+        if re.search(r"\\b(?:create|add)\\s+(?:another|a new)\\s+wake[- ]?word\\s+profile\\b", low):
+            return StructuredIntent(domain="capability", action="execute", target="wakeword.configure", params={"capability": "wakeword.configure", "parameters": {"active_personas": ["Jarvis", "Friday", "Ultron"]}})
+
         # 3. Session Grounding / Recall ("what did we actually do in this conversation?")
         if any(p in low for p in ["what did we actually do", "what did we do in this conversation", "summary of what we did", "what have we done"]):
             return StructuredIntent(

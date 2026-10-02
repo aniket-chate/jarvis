@@ -1747,6 +1747,26 @@ class BrowserAutomationAgent:
         future = self._executor.submit(self._execute_sync, inputs)
         return future.result()
 
+    def go_back(self) -> Dict[str, Any]:
+        """Navigate the persistent active page back one history entry and verify the URL changed when possible."""
+        def _back():
+            page = self._get_or_create_active_page(headless=False)
+            before = page.url
+            try:
+                page.go_back(wait_until="commit", timeout=10000)
+            except Exception as exc:
+                return {"success": False, "action": "go_back", "before_url": before, "error": str(exc)}
+            after = page.url
+            return {
+                "success": True,
+                "action": "go_back",
+                "before_url": before,
+                "after_url": after,
+                "changed": before != after,
+                "response": f"Navigated back from {before} to {after}." if before != after else f"Browser history did not change from {before}.",
+            }
+        return self._run_on_executor(_back)
+
     def _execute_sync(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """Actual synchronous browser automation dispatch logic."""
         action = inputs.get("action") or ""
@@ -1754,6 +1774,9 @@ class BrowserAutomationAgent:
         site = inputs.get("site") or "google"
         headless = bool(inputs.get("headless", False))
         screenshot_name = inputs.get("screenshot_filename")
+
+        if action in ["go_back", "browser_back", "back"]:
+            return self.go_back()
 
         # Show Active Browser Tabs and Bring Browser to Front
         if action in ["show_tabs", "list_tabs", "active_tabs", "bring_to_front", "show_browser", "get_active_tab", "query_page"]:

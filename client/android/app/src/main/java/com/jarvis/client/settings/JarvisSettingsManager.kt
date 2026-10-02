@@ -124,7 +124,5 @@ class JarvisSettingsManager(context: Context) {
         const val DEFAULT_WAKE_THRESHOLD = 0.32f
         const val DEFAULT_BACKEND_URL = "http://10.0.2.2:8000"
         const val DEFAULT_USER_ID = "default_user"
-        const val DEFAULT_DEVICE_ID = "vivo_v29_test"
-        const val DEFAULT_DEVICE_NAME = "Aniket's Vivo V29"
     }
 }

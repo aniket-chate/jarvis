@@ -409,6 +409,15 @@ class IntentArbitrator:
                     params={"action": "rename", "source": target_path, "path": target_path, "new_name": f_new, "destination": f_new},
                     requires_confirmation=False,
                 )
+            elif f_action == "search":
+                pattern = f_params.get("pattern") or f"*{filename}*"
+                return StructuredIntent(
+                    domain="file",
+                    action="search_file",
+                    target=filename,
+                    params={"action": "search", "pattern": pattern, "directory": dir_target, "filename": filename},
+                    requires_confirmation=False,
+                )
 
         if any(w in low for w in ["find a file", "search for a file", "locate file"]):
             m_fn = re.search(r"called\s+([a-zA-Z0-9_\-\.]+)", low)

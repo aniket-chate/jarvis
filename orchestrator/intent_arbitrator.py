@@ -409,7 +409,7 @@ class IntentArbitrator:
             "delete the file", "delete file", "remove the file", "move the file", "move file", "rename the file", "rename file"
         ]
         is_past_inquiry = bool(re.search(r"^(?:did\s+you|was\s+the|were\s+the|have\s+you|why\s+did\s+you)\b", low))
-        if not is_past_inquiry and (any(w in low for w in file_triggers) or bool(re.search(r"\b(?:read|open|view|show|inspect)\s+(?:[a-zA-Z]:[\\/]|/|~)", clean, re.IGNORECASE)) or (("search" in low or "find" in low or "locate" in low) and any(k in low for k in ["file", "files", "document", "documents"])) or (any(k in low for k in ["file", "document", "notes", ".txt", ".json", ".csv", ".md"]) and any(v in low for v in ["create", "write", "make", "read", "show", "open", "delete", "remove", "move", "rename"]))):
+        if not is_past_inquiry and (any(w in low for w in file_triggers) or bool(re.search(r"\b(?:read|open|view|show|inspect)\s+(?:[a-zA-Z]:[\\/]|/|~)", clean, re.IGNORECASE)) or (bool(re.search(r"\b(?:search|find|locate)\b", low)) and bool(re.search(r"\b(?:file|files|document|documents)\b", low))) or (bool(re.search(r"\b(?:file|document|notes)\b|\.(?:txt|json|csv|md)\b", low)) and any(v in low for v in ["create", "write", "make", "read", "show", "open", "delete", "remove", "move", "rename"]))):
             from orchestrator.parameter_extractor import parameter_extractor
             f_params = parameter_extractor.extract_file_parameters(clean)
             if f_params.get("requires_clarification"):

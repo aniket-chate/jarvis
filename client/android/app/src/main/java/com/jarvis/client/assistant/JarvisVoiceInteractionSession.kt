@@ -5,6 +5,7 @@ import android.app.assist.AssistStructure
 import android.graphics.Color
 import android.os.Bundle
 import android.service.voice.VoiceInteractionSession
+import android.service.voice.VoiceInteractionSessionService
 import android.view.Gravity
 import android.view.View
 import android.widget.Button

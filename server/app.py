@@ -1021,7 +1021,12 @@ async def websocket_gateway(
                 if query:
                     event = PerceptionEvent(
                         type="voice_input",
-                        payload={"text": query, "source_device": active_device_id, "voice_turn_id": turn_id},
+                        payload={
+                            "text": query,
+                            "source_device": active_device_id,
+                            "voice_turn_id": turn_id,
+                            "assistant_context": data.get("assistant_context"),
+                        },
                         source=f"ws_voice_{active_device_id}",
                         active_persona=persona,
                     )

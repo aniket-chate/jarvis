@@ -85,7 +85,9 @@ class JarvisSettingsManager(context: Context) {
 
     /**
      * Dynamically derive the WebSocket URL from backendBaseUrl.
-     * http://10.0.2.2:8000 -> ws://10.0.2.2:8000/api/v1/ws?token=<token>&device_id=<device_id>
+     *
+     * Authentication is sent in the WebSocket Authorization header, not in the URL,
+     * so credentials do not become part of request URLs/logs.
      */
     fun getWebSocketUrl(): String {
         val base = backendBaseUrl.trimEnd('/')
@@ -95,10 +97,8 @@ class JarvisSettingsManager(context: Context) {
             base.startsWith("wss://", ignoreCase = true) || base.startsWith("ws://", ignoreCase = true) -> base
             else -> "ws://$base"
         }
-        val tokenParam = if (authToken.isNotBlank()) authToken else userId
-        val encodedToken = URLEncoder.encode(tokenParam, StandardCharsets.UTF_8.name())
         val encodedDeviceId = URLEncoder.encode(deviceId, StandardCharsets.UTF_8.name())
-        return "$wsBase/api/v1/ws?token=$encodedToken&device_id=$encodedDeviceId"
+        return "$wsBase/api/v1/ws?device_id=$encodedDeviceId"
     }
 
     private fun normalizeUrl(url: String): String {

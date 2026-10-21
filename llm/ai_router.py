@@ -84,7 +84,7 @@ class RuleBasedAIProvider(BaseAIProvider):
             return "I am Jarvis, your personal AI assistant. The local model is currently unavailable, so I am operating in the safe local fallback."
 
         import re
-        arithmetic = re.search(r"(?<!\\d)(\\d+(?:\\.\\d+)?)\\s*([-+*/])\\s*(\\d+(?:\\.\\d+)?)(?!\\d)", lower)
+        arithmetic = re.search(r"(?<!\d)(\d+(?:\.\d+)?)\s*([-+*/])\s*(\d+(?:\.\d+)?)(?!\d)", lower)
         if arithmetic:
             left, op, right = float(arithmetic.group(1)), arithmetic.group(2), float(arithmetic.group(3))
             if op == "+":

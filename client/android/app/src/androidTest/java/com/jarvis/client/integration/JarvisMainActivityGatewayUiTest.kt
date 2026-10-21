@@ -74,12 +74,12 @@ class JarvisMainActivityGatewayUiTest {
                 scenario.onActivity { activity ->
                     assertFalse("Settings should not close the app", activity.isFinishing)
                     val messageInput = activity.findViewById<android.widget.EditText>(com.jarvis.client.R.id.etMessageInput)
-                    messageInput.setText("stop")
+                    messageInput.setText("What is 12 multiplied by 12?")
                     val sendButton = activity.findViewById<android.view.View>(com.jarvis.client.R.id.btnSendMessage)
                     check(sendButton.isShown && sendButton.isEnabled) { "Send control is not visible/enabled" }
                     sendButton.performClick()
                 }
-                waitForVisibleText("Stopped.", 30_000L)
+                waitForVisibleText("144", 30_000L)
             }
         } finally {
             app.repository.stop()

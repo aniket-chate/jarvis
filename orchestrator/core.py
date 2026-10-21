@@ -145,10 +145,15 @@ class OrchestratorCore:
                 ),
                 {},
             )
+            pending_payload = pending_result.get("output", pending_result)
+            if not isinstance(pending_payload, dict):
+                pending_payload = pending_result
             final_response = (
-                pending_result.get("prompt")
+                pending_payload.get("prompt")
+                or pending_payload.get("response")
+                or pending_payload.get("message")
+                or pending_result.get("prompt")
                 or pending_result.get("response")
-                or pending_result.get("message")
                 or "This action requires your explicit confirmation before it can continue."
             )
 

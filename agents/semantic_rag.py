@@ -10,6 +10,7 @@ Provides:
 import os
 import re
 import json
+import hashlib
 import math
 import sqlite3
 import logging
@@ -171,7 +172,7 @@ class LocalSemanticEmbedding:
                 continue
             pos_weight = 1.0 / (1.0 + 0.05 * min(i, 20))
             # Token hash
-            thash = abs(hash(token)) % 256
+            thash = int.from_bytes(hashlib.blake2b(token.encode("utf-8"), digest_size=4).digest(), "big") % 256
             dim = 128 + thash
             vec[dim] += 2.5 * pos_weight
 
@@ -179,7 +180,7 @@ class LocalSemanticEmbedding:
             if len(token) >= 3:
                 for c in range(len(token) - 2):
                     ngram = token[c:c+3]
-                    nhash = abs(hash(ngram)) % 256
+                    nhash = int.from_bytes(hashlib.blake2b(ngram.encode("utf-8"), digest_size=4).digest(), "big") % 256
                     vec[128 + nhash] += 0.8 * pos_weight
 
         # 3. L2 Normalization: ||v|| = 1.0

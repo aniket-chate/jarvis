@@ -48,6 +48,11 @@ class OrchestratorCore:
         if plan.is_persona_switch and plan.switch_target_persona:
             new_persona = plan.switch_target_persona
             settings.set_active_persona(new_persona)
+            try:
+                from orchestrator.context_manager import context_manager
+                context_manager.set_persona(new_persona)
+            except Exception:
+                logger.debug("[Orchestrator] Unable to synchronize persona context", exc_info=True)
             logger.info("[Orchestrator] SYSTEM INTENT: Switched active persona to '%s'", new_persona)
             plan.status = "completed"
             summary = self._build_persona_switch_response(new_persona)

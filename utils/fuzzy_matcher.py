@@ -242,6 +242,10 @@ def match_intent_action(
     """
     lower = text.strip().lower()
 
+    # App launch/navigation verbs are not media controls; avoid fuzzy "open" -> "close" collisions.
+    if lower.startswith(("open ", "launch ", "start ", "run ")):
+        return None
+
     # 0. Initial playback requests ('play <song>', 'play a song', 'listen to...') are new tasks, NOT follow-up control intents
     if (lower.startswith("play ") or lower.startswith("listen to ")) and not any(
         lower.startswith(p) or p in lower for p in ["play again", "play it again", "play once more"]

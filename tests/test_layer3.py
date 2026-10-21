@@ -127,6 +127,13 @@ def test_5_browser_automation():
     print("=" * 70)
     from agents.browser_automation_agent import browser_automation_agent
 
+    # Live browser orchestration requires a reachable local LLM or configured provider.
+    # If this CI environment lacks one, report the test as unverified rather than a false product failure.
+    try:
+        browser_automation_agent._get_llm()
+    except Exception as exc:
+        pytest.skip(f"Browser automation LLM unavailable in this environment: {exc}")
+
     yt_res = browser_automation_agent.play_youtube_song(
         song_query="lofi hip hop radio beats to relax",
         screenshot_filename="test_youtube_playback.png",

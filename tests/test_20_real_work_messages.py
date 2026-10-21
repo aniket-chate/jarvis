@@ -7,13 +7,14 @@ ROOT = Path(__file__).resolve().parents[1]
 TEST_NAME = f"jarvis_blackbox_{uuid.uuid4().hex[:8]}.txt"
 RENAMED_NAME = f"jarvis_blackbox_renamed_{uuid.uuid4().hex[:8]}.txt"
 BASE_URL = "http://127.0.0.1:8765/api/chat"
-DOCUMENTS = ROOT / "workspace" / "documents"
+DOCUMENTS = Path.home() / "Documents"
 SERVER_LOG = ROOT / "blackbox_server.log"
 
 COMMANDS = [
     "Hi Jarvis, are you ready?",
     "What is 12 multiplied by 12?",
     f"Create a file named {TEST_NAME} and put this information inside it:\nBlack-box runtime verification.",
+    "yes",
     "Read the file I just created.",
     "Show me the file you just created.",
     f"Rename {TEST_NAME} to {RENAMED_NAME}.",
@@ -96,15 +97,17 @@ def main():
                 ok = status == 200 and payload.get("status") == "ok" and summary["plan_status"] in {"completed", "blocked", "pending_approval"}
                 response = summary["response"].lower()
                 if i == 2: ok = ok and "144" in response
-                if i == 6: ok = ok and summary["plan_status"] == "pending_approval" and "confirm" in response
-                if i == 7: ok = ok and "successfully renamed" in response
-                if i == 9: ok = ok and summary["plan_status"] == "pending_approval" and "confirm" in response
-                if i == 10: ok = ok and ("successfully deleted" in response or "deleted file" in response)
-                if i == 16: ok = ok and ("what should i name the file" in response)
-                if i == 17: ok = ok and ("which file would you like me to delete" in response)
-                if i == 18: ok = ok and ("recipient" in response or "who should i send the message to" in response)
-                if i == 19: ok = ok and ("when should i schedule it" in response)
-                if i == 20: ok = ok and ("which branch should i switch back to" in response)
+                if i == 3: ok = ok and summary["plan_status"] == "pending_approval" and "confirm" in response
+                if i == 4: ok = ok and "successfully created file" in response
+                if i == 7: ok = ok and summary["plan_status"] == "pending_approval" and "confirm" in response
+                if i == 8: ok = ok and "successfully renamed" in response
+                if i == 10: ok = ok and summary["plan_status"] == "pending_approval" and "confirm" in response
+                if i == 11: ok = ok and ("successfully deleted" in response or "deleted file" in response)
+                if i == 17: ok = ok and ("what should i name the file" in response)
+                if i == 18: ok = ok and ("which file would you like me to delete" in response)
+                if i == 19: ok = ok and ("recipient" in response or "who should i send the message to" in response)
+                if i == 20: ok = ok and ("when should i schedule it" in response)
+                if i == 21: ok = ok and ("which branch should i switch back to" in response)
                 results.append((i, command, ok, summary))
                 print(f"[{i:02d}] {'PASS' if ok else 'FAIL'} {command}")
                 print("     " + json.dumps(summary, ensure_ascii=False, default=str))
@@ -122,9 +125,9 @@ def main():
         except Exception: pass
         if SERVER_LOG.exists(): SERVER_LOG.unlink()
     passed = sum(1 for _, _, ok, _ in results if ok)
-    print("\n=== BLACK-BOX 21-TURN SUMMARY ===")
-    print(f"PASSED={passed}/21")
+    print("\n=== BLACK-BOX 22-TURN SUMMARY ===")
+    print(f"PASSED={passed}/22")
     print(json.dumps(results, ensure_ascii=False, indent=2, default=str))
-    if passed != 21: sys.exit(1)
+    if passed != 22: sys.exit(1)
 
 if __name__ == "__main__": main()

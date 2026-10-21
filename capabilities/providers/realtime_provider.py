@@ -324,6 +324,23 @@ class RealTimeInfoProvider(BaseCapabilityProvider):
                 area = data.get("nearest_area", [{}])[0]
                 city_name = area.get("areaName", [{}])[0].get("value", location)
                 country = area.get("country", [{}])[0].get("value", "")
+                # wttr.in can silently geolocate to an unrelated place when upstream
+                # resolution is degraded. Never report another city's weather as the
+                # requested city's result.
+                requested_city = location.split(",", 1)[0].strip()
+                norm = lambda value: "".join(ch for ch in str(value).casefold() if ch.isalnum())
+                requested_norm = norm(requested_city)
+                returned_norm = norm(city_name)
+                if requested_norm and returned_norm and not (
+                    requested_norm in returned_norm or returned_norm in requested_norm
+                ):
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Weather provider resolved '{location}' to '{city_name}', "
+                            "which does not match the requested location. No weather was returned."
+                        ),
+                    }
                 loc_label = f"{city_name}, {country}" if country else city_name
                 msg = f"Weather in {loc_label}: {temp}°C, {condition}. Wind: {windspeed} km/h, Humidity: {humidity}%."
 

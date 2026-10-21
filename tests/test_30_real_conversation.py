@@ -78,6 +78,7 @@ def main():
     )
     results = []
     external_blocks = []
+    dependent_media_blocks = []
     try:
         deadline = time.time() + 60
         while time.time() < deadline:
@@ -106,12 +107,18 @@ def main():
                 result.get("status") == "external_access_required"
                 or (result.get("output") or {}).get("status") == "external_access_required"
             )
+            dependent_media_block = n in (25, 26) and bool(set(external_blocks).intersection({23, 24}))
             ok = (
                 status == 200
                 and payload.get("status") == "ok"
                 and s["plan_status"] in {"completed", "blocked"}
                 and not external_media_block
+                and not dependent_media_block
             )
+            if external_media_block:
+                external_blocks.append(n)
+            if dependent_media_block:
+                dependent_media_blocks.append(n)
             if n == 2: ok &= "144" in response
             if n == 3: ok &= "can help" in response
             if n == 16: ok &= "what should i name the file" in response
@@ -142,18 +149,22 @@ def main():
             LOG.unlink()
 
     passed = sum(1 for _, _, ok, _, _ in results if ok)
-    blocked = sorted(set(external_blocks))
+    blocked = sorted(set(external_blocks + dependent_media_blocks))
     print(f"PASSED={passed}/30")
-    if blocked:
-        print(f"EXTERNAL_MEDIA_BLOCKED_TURNS={blocked}")
+    if external_blocks:
+        print(f"EXTERNAL_MEDIA_BLOCKED_TURNS={sorted(set(external_blocks))}")
         print("Blocked playback is reported separately and is never counted as verified playback.")
         print("Manual playback acceptance is required when the browser session is not authenticated with YouTube.")
+    if dependent_media_blocks:
+        print(f"DEPENDENT_MEDIA_NOT_VERIFIED_TURNS={sorted(set(dependent_media_blocks))}")
+        print("Pause/resume turns are not counted as passing when playback itself was blocked.")
     allow_blocked = os.environ.get("JARVIS_ALLOW_EXTERNAL_MEDIA_BLOCK", "").strip().lower() == "true"
     only_explicit_media_blocks = (
         allow_blocked
         and len(results) == 30
         and passed + len(blocked) == 30
-        and set(blocked).issubset({23, 24})
+        and set(external_blocks).issubset({23, 24})
+        and set(dependent_media_blocks).issubset({25, 26})
     )
     if passed != 30 and not only_explicit_media_blocks:
         raise SystemExit(1)

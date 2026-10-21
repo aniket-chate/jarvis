@@ -124,22 +124,36 @@ class RealTimeInfoProvider(BaseCapabilityProvider):
         now_dt = datetime.now(timezone.utc)
         now_iso = now_dt.isoformat()
 
-        # Check Cache
+        # Check cache, but never return a weather record whose location does not match
+        # the requested city (older geocoding bugs may have polluted a query-keyed cache).
         if not force_refresh:
             cached = self._get_from_cache(cache_key)
             if cached:
                 cached_data = dict(cached["data"])
-                cached_data["freshness"] = "CACHED"
-                cached_data["is_stale"] = cached["is_stale"]
-                elapsed_ms = (time.perf_counter() - t0) * 1000
-                return ActionResult(
-                    status="SUCCESS",
-                    output=cached_data,
-                    message=f"Retrieved cached weather for {location} ({cached_data['temperature']}°C, {cached_data['condition']})",
-                    evidence=f"Cache hit: retrieved_at={cached_data['retrieved_at']}, is_stale={cached['is_stale']}",
-                    execution_time_ms=elapsed_ms,
-                    metadata={"source": cached_data.get("source"), "provider": self.provider_id, "cached": True},
-                )
+
+                def _norm_location(value: str) -> str:
+                    return "".join(ch for ch in str(value).casefold() if ch.isalnum())
+
+                requested_norm = _norm_location(location)
+                cached_norm = _norm_location(cached_data.get("location", ""))
+                if requested_norm and cached_norm and requested_norm not in cached_norm and cached_norm not in requested_norm:
+                    logger.warning(
+                        "[RealTimeInfoProvider] Ignoring mismatched weather cache: requested=%s cached=%s",
+                        location,
+                        cached_data.get("location"),
+                    )
+                else:
+                    cached_data["freshness"] = "CACHED"
+                    cached_data["is_stale"] = cached["is_stale"]
+                    elapsed_ms = (time.perf_counter() - t0) * 1000
+                    return ActionResult(
+                        status="SUCCESS",
+                        output=cached_data,
+                        message=f"Retrieved cached weather for {location} ({cached_data['temperature']}°C, {cached_data['condition']})",
+                        evidence=f"Cache hit: retrieved_at={cached_data['retrieved_at']}, is_stale={cached['is_stale']}",
+                        execution_time_ms=elapsed_ms,
+                        metadata={"source": cached_data.get("source"), "provider": self.provider_id, "cached": True},
+                    )
 
         # Live Fetch via Open-Meteo (Primary) with fallback to wttr.in
         weather_res = self._fetch_open_meteo_weather(location, time_target, now_iso)
@@ -189,13 +203,26 @@ class RealTimeInfoProvider(BaseCapabilityProvider):
         """Fetches live weather from Open-Meteo API with full field set."""
         try:
             headers = {"User-Agent": "JARVIS-RealTime-Info/2.0 (https://github.com/jarvis)"}
-            # 1. Geocode
-            geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(location)}&count=1&language=en&format=json"
+            # 1. Geocode multiple candidates and prefer an exact normalized city match.
+            geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(location)}&count=10&language=en&format=json"
             with httpx.Client(timeout=self.timeout) as client:
                 geo_resp = client.get(geo_url, headers=headers)
-                if geo_resp.status_code != 200 or not geo_resp.json().get("results"):
+                candidates = geo_resp.json().get("results", []) if geo_resp.status_code == 200 else []
+                if not candidates:
                     return {"success": False, "error": f"Coordinates not found for location '{location}'"}
-                geo_data = geo_resp.json()["results"][0]
+
+                def _norm_place(value: str) -> str:
+                    return "".join(ch for ch in str(value).casefold() if ch.isalnum())
+
+                requested = _norm_place(location)
+                exact_matches = [
+                    item for item in candidates
+                    if _norm_place(item.get("name", "")) == requested
+                ]
+                geo_data = max(
+                    exact_matches or candidates,
+                    key=lambda item: int(item.get("population") or 0),
+                )
                 lat = geo_data["latitude"]
                 lon = geo_data["longitude"]
                 city_name = geo_data.get("name", location)

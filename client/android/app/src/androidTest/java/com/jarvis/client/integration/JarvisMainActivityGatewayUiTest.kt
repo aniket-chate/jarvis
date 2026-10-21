@@ -12,7 +12,6 @@ import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
-import androidx.test.rule.GrantPermissionRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.jarvis.client.JarvisApp
@@ -20,7 +19,6 @@ import com.jarvis.client.device.JarvisConnectionService
 import com.jarvis.client.ui.MainActivity
 import org.junit.Assert.assertFalse
 import org.junit.Assert.fail
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.UUID
@@ -32,16 +30,13 @@ import java.util.UUID
 @RunWith(AndroidJUnit4::class)
 class JarvisMainActivityGatewayUiTest {
 
-    @get:Rule
-    val permissions: GrantPermissionRule = GrantPermissionRule.grant(
-        Manifest.permission.POST_NOTIFICATIONS,
-        Manifest.permission.RECORD_AUDIO
-    )
-
     @Test
     fun appLaunchesSettingsAndSendsChatThroughVisibleUi() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
+        // Grant runtime permissions through the emulator's instrumentation shell.
+        instrumentation.uiAutomation.grantRuntimePermission(context.packageName, Manifest.permission.POST_NOTIFICATIONS)
+        instrumentation.uiAutomation.grantRuntimePermission(context.packageName, Manifest.permission.RECORD_AUDIO)
         val app = context.applicationContext as JarvisApp
         val settings = app.settingsManager
         val args = InstrumentationRegistry.getArguments()

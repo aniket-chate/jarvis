@@ -146,6 +146,8 @@ class TaskPlanner:
 
                 step = self._build_step_from_intent(plan_id, structured_intent, text)
                 if step:
+                    confirmation = structured_intent.params.get("_confirmation", {}) if structured_intent.params else {}
+                    plan_goal = confirmation.get("original_request") or text
                     logger.info(
                         "[Planner] [%s] Intent Arbitrator resolved: domain='%s', action='%s' -> Agent='%s'",
                         active_persona,
@@ -156,7 +158,7 @@ class TaskPlanner:
                     is_sw = (structured_intent.action == "switch_persona")
                     return TaskPlan(
                         plan_id=plan_id,
-                        goal=text,
+                        goal=plan_goal,
                         steps=[step],
                         active_persona=active_persona,
                         is_persona_switch=is_sw,

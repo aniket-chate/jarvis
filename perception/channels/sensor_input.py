@@ -11,8 +11,14 @@ import time
 import logging
 import ctypes
 from typing import Dict, Any, Optional
-import win32gui
-import win32process
+
+try:
+    import win32gui
+    import win32process
+except ImportError:  # Windows-only APIs are unavailable on Linux/macOS.
+    win32gui = None
+    win32process = None
+
 import psutil
 
 from perception.events import PerceptionEvent, event_bus
@@ -33,6 +39,9 @@ class SensorInputChannel:
 
     def get_active_application(self) -> Dict[str, str]:
         """Detects the currently active foreground window and process name on Windows."""
+        if win32gui is None or win32process is None:
+            return {"window_title": "Unavailable on this platform", "process_name": "unsupported"}
+
         try:
             hwnd = win32gui.GetForegroundWindow()
             if not hwnd:

@@ -125,23 +125,25 @@ def test_5_resilience_and_degradation():
     print("=" * 70)
     from agents.core_llm_agent import core_llm_agent
 
-    # Point to an invalid unreachable port to simulate breakdown
-    original_host = core_llm_agent.host
-    core_llm_agent.host = "http://127.0.0.1:59999"
+    # Patch the provider actually used by CoreLLMAgent (the AI router owns its
+    # own Ollama provider; changing core_llm_agent.host alone does not affect it).
+    from llm.ai_router import ai_router
+    original_host = ai_router.ollama_provider.host
+    ai_router.ollama_provider.host = "http://127.0.0.1:59999"
 
     try:
         response = core_llm_agent.generate_response(
             prompt="Analyze system performance",
             persona_name="Jarvis"
         )
-        print(f"[Simulated Broken Host]: {core_llm_agent.host}")
+        print(f"[Simulated Broken Host]: {ai_router.ollama_provider.host}")
         print(f"[Resilience Output]:\n{response}")
 
         assert response and len(response) > 10, "Expected degraded notification response"
         assert any(term in response.lower() for term in ("unreachable", "backend", "fallback", "unable")), "Missing degradation notice"
         print(f"[Verified Resilience]: System reported graceful degradation without crashing.")
     finally:
-        core_llm_agent.host = original_host
+        ai_router.ollama_provider.host = original_host
 
     test_results["Test 5 (Resilience & Degradation Notice)"] = "PASSED"
 

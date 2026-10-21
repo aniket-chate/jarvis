@@ -1,6 +1,6 @@
 # JARVIS — Autonomous Multimodal AI Assistant
 
-> **Next-Generation Personal AI Operating System** with 50 verified real-world capabilities, hierarchical intent routing, autonomous computer use, voice synthesis, and safety guardrails.
+> **Personal multimodal assistant prototype** with 50 defined capability contracts, hierarchical intent routing, desktop/browser automation, voice support, and safety guardrails. Provider readiness varies; some integrations are simulated or unavailable until configured.
 
 ---
 
@@ -9,7 +9,7 @@
 **JARVIS** is an autonomous desktop and web AI companion designed for complex task execution, deep system integration, proactive intelligence, and seamless voice/multimodal interaction.
 
 Unlike traditional chat wrappers, JARVIS operates through an **orchestrated multi-agent cognitive architecture**:
-- **Hierarchical Cognitive Routing**: ML-driven two-tier domain and capability classifier ensuring 0% routing collision across 50 distinct capability domains.
+- **Hierarchical Cognitive Routing**: ML-driven two-tier domain and capability classifier designed to reduce routing collisions across 50 registered capability domains.
 - **Multimodal Perception**: Real-time screen analysis, OCR, visual diffing, and Chrome DevTools Protocol (CDP) browser automation.
 - **Voice & Speech Engine**: Low-latency local neural TTS (Piper) and high-accuracy ASR with wake-word detection.
 - **Autonomous Planner & Verifier**: Closed-loop execution engine that drafts multistep plans, checks preconditions, verifies outcomes, and executes self-healing retries.

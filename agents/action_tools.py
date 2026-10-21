@@ -438,6 +438,40 @@ def open_application(app_name: str) -> ToolResult:
         except Exception as e:
             logger.warning("[ActionTools] Failed launching shortcut '%s': %s", shortcut_match, e)
 
+    # Known native Windows applications must never be fuzzy-routed to similarly
+    # named websites (for example, "notepad" -> notepad.com). On non-Windows
+    # runners, report the platform limitation explicitly instead of pretending to
+    # launch a desktop app.
+    native_windows_apps = {
+        "notepad", "notes", "calc", "calculator", "explorer", "file explorer",
+        "terminal", "powershell", "paint", "mspaint", "cmd", "command prompt",
+        "task manager", "control panel",
+    }
+    if lower in native_windows_apps:
+        if os.name != "nt":
+            return ToolResult(
+                success=False,
+                tool="open_application",
+                action="open_application",
+                target=clean_app,
+                message=f"Cannot launch native Windows application '{clean_app}' on this operating system.",
+                error="platform_not_supported",
+                data={"platform": os.name, "application": lower},
+                duration_ms=(time.perf_counter() - t0) * 1000,
+            )
+        # On Windows, if no binary/shortcut/protocol was found, do not silently
+        # substitute a website for the requested desktop application.
+        return ToolResult(
+            success=False,
+            tool="open_application",
+            action="open_application",
+            target=clean_app,
+            message=f"Windows application '{clean_app}' could not be found.",
+            error="application_not_found",
+            data={"platform": os.name, "application": lower},
+            duration_ms=(time.perf_counter() - t0) * 1000,
+        )
+
     # 6. Check if it resolves to a popular web application (e.g. facebook, instagram)
     web_domain = resolve_web_domain(lower)
     if web_domain and "." in web_domain:

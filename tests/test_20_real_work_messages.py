@@ -69,6 +69,7 @@ def summarize(payload):
         "inputs": step.get("inputs") or {},
         "step_status": step.get("status"),
         "error": (step.get("result") or {}).get("error"),
+        "step_result": step.get("result") or {},
     }
 
 def main():
@@ -123,7 +124,14 @@ def main():
         except subprocess.TimeoutExpired: server.kill()
         try: log_handle.close()
         except Exception: pass
-        if SERVER_LOG.exists(): SERVER_LOG.unlink()
+        if SERVER_LOG.exists():
+            if any(not ok for _, _, ok, _ in results):
+                print("\\n=== JARVIS SERVER LOG TAIL FOR FAILED BLACK-BOX STEPS ===")
+                try:
+                    print(SERVER_LOG.read_text(encoding="utf-8", errors="replace")[-12000:])
+                except Exception as log_error:
+                    print(f"Could not read diagnostic log: {log_error}")
+            SERVER_LOG.unlink()
     passed = sum(1 for _, _, ok, _ in results if ok)
     print("\n=== BLACK-BOX 22-TURN SUMMARY ===")
     print(f"PASSED={passed}/22")

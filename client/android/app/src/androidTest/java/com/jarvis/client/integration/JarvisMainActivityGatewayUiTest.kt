@@ -73,13 +73,19 @@ class JarvisMainActivityGatewayUiTest {
                 SystemClock.sleep(300)
                 scenario.onActivity { activity ->
                     assertFalse("Settings should not close the app", activity.isFinishing)
+                }
+
+                // Wait for the real gateway connection before sending. "stop" has a
+                // deterministic server response and does not depend on unavailable CI LLMs.
+                waitForVisibleText("CONNECTED", 25_000L)
+                scenario.onActivity { activity ->
                     val messageInput = activity.findViewById<android.widget.EditText>(com.jarvis.client.R.id.etMessageInput)
-                    messageInput.setText("What is 12 multiplied by 12?")
+                    messageInput.setText("stop")
                     val sendButton = activity.findViewById<android.view.View>(com.jarvis.client.R.id.btnSendMessage)
                     check(sendButton.isShown && sendButton.isEnabled) { "Send control is not visible/enabled" }
                     sendButton.performClick()
                 }
-                waitForVisibleText("The answer is 144.", 30_000L)
+                waitForVisibleText("Stopped.", 15_000L)
             }
         } finally {
             app.repository.stop()

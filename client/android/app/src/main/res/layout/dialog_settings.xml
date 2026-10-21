@@ -6,6 +6,7 @@
     android:padding="20dp">
 
     <LinearLayout
+        android:id="@+id/settingsContentLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">

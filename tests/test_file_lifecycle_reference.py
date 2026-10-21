@@ -136,9 +136,18 @@ class TestFileLifecycleAndContentVerification(unittest.TestCase):
         rename_ev = PerceptionEvent(type="text_input", payload={"text": "Rename that file to jarvis_test_renamed.txt"}, active_persona="Jarvis")
         rename_res = orchestrator_core.process_event(rename_ev)
 
-        self.assertEqual(rename_res["status"], "completed")
+        # Renaming in a real user directory is outside the workspace sandbox and must
+        # not execute until the user explicitly confirms the staged transaction.
+        from orchestrator.context_manager import context_manager
+        self.assertTrue(context_manager.has_pending_confirmation(), rename_res.get("response", "Expected rename confirmation"))
+        self.assertTrue(target_file.exists(), "Source file must remain before confirmation")
+
+        confirm_ev = PerceptionEvent(type="text_input", payload={"text": "yes"}, active_persona="Jarvis")
+        confirm_res = orchestrator_core.process_event(confirm_ev)
+        self.assertEqual(confirm_res["status"], "completed")
         renamed_file = DOCUMENTS_DIR / "jarvis_test_renamed.txt"
-        self.assertTrue(renamed_file.exists(), "Renamed file must exist on disk")
+        self.assertTrue(renamed_file.exists(), "Renamed file must exist on disk after confirmation")
+        self.assertFalse(target_file.exists(), "Original name should no longer exist after confirmed rename")
 
     def test_05_delete_file_i_just_created_with_confirmation(self):
         """Test: delete 'the file I just created' with Two-Gate confirmation."""

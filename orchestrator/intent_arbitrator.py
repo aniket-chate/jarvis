@@ -106,32 +106,22 @@ class IntentArbitrator:
                         requires_confirmation=False,
                     )
             elif any(re.search(r"\b" + re.escape(w) + r"\b", low) for w in ["no", "cancel", "stop", "abort", "don't", "dont", "wait", "nevermind"]):
-                tx = context_manager.pop_confirmation()
-                if tx:
-                    try:
-                        from orchestrator.memory import memory_manager
-                        pending = memory_manager.get_pending_action() or {}
-                        pending_inputs = pending.get("inputs", {})
-                        pending_action = pending.get("action")
-                        pending_targets = {
-                            str(pending_inputs.get(key, ""))
-                            for key in ("path", "file_path", "target", "source", "src", "src_path")
-                            if pending_inputs.get(key)
-                        }
-                        tx_target = str(getattr(tx, "target", "") or "")
-                        if (
-                            pending_action == getattr(tx, "action", "")
-                            and (not pending_targets or not tx_target or tx_target in pending_targets)
-                        ):
-                            memory_manager.clear_pending_action()
-                    except Exception:
-                        logger.debug("Unable to clear cancelled confirmation memory action", exc_info=True)
-                logger.info("[IntentArbitrator] Explicitly cancelled pending transaction: %s", getattr(tx, "action", "action"))
+                # Read the transaction only; execution manager owns cancellation state changes.
+                tx = context_manager.get_pending_confirmation()
+                logger.info("[IntentArbitrator] Classified cancellation request for pending transaction.")
                 return StructuredIntent(
                     domain="system",
                     action="cancel_action",
-                    target=getattr(tx, "target", ""),
-                    params={"response": "Action cancelled. The operation was safely aborted.", "user_cancelled": True},
+                    target=getattr(tx, "target", "") if tx else "",
+                    params={
+                        "response": "Action cancelled. The operation was safely aborted.",
+                        "user_cancelled": True,
+                        "_confirmation": {
+                            "action": getattr(tx, "action", "") if tx else "",
+                            "target": getattr(tx, "target", "") if tx else "",
+                            "resolution": "cancel",
+                        },
+                    },
                     requires_confirmation=False,
                 )
 
@@ -191,7 +181,6 @@ class IntentArbitrator:
         m_persona = re.search(r"\b(?:call yourself|switch to|be|act as)\s+(friday|jarvis|ultron|omi)\b", low)
         if m_persona:
             target_p = m_persona.group(1).capitalize()
-            context_manager.set_persona(target_p)
             return StructuredIntent(
                 domain="system",
                 action="switch_persona",
@@ -263,9 +252,6 @@ class IntentArbitrator:
                 weather_time = "tonight"
             elif "today" in low:
                 weather_time = "today"
-
-            if hasattr(context_manager, "set_weather_context"):
-                context_manager.set_weather_context(weather_loc, weather_time)
 
             if not weather_loc:
                 prompt = "Which location should I use for the weather?"
@@ -368,12 +354,6 @@ class IntentArbitrator:
             if f_action == "create":
                 is_desktop = (dir_target == "desktop" or "desktop" in low)
                 if is_desktop:
-                    context_manager.stage_confirmation(
-                        action="create_file",
-                        domain="file",
-                        target=target_path,
-                        payload={"directory": dir_target, "filename": filename, "content": content_txt, "path": target_path},
-                    )
                     return StructuredIntent(
                         domain="file",
                         action="stage_file_creation",
@@ -399,29 +379,6 @@ class IntentArbitrator:
                 )
             elif f_action == "delete":
                 prompt = f"Please confirm deletion of '{Path(filename).name if filename else target_path}'."
-                pending_inputs = {
-                    "action": "delete_file",
-                    "path": target_path,
-                    "file_path": target_path,
-                    "directory": dir_target,
-                    "user_confirmed": True,
-                }
-                try:
-                    from orchestrator.memory import memory_manager
-                    memory_manager.set_pending_action({
-                        "action": "delete_file",
-                        "required_agent_type": "file_agent",
-                        "inputs": pending_inputs,
-                    })
-                    context_manager.stage_confirmation(
-                        action="delete_file",
-                        domain="file",
-                        target=target_path,
-                        payload=pending_inputs,
-                        original_request=clean,
-                    )
-                except Exception:
-                    logger.debug("Unable to stage delete confirmation", exc_info=True)
                 return StructuredIntent(
                     domain="file",
                     action="delete_file",

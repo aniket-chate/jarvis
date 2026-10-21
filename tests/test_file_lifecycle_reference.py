@@ -34,7 +34,12 @@ from agents.file_document_agent import DOCUMENTS_DIR, WORKSPACE_DIR
 
 class TestFileLifecycleAndContentVerification(unittest.TestCase):
     def setUp(self):
-        # Clean up any leftover jarvis_test.txt or test files
+        # Isolate singleton confirmation state between lifecycle tests.
+        from orchestrator.context_manager import context_manager
+        context_manager.pop_confirmation()
+        memory_manager.clear_pending_action()
+
+        # Clean up only test-owned files created by this test class.
         for p in [DOCUMENTS_DIR / "jarvis_test.txt", DOCUMENTS_DIR / "jarvis_test_renamed.txt", WORKSPACE_DIR / "jarvis_test.txt"]:
             if p.exists():
                 try:
@@ -61,15 +66,22 @@ class TestFileLifecycleAndContentVerification(unittest.TestCase):
         self.assertEqual(params["content"], "This is a real context reference test.")
         self.assertFalse(params["requires_clarification"])
 
-        # 2. Execution via Orchestrator Core
+        # 2. Execution via Orchestrator Core. Documents is outside the workspace
+        # sandbox, so the first request must ask for explicit approval.
         ev = PerceptionEvent(type="text_input", payload={"text": query}, active_persona="Jarvis")
-        res = orchestrator_core.process_event(ev)
+        pending_res = orchestrator_core.process_event(ev)
+        target_file = DOCUMENTS_DIR / "jarvis_test.txt"
+        self.assertTrue(pending_res.get("requires_confirmation") or pending_res.get("status") == "pending_approval")
+        self.assertFalse(target_file.exists(), "File must not be created before approval")
 
+        from orchestrator.context_manager import context_manager
+        self.assertTrue(context_manager.has_pending_confirmation())
+        confirm_ev = PerceptionEvent(type="text_input", payload={"text": "yes"}, active_persona="Jarvis")
+        res = orchestrator_core.process_event(confirm_ev)
         self.assertEqual(res["status"], "completed")
         self.assertTrue(res["verification"]["verified"])
 
         # Verify physical disk state
-        target_file = DOCUMENTS_DIR / "jarvis_test.txt"
         self.assertTrue(target_file.exists(), "Target file must exist on disk")
         written_content = target_file.read_text(encoding="utf-8")
         self.assertEqual(written_content, "This is a real context reference test.")

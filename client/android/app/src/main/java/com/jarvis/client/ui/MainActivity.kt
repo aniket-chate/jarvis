@@ -465,7 +465,9 @@ class MainActivity : AppCompatActivity() {
                         )
                     }
                 }
-                (dialogView as? android.view.ViewGroup)?.addView(
+                // dialog_settings is a ScrollView; add dynamic controls to its
+                // single vertical content child rather than the ScrollView itself.
+                dialogView.findViewById<android.widget.LinearLayout>(R.id.settingsContentLayout).addView(
                     assistantButton,
                     0,
                     android.view.ViewGroup.LayoutParams(

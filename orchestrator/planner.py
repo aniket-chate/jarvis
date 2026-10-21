@@ -335,7 +335,7 @@ class TaskPlanner:
                     "path": target,
                     "filename": params.get("filename", target),
                     "content": params.get("content", ""),
-                    "user_confirmed": True,
+                    "user_confirmed": params.get("_confirmation", {}).get("resolution") == "confirm",
                     "directory": params.get("directory", ""),
                 }
                 if params.get("_confirmation"):

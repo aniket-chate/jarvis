@@ -2,36 +2,37 @@ package com.jarvis.client.model
 
 import com.google.gson.annotations.SerializedName
 
-/**
- * Device registration and status models matching backend DeviceRegisterRequest and DeviceResponse.
- */
+/** Request/response models matching server.app DeviceRegisterRequest and gateway registry payloads. */
 data class DeviceRegisterRequest(
     @SerializedName("device_id") val deviceId: String,
     @SerializedName("name") val name: String,
-    @SerializedName("device_type") val deviceType: String = "android",
-    @SerializedName("platform") val platform: String = "android",
-    @SerializedName("capabilities") val capabilities: List<String>,
-    @SerializedName("metadata") val metadata: Map<String, Any>? = null
+    @SerializedName("client_type") val clientType: String = "phone",
+    @SerializedName("ip_address") val ipAddress: String? = null,
+    @SerializedName("capabilities") val capabilities: List<String>? = null
 )
 
 data class DeviceResponse(
-    @SerializedName("device_id") val deviceId: String,
-    @SerializedName("user_id") val userId: String,
-    @SerializedName("name") val name: String,
-    @SerializedName("device_type") val deviceType: String,
-    @SerializedName("platform") val platform: String,
-    @SerializedName("capabilities") val capabilities: List<String>,
-    @SerializedName("status") val status: String,
-    @SerializedName("last_seen") val lastSeen: String,
-    @SerializedName("metadata") val metadata: Map<String, Any>? = null
+    @SerializedName("device_id") val deviceId: String = "",
+    @SerializedName("name") val name: String = "",
+    @SerializedName("client_type") val clientType: String = "",
+    @SerializedName("ip_address") val ipAddress: String? = null,
+    @SerializedName("capabilities") val capabilities: List<String> = emptyList(),
+    @SerializedName("trust_state") val trustState: String = "untrusted",
+    @SerializedName("online") val online: Boolean = false,
+    @SerializedName("latency_ms") val latencyMs: Double? = null,
+    @SerializedName("has_active_ws") val hasActiveWebSocket: Boolean = false,
+    @SerializedName("last_seen_epoch") val lastSeenEpoch: Double? = null,
+    @SerializedName("paired_at") val pairedAt: String? = null
 ) {
     val isOnline: Boolean
-        get() = status.equals("online", ignoreCase = true)
+        get() = online
 }
 
+/** The gateway heartbeat response is {status: alive|unknown_device, device_id: ...}. */
 data class HeartbeatResponse(
-    @SerializedName("success") val success: Boolean,
-    @SerializedName("device_id") val deviceId: String,
-    @SerializedName("status") val status: String,
-    @SerializedName("last_seen") val lastSeen: String
-)
+    @SerializedName("device_id") val deviceId: String = "",
+    @SerializedName("status") val status: String = "unknown_device"
+) {
+    val success: Boolean
+        get() = status == "alive"
+}

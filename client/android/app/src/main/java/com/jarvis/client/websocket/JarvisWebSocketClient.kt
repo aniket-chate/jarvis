@@ -80,8 +80,14 @@ class JarvisWebSocketClient(
     val errorEvents: SharedFlow<WsError> = _errorEvents.asSharedFlow()
 
     fun connect() {
-        if (_connectionState.value == ConnectionState.CONNECTED || _connectionState.value == ConnectionState.AUTHENTICATED) {
-            Log.d(tag, "WebSocket already connected.")
+        if (_connectionState.value in setOf(
+                ConnectionState.CONNECTING,
+                ConnectionState.CONNECTED,
+                ConnectionState.AUTHENTICATING,
+                ConnectionState.AUTHENTICATED
+            )
+        ) {
+            Log.d(tag, "WebSocket connection is already active or in progress.")
             return
         }
 

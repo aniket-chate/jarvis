@@ -140,9 +140,21 @@ class ExecutionManager:
                             from orchestrator.memory import memory_manager
                             pending = memory_manager.get_pending_action() or {}
                             pending_inputs = pending.get("inputs", {})
+                            confirmed_action = inputs.get("_confirmation", {}).get("action")
+                            pending_action = pending.get("action")
+                            pending_targets = {
+                                str(pending_inputs.get(key, ""))
+                                for key in ("path", "file_path", "target", "source", "src", "src_path")
+                                if pending_inputs.get(key)
+                            }
+                            confirmed_targets = {
+                                str(inputs.get(key, ""))
+                                for key in ("path", "file_path", "target", "source", "src", "src_path")
+                                if inputs.get(key)
+                            }
                             if (
-                                pending_inputs.get("action") == "create_file"
-                                and pending_inputs.get("path") == inputs.get("path")
+                                pending_action == confirmed_action
+                                and (not pending_targets or not confirmed_targets or pending_targets.intersection(confirmed_targets))
                             ):
                                 memory_manager.clear_pending_action()
                         except Exception:

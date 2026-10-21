@@ -9,8 +9,8 @@ RENAMED_NAME = f"jarvis_conversation_renamed_{uuid.uuid4().hex[:8]}.txt"
 BASE = "http://127.0.0.1:8765"
 LOG = ROOT / "blackbox_30_server.log"
 
-SONG_ONE = os.environ.get("JARVIS_TEST_SONG_1", "music").strip()
-SONG_TWO = os.environ.get("JARVIS_TEST_SONG_2", "music").strip()
+SONG_ONE = os.environ.get("JARVIS_TEST_SONG_1", "").strip()
+SONG_TWO = os.environ.get("JARVIS_TEST_SONG_2", "").strip()
 
 COMMANDS = [
     "Hi Jarvis, are you ready?",
@@ -37,8 +37,8 @@ COMMANDS = [
     "Switch back to the previous Git branch.",
     "Open YouTube.",
     "Play a song.",
-    f"Play {SONG_ONE} on YouTube.",
-    f"Play {SONG_TWO} on YouTube.",
+    f"Play {SONG_ONE} on YouTube." if SONG_ONE else "Play a song.",
+    f"Play {SONG_TWO} on YouTube." if SONG_TWO else "Play a song.",
     "Pause it.",
     "Resume it.",
     "What page am I looking at?",
@@ -81,6 +81,8 @@ def main():
     results = []
     external_blocks = []
     dependent_media_blocks = []
+    media_query_missing_turns = []
+    media_queries_configured = bool(SONG_ONE and SONG_TWO)
     try:
         deadline = time.time() + 60
         while time.time() < deadline:
@@ -109,18 +111,22 @@ def main():
                 result.get("status") == "external_access_required"
                 or (result.get("output") or {}).get("status") == "external_access_required"
             )
-            dependent_media_block = n in (27, 28) and bool(set(external_blocks).intersection({25, 26}))
+            media_query_missing = n in (25, 26) and not media_queries_configured
+            dependent_media_block = n in (27, 28) and (bool(set(external_blocks).intersection({25, 26})) or not media_queries_configured)
             ok = (
                 status == 200
                 and payload.get("status") == "ok"
                 and s["plan_status"] in {"completed", "blocked", "pending_approval"}
                 and not external_media_block
                 and not dependent_media_block
+                and not media_query_missing
             )
             if external_media_block:
                 external_blocks.append(n)
             if dependent_media_block:
                 dependent_media_blocks.append(n)
+            if media_query_missing:
+                media_query_missing_turns.append(n)
             if n == 2: ok &= "144" in response
             if n == 3: ok &= "can help" in response
             if n == 8: ok &= s["plan_status"] == "pending_approval" and "confirm" in response
@@ -135,8 +141,10 @@ def main():
             if n == 21: ok &= "when should" in response
             if n == 22: ok &= "which branch" in response
             if n == 24: ok &= "which song" in response or "which media" in response
-            if n == 25 and n not in external_blocks: ok &= result.get("is_playing") is True and float(result.get("delta_time", 0)) >= 0.4
-            if n == 26 and n not in external_blocks: ok &= result.get("is_playing") is True and result.get("browser_tab_reused") is True
+            if n == 25 and media_queries_configured and n not in external_blocks: ok &= result.get("is_playing") is True and float(result.get("delta_time", 0)) >= 0.4
+            if n == 26 and media_queries_configured and n not in external_blocks: ok &= result.get("is_playing") is True and result.get("browser_tab_reused") is True
+            if n in (25, 26) and not media_queries_configured:
+                ok &= "which song" in response or "which media" in response
             if n == 27: ok &= "pause" in response
             if n == 28: ok &= "resume" in response or "playing" in response
             results.append((n, command, ok, latency, s))
@@ -157,24 +165,28 @@ def main():
             LOG.unlink()
 
     passed = sum(1 for _, _, ok, _, _ in results if ok)
-    blocked = sorted(set(external_blocks + dependent_media_blocks))
+    blocked = sorted(set(external_blocks + dependent_media_blocks + media_query_missing_turns))
     print(f"PASSED={passed}/32")
     if external_blocks:
         print(f"EXTERNAL_MEDIA_BLOCKED_TURNS={sorted(set(external_blocks))}")
         print("Blocked playback is reported separately and is never counted as verified playback.")
         print("Manual playback acceptance is required when the browser session is not authenticated with YouTube.")
+    if media_query_missing_turns:
+        print(f"MEDIA_QUERY_NOT_CONFIGURED_TURNS={sorted(set(media_query_missing_turns))}")
+        print("No default song is invented; configure JARVIS_TEST_SONG_1 and JARVIS_TEST_SONG_2 to test live playback.")
     if dependent_media_blocks:
         print(f"DEPENDENT_MEDIA_NOT_VERIFIED_TURNS={sorted(set(dependent_media_blocks))}")
-        print("Pause/resume turns are not counted as passing when playback itself was blocked.")
+        print("Pause/resume turns are not counted as passing when playback itself was blocked or not configured.")
     allow_blocked = os.environ.get("JARVIS_ALLOW_EXTERNAL_MEDIA_BLOCK", "").strip().lower() == "true"
-    only_explicit_media_blocks = (
+    only_explicit_media_unverified = (
         allow_blocked
         and len(results) == 32
         and passed + len(blocked) == 32
         and set(external_blocks).issubset({25, 26})
+        and set(media_query_missing_turns).issubset({25, 26})
         and set(dependent_media_blocks).issubset({27, 28})
     )
-    if passed != 32 and not only_explicit_media_blocks:
+    if passed != 32 and not only_explicit_media_unverified:
         raise SystemExit(1)
 
 if __name__ == "__main__":

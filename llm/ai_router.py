@@ -640,7 +640,15 @@ class MultiProviderAIRouter:
             force_ollama_failure=force_ollama_failure,
             task_category=task,
         )
-        yield res.get("response", "")
+        response_text = str(res.get("response") or "")
+        if (
+            res.get("fallback_occurred")
+            and res.get("provider") == "rule_based"
+            and not any(marker in response_text.casefold() for marker in ("fallback", "model unavailable", "unreachable"))
+        ):
+            yield "Local model unavailable; using the safe rule-based fallback. "
+        if response_text:
+            yield response_text
 
 
 # Global AI router instance

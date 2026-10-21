@@ -77,7 +77,7 @@ class JarvisMainActivityGatewayUiTest {
 
                 // Wait for the real gateway connection before sending. "stop" has a
                 // deterministic server response and does not depend on unavailable CI LLMs.
-                waitForVisibleText("CONNECTED", 25_000L)
+                waitForVisibleText("AUTHENTICATED", 25_000L)
                 scenario.onActivity { activity ->
                     val messageInput = activity.findViewById<android.widget.EditText>(com.jarvis.client.R.id.etMessageInput)
                     messageInput.setText("stop")

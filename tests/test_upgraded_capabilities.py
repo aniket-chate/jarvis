@@ -156,8 +156,14 @@ def test_3_windows_laptop_agent_sandbox_and_app_allowlist(tmp_path):
     # 5. Allowlisted Desktop App Launch
     allowed_app = "notepad"
     launch_res = system_control_agent.launch_app(app_name=allowed_app, user_confirmed=True)
-    assert launch_res["success"] is True
-    assert launch_res["status"] == "launched"
+    if os.name == "nt":
+        assert launch_res["success"] is True
+        assert launch_res["status"] == "launched"
+    else:
+        # CI runs on Linux: do not claim a native Windows app launched or silently
+        # redirect "notepad" to a similarly named website.
+        assert launch_res["success"] is False
+        assert launch_res.get("error") == "platform_not_supported"
 
     # 6. Unlisted App Launch MUST be rejected
     unlisted_app = "malicious_ransomware.exe"

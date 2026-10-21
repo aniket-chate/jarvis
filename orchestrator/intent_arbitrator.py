@@ -5,6 +5,7 @@ regex collisions and ambiguous pronoun failures.
 """
 
 import re
+from pathlib import Path
 import logging
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List
@@ -389,11 +390,43 @@ class IntentArbitrator:
                     requires_confirmation=False,
                 )
             elif f_action == "delete":
+                prompt = f"Please confirm deletion of '{Path(filename).name if filename else target_path}'."
+                pending_inputs = {
+                    "action": "delete_file",
+                    "path": target_path,
+                    "file_path": target_path,
+                    "directory": dir_target,
+                    "user_confirmed": True,
+                }
+                try:
+                    from orchestrator.memory import memory_manager
+                    memory_manager.set_pending_action({
+                        "action": "delete_file",
+                        "required_agent_type": "file_agent",
+                        "inputs": pending_inputs,
+                    })
+                    context_manager.stage_confirmation(
+                        action="delete_file",
+                        domain="file",
+                        target=target_path,
+                        payload=pending_inputs,
+                        original_request=clean,
+                    )
+                except Exception:
+                    logger.debug("Unable to stage delete confirmation", exc_info=True)
                 return StructuredIntent(
                     domain="file",
                     action="delete_file",
                     target=target_path,
-                    params={"action": "delete_file", "path": target_path, "file_path": target_path, "directory": dir_target},
+                    params={
+                        "action": "delete_file",
+                        "path": target_path,
+                        "file_path": target_path,
+                        "directory": dir_target,
+                        "requires_confirmation": True,
+                        "confirmation_prompt": prompt,
+                        "response": prompt,
+                    },
                     requires_confirmation=True,
                 )
             elif f_action == "move":

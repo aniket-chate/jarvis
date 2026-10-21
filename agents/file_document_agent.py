@@ -14,7 +14,7 @@ import os
 import shutil
 import fnmatch
 import logging
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Dict, Any, List, Optional
 
 from config.settings import PROJECT_ROOT
@@ -68,17 +68,25 @@ class FileDocumentAgent:
             return self.allowed_roots.get(default_dir.lower(), self.sandbox_root)
 
         clean_path = path_str.strip().replace('"', '').replace("'", "")
+        # Normalize Windows separators for traversal checks even when the audit/test
+        # runner is POSIX. A Windows drive/UNC path must not be reinterpreted as a
+        # harmless relative filename on Linux.
+        windows_path = PureWindowsPath(clean_path)
+        if os.name != "nt" and (windows_path.is_absolute() or windows_path.drive):
+            raise PermissionError(f"Access denied: Windows absolute path '{clean_path}' is not valid in this environment.")
+        normalized_path = clean_path.replace("\\", os.sep).replace("/", os.sep)
 
-        # Check for forbidden credential/secret patterns in the filename
-        file_name = os.path.basename(clean_path)
+        # Check for forbidden credential/secret patterns in the filename using both
+        # platform path grammars (ntpath semantics are supplied by PureWindowsPath).
+        file_name = windows_path.name if windows_path.name else os.path.basename(normalized_path)
         for pattern in FORBIDDEN_FILE_PATTERNS:
             if fnmatch.fnmatch(file_name.lower(), pattern):
                 raise PermissionError(f"Access to sensitive credential file '{file_name}' is strictly forbidden.")
 
         # Determine target root
-        lower = clean_path.lower()
+        lower = normalized_path.lower()
         matched_root = None
-        rel_portion = clean_path
+        rel_portion = normalized_path
 
         if lower.startswith("documents:") or lower.startswith("documents/") or lower.startswith("documents\\") or "documents" in lower.split(os.sep):
             matched_root = DOCUMENTS_DIR
@@ -99,7 +107,7 @@ class FileDocumentAgent:
         else:
             matched_root = self.allowed_roots.get(default_dir.lower(), self.sandbox_root)
 
-        target_path = Path(clean_path)
+        target_path = Path(normalized_path)
         if target_path.is_absolute():
             resolved = target_path.resolve()
         else:

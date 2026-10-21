@@ -16,6 +16,12 @@ class WeatherAgent:
 
     def get_weather(self, location: str = "Delhi", time_target: str = "now") -> Dict[str, Any]:
         logger.info("[WeatherAgent] Fetching weather for '%s' (time_target=%s)", location, time_target)
+        # Persist conversational weather context only when the actual agent executes.
+        try:
+            from orchestrator.context_manager import context_manager
+            context_manager.set_weather_context(location, time_target)
+        except Exception:
+            logger.debug("[WeatherAgent] Unable to persist weather context", exc_info=True)
         try:
             from capabilities.intelligence import capability_intelligence
             provider = capability_intelligence.select_provider("info.get_weather")

@@ -19,6 +19,7 @@ import os
 import sys
 import json
 import logging
+import pytest
 from pathlib import Path
 from typing import Dict, Any
 
@@ -169,6 +170,13 @@ def test_7_identity_agent():
     # 1. Genuine face embedding (using owner profile embedding)
     profile = identity_agent.owner_profile
     owner_emb = profile.get("face_embedding")
+
+    if not profile.get("registered") or not owner_emb:
+        # A CI checkout intentionally has no enrolled biometric template. Verify fail-closed
+        # behavior rather than treating a missing template as a successful owner match.
+        match_res = identity_agent.verify_face(owner_emb or [])
+        assert match_res.get("match") is False
+        pytest.skip("No enrolled owner biometric profile is available in this environment.")
 
     match_res = identity_agent.verify_face(owner_emb)
     print(f"[Owner Face Verification]:\n{json.dumps(match_res, indent=2)}")

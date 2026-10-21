@@ -156,21 +156,34 @@ class WeatherLookupSkill:
             return {"success": False, "error": "Location cannot be empty."}
 
         try:
-            # 1. Geocoding via Open-Meteo
-            geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(location)}&count=1&language=en&format=json"
+            # 1. Geocoding via Open-Meteo. Fetch multiple candidates and prefer an exact
+            # normalized city-name match before falling back to the provider's ranking.
+            geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(location)}&count=10&language=en&format=json"
             headers = {"User-Agent": "JARVIS-Assistant/2.0"}
 
             with httpx.Client(timeout=self.timeout) as client:
                 geo_resp = client.get(geo_url, headers=headers)
 
-            if geo_resp.status_code != 200 or not geo_resp.json().get("results"):
+            candidates = geo_resp.json().get("results", []) if geo_resp.status_code == 200 else []
+            if not candidates:
                 return {
                     "success": False,
                     "location": location,
                     "error": f"Could not resolve coordinates for '{location}'."
                 }
 
-            geo_data = geo_resp.json()["results"][0]
+            def _normalize_place(value: str) -> str:
+                return "".join(ch for ch in value.casefold() if ch.isalnum())
+
+            requested = _normalize_place(location)
+            exact_matches = [
+                item for item in candidates
+                if _normalize_place(str(item.get("name", ""))) == requested
+            ]
+            geo_data = max(
+                exact_matches or candidates,
+                key=lambda item: int(item.get("population") or 0),
+            )
             lat = geo_data["latitude"]
             lon = geo_data["longitude"]
             city_name = geo_data.get("name", location)

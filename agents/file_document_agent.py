@@ -267,18 +267,30 @@ class FileDocumentAgent:
             )
             if not perm.allowed:
                 from orchestrator.memory import memory_manager
+                pending_inputs = {
+                    "action": "move_file",
+                    "source": str(src),
+                    "src": str(src),
+                    "destination": str(dest),
+                    "dest": str(dest),
+                    "user_confirmed": True,
+                }
                 memory_manager.set_pending_action({
                     "action": "move_file",
                     "required_agent_type": "file_agent",
-                    "inputs": {
-                        "action": "move_file",
-                        "source": str(src),
-                        "src": str(src),
-                        "destination": str(dest),
-                        "dest": str(dest),
-                        "user_confirmed": True
-                    }
+                    "inputs": pending_inputs,
                 })
+                try:
+                    from orchestrator.context_manager import context_manager
+                    context_manager.stage_confirmation(
+                        action="move_file",
+                        domain="file",
+                        target=str(src),
+                        payload=pending_inputs,
+                        original_request=f"Move {src.name} to {dest}",
+                    )
+                except Exception:
+                    logger.debug("Unable to stage move confirmation", exc_info=True)
                 logger.warning("[FileDocumentAgent] Blocked move_file pending approval: %s -> %s", src, dest)
                 return {
                     "success": False,

@@ -274,6 +274,10 @@ class ContinuousLearningEngine:
             "exploration_rate": self.policy.exploration_rate,
         }
 
+    def choose_preferred_option(self, candidates: List[str], explore: bool = False) -> Tuple[str, str]:
+        """Select a safe candidate through the learned policy without exposing policy internals."""
+        return self.policy.select_action(candidates, explore_override=explore)
+
     def get_status_summary(self) -> Dict[str, Any]:
         """Returns live summary of continuous learning metrics, Q-values, and evidence."""
         with self._lock:
@@ -326,6 +330,7 @@ class ContinuousLearningEngine:
             mem.remember(key=k, value=v, persistent=True)
 
         after_memory = dict(mem.get_all_persistent())
+        new_keys_added = sorted(set(after_memory) - set(before_memory))
         logger.info("[ContinuousLearning] Committed %d adaptive observations to persistent memory", len(observations))
 
         return {
@@ -334,6 +339,7 @@ class ContinuousLearningEngine:
             "policy_summary": self.policy.to_dict(),
             "before_memory": before_memory,
             "after_memory": after_memory,
+            "new_keys_added": new_keys_added,
         }
 
     # -------------------------------------------------------------------------

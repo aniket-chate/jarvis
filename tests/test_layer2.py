@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from config.settings import settings
+from config.settings import settings, PROJECT_ROOT
 from perception.events import PerceptionEvent
 from orchestrator.planner import task_planner, TaskPlan, TaskStep
 from orchestrator.router import agent_registry, agent_router

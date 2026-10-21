@@ -75,11 +75,13 @@ class OrchestratorCore:
         for step in plan.steps:
             if step.inputs.get("requires_confirmation") and not step.inputs.get("user_confirmed", False):
                 staged = self.executor.stage_confirmation(plan, step)
-                prompt = (
-                    step.inputs.get("confirmation_prompt")
-                    or staged.get("message")
-                    or "This action requires your explicit confirmation before it can continue."
-                )
+                if not staged.get("success"):
+                    prompt = staged.get("message") or "Please resolve the pending action before starting another sensitive operation."
+                else:
+                    prompt = (
+                        step.inputs.get("confirmation_prompt")
+                        or "This action requires your explicit confirmation before it can continue."
+                    )
                 step.status = "pending_approval"
                 step.result = {
                     "success": False,

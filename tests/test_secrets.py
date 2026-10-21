@@ -12,6 +12,7 @@ import os
 import sys
 import tempfile
 import logging
+import pytest
 from pathlib import Path
 from typing import Dict, Any
 
@@ -40,7 +41,7 @@ def test_1_all_keys_startup_audit():
     assert report["keys_present"]["TAVILY_API_KEY"] is bool(settings.tavily_api_key)
     assert report["keys_present"]["BRAVE_API_KEY"] is bool(settings.brave_api_key)
     assert report["modules_status"]["web_search"] == ("ACTIVE" if settings.search_available else "DISABLED")
-    assert all(status in {"ACTIVE", "DISABLED", "PARTIAL"} for status in report["modules_status"].values())
+    assert all(status in {"ACTIVE", "DISABLED", "PARTIAL", "ENFORCED"} for status in report["modules_status"].values())
 
 def test_2_remove_one_key_degradation():
     """Removing optional search keys must disable search without touching a real .env file."""

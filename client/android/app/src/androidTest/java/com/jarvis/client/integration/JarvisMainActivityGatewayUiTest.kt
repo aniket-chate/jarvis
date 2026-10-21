@@ -55,8 +55,14 @@ class JarvisMainActivityGatewayUiTest {
 
         try {
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                // Ensure the launched app owns a focused window before Espresso injects touch events.
+                scenario.onActivity { activity ->
+                    activity.window.decorView.requestFocus()
+                    activity.window.decorView.isFocusableInTouchMode = true
+                }
+                SystemClock.sleep(750)
                 // This exercises the actual Settings button and dialog instead of only testing the repository.
-                onView(withId(com.jarvis.client.R.id.btnOpenSettings)).perform(click())
+                onView(withId(com.jarvis.client.R.id.btnOpenSettings)).check(matches(isDisplayed())).perform(click())
                 onView(withId(com.jarvis.client.R.id.etBackendUrl)).check(matches(isDisplayed()))
                 onView(withId(android.R.id.button2)).perform(click())
                 scenario.onActivity { activity ->

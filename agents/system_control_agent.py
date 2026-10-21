@@ -571,8 +571,28 @@ class SystemControlAgent:
         app_name: str,
         user_confirmed: bool = False
     ) -> Dict[str, Any]:
-        """Safely launches a desktop application or protocol handler."""
+        """Launches allowlisted desktop applications or recognized web destinations."""
         from agents.action_tools import open_application
+        from utils.fuzzy_matcher import normalize_query, match_app_or_site
+
+        normalized = normalize_query((app_name or "").strip()).casefold()
+        matched = (match_app_or_site(normalized) or normalized).casefold()
+        is_explicit_web_destination = (
+            normalized.startswith(("http://", "https://"))
+            or normalized.endswith((".com", ".org", ".net"))
+            or matched.startswith(("http://", "https://"))
+            or matched.endswith((".com", ".org", ".net"))
+        )
+        if normalized not in ALLOWLISTED_DESKTOP_APPS and not is_explicit_web_destination:
+            return {
+                "success": False,
+                "status": "blocked",
+                "action": "launch_app",
+                "target": app_name,
+                "error": f"Application '{app_name}' is not in the allowlist.",
+                "message": "Application launch blocked by the desktop app allowlist.",
+            }
+
         res = open_application(app_name)
         return res.to_dict()
 
@@ -625,10 +645,10 @@ class SystemControlAgent:
             return d
 
         elif action in ["open_application", "launch_app", "open_app", "launch"]:
-            res = open_application(target)
-            d = res.to_dict()
-            d["response"] = res.message
-            return d
+            return self.launch_app(
+                app_name=str(target),
+                user_confirmed=bool(inputs.get("user_confirmed", False)),
+            )
 
         elif action in ["close_application", "close_app", "kill_app"]:
             res = close_application(target)

@@ -60,13 +60,19 @@ class OrchestratorCore:
                 "plan": plan.to_dict(),
             }
 
+        # Cancellation state is consumed at the execution boundary, not by intent classification.
+        if any(step.inputs.get("action") == "cancel_action" for step in plan.steps):
+            self.executor.cancel_pending_confirmation()
+
         # 3. Surface explicit confirmation requirements before generic guardrails.
-        # This stages no side effects: the intent layer has already recorded the pending
-        # transaction, and execution resumes only after a separate affirmative user turn.
+        # The executor stages the transaction and its legacy memory payload here, so
+        # every confirmation path (including contextual file references) behaves alike.
         for step in plan.steps:
             if step.inputs.get("requires_confirmation") and not step.inputs.get("user_confirmed", False):
+                staged = self.executor.stage_confirmation(plan, step)
                 prompt = (
                     step.inputs.get("confirmation_prompt")
+                    or staged.get("message")
                     or "This action requires your explicit confirmation before it can continue."
                 )
                 step.status = "pending_approval"

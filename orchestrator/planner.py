@@ -593,8 +593,18 @@ class TaskPlanner:
             return None
         if "news" in lower and ("email" in lower or "draft" in lower or "send" in lower):
             return {"type": "news_and_email"}
-        if ("search" in lower or "find" in lower) and ("and save" in lower or "save to file" in lower or "save to a file" in lower or "save it to" in lower):
-            return {"type": "search_and_save"}
+        save_target = re.search(
+            r"\b(?:and\s+then\s+)?(?:save|write|store)\s+(?:(?:the\s+)?(?:results|findings|summary)\s+)?(?:to|in)\s+['\"]?([\w.-]+\.(?:txt|md|csv|json|log))",
+            text,
+            re.IGNORECASE,
+        )
+        if ("search" in lower or "find" in lower) and (
+            save_target or "and save" in lower or "save to file" in lower or "save to a file" in lower or "save it to" in lower
+        ):
+            return {
+                "type": "search_and_save",
+                "filename": save_target.group(1) if save_target else None,
+            }
 
         # Generalized coordinate conjunction clause decomposition
         parts = re.split(r",?\s+(?:and\s+then|then|and)\s+", text, flags=re.IGNORECASE)
@@ -648,18 +658,29 @@ class TaskPlanner:
             steps.extend([step_1, step_2])
 
         elif intent_info["type"] == "search_and_save":
+            filename = intent_info.get("filename") or "search_results.txt"
+            directory_match = re.search(r"\b(?:in|under)\s+(workspace|documents|downloads|desktop)\b", goal, re.IGNORECASE)
+            directory = directory_match.group(1).lower() if directory_match else "workspace"
+            save_clause = re.search(r"\s+and\s+(?:then\s+)?(?:save|write|store)\b.*$", goal, re.IGNORECASE)
+            search_query = goal[:save_clause.start()].strip() if save_clause else goal
             step_1 = TaskStep(
                 step_id=f"{plan_id}_step_1",
                 description="Execute web search",
                 required_agent_type="web_agent",
-                inputs={"query": goal},
+                inputs={"query": search_query},
                 depends_on=[],
             )
             step_2 = TaskStep(
                 step_id=f"{plan_id}_step_2",
-                description="Save research findings to file",
+                description=f"Save search results to {directory}:{filename}",
                 required_agent_type="file_agent",
-                inputs={"action": "save", "filename": "search_results.txt"},
+                inputs={
+                    "action": "save",
+                    "filename": filename,
+                    "path": filename,
+                    "directory": directory,
+                    "content": "",
+                },
                 depends_on=[step_1.step_id],
             )
             steps.extend([step_1, step_2])

@@ -1,0 +1,49 @@
+name: Full Repository Audit
+
+on:
+  push:
+    branches:
+      - "qa/full-repository-audit-2026-10-21"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-repository-audit
+  cancel-in-progress: true
+
+jobs:
+  python-full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GATEWAY_AUTH_TOKEN: audit-ci-only-token-not-for-production
+      JARVIS_LLM_PROVIDER: ollama
+      JARVIS_LLM_FALLBACK_ENABLED: "false"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Checkout audited commit
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install repository dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio uvicorn fastapi pydantic python-dotenv pyyaml numpy scikit-learn joblib httpx websockets psutil apscheduler
+
+      - name: Compile every Python source
+        run: python -m compileall -q .
+
+      - name: Collect full test suite
+        run: pytest --collect-only -q
+
+      - name: Run full pytest suite
+        run: pytest -q --tb=short

@@ -60,7 +60,34 @@ class OrchestratorCore:
                 "plan": plan.to_dict(),
             }
 
-        # 3. Apply Safety Guardrails before execution
+        # 3. Surface explicit confirmation requirements before generic guardrails.
+        # This stages no side effects: the intent layer has already recorded the pending
+        # transaction, and execution resumes only after a separate affirmative user turn.
+        for step in plan.steps:
+            if step.inputs.get("requires_confirmation") and not step.inputs.get("user_confirmed", False):
+                prompt = (
+                    step.inputs.get("confirmation_prompt")
+                    or "This action requires your explicit confirmation before it can continue."
+                )
+                step.status = "pending_approval"
+                step.result = {
+                    "success": False,
+                    "status": "pending_approval",
+                    "requires_confirmation": True,
+                    "prompt": prompt,
+                    "response": prompt,
+                }
+                plan.status = "pending_approval"
+                return {
+                    "trace_id": plan.plan_id,
+                    "type": "confirmation_required",
+                    "active_persona": plan.active_persona,
+                    "status": "pending_approval",
+                    "response": prompt,
+                    "plan": plan.to_dict(),
+                }
+
+        # 4. Apply Safety Guardrails before execution
         for step in plan.steps:
             is_safe, reason = self.guardrail.evaluate_step(step, plan.active_persona)
             if not is_safe:

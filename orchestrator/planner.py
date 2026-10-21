@@ -361,6 +361,7 @@ class TaskPlanner:
                     "path": p,
                     "file_path": p,
                     "directory": params.get("directory", ""),
+                    "user_confirmed": params.get("_confirmation", {}).get("resolution") == "confirm",
                 }
                 if params.get("_confirmation"):
                     delete_inputs["_confirmation"] = params["_confirmation"]
@@ -370,20 +371,38 @@ class TaskPlanner:
                     required_agent_type="file_agent",
                     inputs=delete_inputs
                 )
-            elif act == "move_file":
+            elif act in ["move_file", "confirmed_move_file"]:
+                move_inputs = {
+                    "action": "move",
+                    "source": params.get("source") or params.get("src") or target,
+                    "destination": params.get("destination") or params.get("dest") or "",
+                    "user_confirmed": params.get("_confirmation", {}).get("resolution") == "confirm",
+                }
+                if params.get("_confirmation"):
+                    move_inputs["_confirmation"] = params["_confirmation"]
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
                     description=f"Move file: {target}",
                     required_agent_type="file_agent",
-                    inputs={"action": "move", "source": params.get("source", target), "destination": params.get("destination", ""), "user_confirmed": True}
+                    inputs=move_inputs
                 )
-            elif act in ["rename_file", "rename"]:
+            elif act in ["rename_file", "rename", "confirmed_rename_file"]:
                 new_n = params.get("new_name") or params.get("destination") or ""
+                rename_inputs = {
+                    "action": "rename",
+                    "source": params.get("src_path") or params.get("path") or target,
+                    "path": params.get("src_path") or params.get("path") or target,
+                    "new_name": new_n,
+                    "destination": new_n,
+                    "user_confirmed": params.get("_confirmation", {}).get("resolution") == "confirm",
+                }
+                if params.get("_confirmation"):
+                    rename_inputs["_confirmation"] = params["_confirmation"]
                 return TaskStep(
                     step_id=f"{plan_id}_step_1",
                     description=f"Rename file: {target} to {new_n}",
                     required_agent_type="file_agent",
-                    inputs={"action": "rename", "source": target, "path": target, "new_name": new_n, "destination": new_n, "user_confirmed": True}
+                    inputs=rename_inputs
                 )
             elif act == "search_file":
                 return TaskStep(

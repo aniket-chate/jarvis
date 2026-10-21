@@ -356,12 +356,15 @@ class TaskPlanner:
                 )
             elif act in ["confirmed_delete_file", "delete_file", "delete", "remove_file", "remove"]:
                 p = params.get("path") or params.get("file_path") or params.get("filename") or target
+                confirmed = params.get("_confirmation", {}).get("resolution") == "confirm"
                 delete_inputs = {
                     "action": "delete_file",
                     "path": p,
                     "file_path": p,
                     "directory": params.get("directory", ""),
-                    "user_confirmed": params.get("_confirmation", {}).get("resolution") == "confirm",
+                    "user_confirmed": confirmed,
+                    "requires_confirmation": not confirmed,
+                    "confirmation_prompt": params.get("confirmation_prompt", f"Please confirm deletion of '{p}'."),
                 }
                 if params.get("_confirmation"):
                     delete_inputs["_confirmation"] = params["_confirmation"]

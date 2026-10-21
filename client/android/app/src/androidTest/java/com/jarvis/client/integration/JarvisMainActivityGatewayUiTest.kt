@@ -79,7 +79,7 @@ class JarvisMainActivityGatewayUiTest {
                     check(sendButton.isShown && sendButton.isEnabled) { "Send control is not visible/enabled" }
                     sendButton.performClick()
                 }
-                waitForVisibleText("144", 30_000L)
+                waitForVisibleText("The answer is 144.", 30_000L)
             }
         } finally {
             app.repository.stop()

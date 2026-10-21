@@ -107,13 +107,10 @@ def main():
                 or (result.get("output") or {}).get("status") == "external_access_required"
             )
             ok = (
-                (status == 200 and payload.get("status") == "ok" and s["plan_status"] in {"completed", "blocked"})
-                or (
-                    external_media_block
-                    and result.get("browser_tab_count") == 1
-                    and result.get("browser_tab_reused") is True
-                    and bool(result.get("url"))
-                )
+                status == 200
+                and payload.get("status") == "ok"
+                and s["plan_status"] in {"completed", "blocked"}
+                and not external_media_block
             )
             if n == 2: ok &= "144" in response
             if n == 3: ok &= "can help" in response
@@ -123,12 +120,6 @@ def main():
             if n == 19: ok &= "when should" in response
             if n == 20: ok &= "which branch" in response
             if n == 22: ok &= "which song" in response or "which media" in response
-            if n in {23, 24} and (
-                result.get("status") == "external_access_required"
-                or (result.get("output") or {}).get("status") == "external_access_required"
-            ):
-                external_blocks.append(n)
-                ok = True
             if n == 23 and n not in external_blocks: ok &= result.get("is_playing") is True and float(result.get("delta_time", 0)) >= 0.4
             if n == 24 and n not in external_blocks: ok &= result.get("is_playing") is True and result.get("browser_tab_reused") is True
             if n == 25: ok &= "pause" in response
@@ -151,11 +142,20 @@ def main():
             LOG.unlink()
 
     passed = sum(1 for _, _, ok, _, _ in results if ok)
+    blocked = sorted(set(external_blocks))
     print(f"PASSED={passed}/30")
-    if external_blocks:
-        print(f"EXTERNAL_MEDIA_BLOCKED_TURNS={external_blocks}")
+    if blocked:
+        print(f"EXTERNAL_MEDIA_BLOCKED_TURNS={blocked}")
+        print("Blocked playback is reported separately and is never counted as verified playback.")
         print("Manual playback acceptance is required when the browser session is not authenticated with YouTube.")
-    if passed != 30:
+    allow_blocked = os.environ.get("JARVIS_ALLOW_EXTERNAL_MEDIA_BLOCK", "").strip().lower() == "true"
+    only_explicit_media_blocks = (
+        allow_blocked
+        and len(results) == 30
+        and passed + len(blocked) == 30
+        and set(blocked).issubset({23, 24})
+    )
+    if passed != 30 and not only_explicit_media_blocks:
         raise SystemExit(1)
 
 if __name__ == "__main__":

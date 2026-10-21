@@ -110,6 +110,21 @@ class OrchestratorCore:
 
         final_response = final_response or verification.get("summary", "Done.")
 
+        if exec_summary.get("status") == "pending_approval":
+            pending_result = next(
+                (
+                    step.result for step in plan.steps
+                    if getattr(step, "status", "") == "pending_approval" and isinstance(step.result, dict)
+                ),
+                {},
+            )
+            final_response = (
+                pending_result.get("prompt")
+                or pending_result.get("response")
+                or pending_result.get("message")
+                or "This action requires your explicit confirmation before it can continue."
+            )
+
         # 7. Update session memory and episodic ledger with this turn
         self.memory.remember(f"last_plan_{plan.plan_id}", {
             "goal": plan.goal,

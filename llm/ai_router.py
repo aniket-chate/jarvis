@@ -72,6 +72,33 @@ class RuleBasedAIProvider(BaseAIProvider):
         p_name = persona.capitalize()
         lower = prompt.lower().strip()
 
+        # Deterministic arithmetic fallback for simple symbolic and natural-language operations.
+        import re
+        arithmetic = re.search(
+            r"(?<!\d)(\d+(?:\.\d+)?)\s*(\+|-|\*|/|plus|minus|times|multiplied\s+by|multiply\s+by|divided\s+by|divide\s+by|over)\s*(\d+(?:\.\d+)?)(?!\d)",
+            lower,
+        )
+        if arithmetic:
+            left, op, right = float(arithmetic.group(1)), " ".join(arithmetic.group(2).split()), float(arithmetic.group(3))
+            if op in {"+", "plus"}:
+                value = left + right
+            elif op in {"-", "minus"}:
+                value = left - right
+            elif op in {"*", "times", "multiplied by", "multiply by"}:
+                value = left * right
+            else:
+                if right == 0:
+                    return "I can't divide by zero."
+                value = left / right
+            rendered = str(int(value)) if value.is_integer() else str(value)
+            if p_name == "Friday":
+                return f"That comes to {rendered}."
+            if p_name == "Ultron":
+                return f"Calculation complete: {rendered}."
+            if p_name == "Omi":
+                return f"The answer is {rendered}."
+            return f"{rendered}, Sir."
+
         # Grounded RAG Knowledge Context
         if "[Retrieved Knowledge Context (RAG)]:" in system_prompt:
             rag_section = system_prompt.split("[Retrieved Knowledge Context (RAG)]:")[1].split("\n[")[0].strip()
@@ -601,7 +628,15 @@ class MultiProviderAIRouter:
             force_ollama_failure=force_ollama_failure,
             task_category=task,
         )
-        yield res.get("response", "")
+        response_text = str(res.get("response") or "")
+        if (
+            res.get("fallback_occurred")
+            and res.get("provider") == "rule_based"
+            and not any(marker in response_text.casefold() for marker in ("fallback", "model unavailable", "unreachable"))
+        ):
+            yield "Local model unavailable; using the safe rule-based fallback. "
+        if response_text:
+            yield response_text
 
 
 # Global AI router instance

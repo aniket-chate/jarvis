@@ -121,8 +121,13 @@ class AgentRegistry:
                     logger.info("[AgentRegistry] [%s] Real agent '%s' executing with inputs: %s", persona, t, inputs)
                     inputs_with_persona = {**inputs, "active_persona": persona}
                     res = obj.execute(inputs_with_persona)
+                    if res.get("status") == "pending_approval" or res.get("requires_confirmation") is True:
+                        normalized_status = "pending_approval"
+                    else:
+                        normalized_status = "success" if res.get("success", True) else "failed"
                     return {
-                        "status": "success" if res.get("success", True) else "failed",
+                        "status": normalized_status,
+                        "requires_confirmation": bool(res.get("requires_confirmation", False)),
                         "agent_type": t,
                         "persona": persona,
                         "output": res,

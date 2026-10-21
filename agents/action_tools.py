@@ -337,7 +337,17 @@ def open_application(app_name: str) -> ToolResult:
 
     from utils.fuzzy_matcher import normalize_query, match_app_or_site
     normalized = normalize_query(clean_app)
-    fuzzy_name = match_app_or_site(normalized) or normalized
+    native_windows_apps = {
+        "notepad", "notes", "calc", "calculator", "explorer", "file explorer",
+        "terminal", "powershell", "paint", "mspaint", "cmd", "command prompt",
+        "task manager", "control panel",
+    }
+    # Preserve explicit native-app intent before fuzzy matching, which can map
+    # "notepad" to a similarly named website.
+    if normalized.casefold() in native_windows_apps:
+        fuzzy_name = normalized
+    else:
+        fuzzy_name = match_app_or_site(normalized) or normalized
     lower = fuzzy_name.lower()
 
     # 1. Check if it is a website URL or named online service (e.g. Google, YouTube, ChatGPT, Claude)
@@ -442,11 +452,6 @@ def open_application(app_name: str) -> ToolResult:
     # named websites (for example, "notepad" -> notepad.com). On non-Windows
     # runners, report the platform limitation explicitly instead of pretending to
     # launch a desktop app.
-    native_windows_apps = {
-        "notepad", "notes", "calc", "calculator", "explorer", "file explorer",
-        "terminal", "powershell", "paint", "mspaint", "cmd", "command prompt",
-        "task manager", "control panel",
-    }
     if lower in native_windows_apps:
         if os.name != "nt":
             return ToolResult(

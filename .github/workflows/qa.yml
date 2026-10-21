@@ -29,7 +29,7 @@ jobs:
       - name: Run 20-message real-work black-box harness
         run: xvfb-run -a python tests/test_20_real_work_messages.py
 
-      - name: Run 30-turn real conversation QA
+      - name: Run 32-turn confirmation-aware real conversation QA
         env:
           JARVIS_ALLOW_EXTERNAL_MEDIA_BLOCK: "true"
         run: xvfb-run -a python tests/test_30_real_conversation.py

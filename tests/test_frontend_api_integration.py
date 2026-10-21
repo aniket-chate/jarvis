@@ -22,6 +22,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# Keep this integration test runnable locally while allowing CI to provide its own test-only token.
+os.environ.setdefault("GATEWAY_AUTH_TOKEN", "jarvis-integration-test-token")
+
 from fastapi.testclient import TestClient
 from server.app import app
 from config.settings import settings
@@ -33,7 +36,7 @@ class TestFrontendAPIIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.client = TestClient(app)
-        cls.auth_headers = {"X-JARVIS-Token": "jarvis-gateway-token-2026-auth"}
+        cls.auth_headers = {"X-JARVIS-Token": settings.gateway_auth_token or ""}
 
     def test_01_root_serves_authoritative_html(self):
         """Tests that GET / serves the authoritative visual HTML."""
@@ -69,7 +72,7 @@ class TestFrontendAPIIntegration(unittest.TestCase):
 
     def test_03_runtime_status_endpoint(self):
         """Tests GET /api/runtime/status returns real subsystem statuses."""
-        response = self.client.get("/api/runtime/status")
+        response = self.client.get("/api/runtime/status", headers=self.auth_headers)
         self.assertEqual(response.status_code, 200)
         data = response.json()
 
@@ -91,7 +94,7 @@ class TestFrontendAPIIntegration(unittest.TestCase):
 
     def test_04_capabilities_available_endpoint(self):
         """Tests GET /api/capabilities/available returns all 50 capabilities."""
-        response = self.client.get("/api/capabilities/available")
+        response = self.client.get("/api/capabilities/available", headers=self.auth_headers)
         self.assertEqual(response.status_code, 200)
         data = response.json()
 
@@ -107,7 +110,7 @@ class TestFrontendAPIIntegration(unittest.TestCase):
 
     def test_05_today_context_endpoint(self):
         """Tests GET /api/context/today returns real schedule items or honest empty state."""
-        response = self.client.get("/api/context/today")
+        response = self.client.get("/api/context/today", headers=self.auth_headers)
         self.assertEqual(response.status_code, 200)
         data = response.json()
 
@@ -117,7 +120,7 @@ class TestFrontendAPIIntegration(unittest.TestCase):
 
     def test_06_recent_files_endpoint(self):
         """Tests GET /api/context/recent_files queries authorized workspace scope."""
-        response = self.client.get("/api/context/recent_files")
+        response = self.client.get("/api/context/recent_files", headers=self.auth_headers)
         self.assertEqual(response.status_code, 200)
         data = response.json()
 
@@ -127,7 +130,7 @@ class TestFrontendAPIIntegration(unittest.TestCase):
 
     def test_07_location_context_endpoint(self):
         """Tests GET /api/context/location returns honest non-hardcoded location info."""
-        response = self.client.get("/api/context/location")
+        response = self.client.get("/api/context/location", headers=self.auth_headers)
         self.assertEqual(response.status_code, 200)
         data = response.json()
 

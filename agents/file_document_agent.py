@@ -59,7 +59,8 @@ class FileDocumentAgent:
     def __init__(self, sandbox_root: Path = WORKSPACE_DIR):
         self.sandbox_root = sandbox_root.resolve()
         self.sandbox_root.mkdir(parents=True, exist_ok=True)
-        self.allowed_roots = ALLOWED_ROOTS
+        # Keep this instance sandbox isolated; never route workspace operations to the module-global root.
+        self.allowed_roots = {**ALLOWED_ROOTS, "workspace": self.sandbox_root}
 
     def _resolve_scoped_path(self, path_str: str, default_dir: str = "workspace") -> Path:
         """Resolves target path within authorized user scopes (Documents, Downloads, Desktop, Workspace)."""

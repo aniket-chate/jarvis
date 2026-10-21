@@ -198,6 +198,13 @@ class CoreLLMAgent:
             force_ollama_failure=force_ollama_failure,
             task_category=task_cat,
         )
+        response_text = str(result.get("response") or "")
+        if (
+            result.get("fallback_occurred")
+            and result.get("provider") == "rule_based"
+            and not any(marker in response_text.casefold() for marker in ("fallback", "model unavailable", "unreachable"))
+        ):
+            result["response"] = "Local model unavailable; using the safe rule-based fallback. " + response_text
         result["retrieved_notes"] = retrieved_notes
         result["rag_applied"] = bool(retrieved_notes)
         return result

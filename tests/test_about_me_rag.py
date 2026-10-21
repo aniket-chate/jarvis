@@ -15,7 +15,15 @@ Validates:
 12. Test 12: Selective Context Grounding (Unrelated queries like weather do not trigger RAG)
 """
 
+import sys
+from pathlib import Path
+
 import pytest
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from agents.personal_knowledge_base import personal_knowledge_base
 from agents.about_me_ingest import ingest_about_me
 from agents.core_llm_agent import core_llm_agent

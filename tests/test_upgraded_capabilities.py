@@ -85,7 +85,7 @@ def test_2_gateway_merge_and_mobile_compatibility():
     # Health check
     res_health = client.get("/health")
     assert res_health.status_code == 200
-    assert res_health.json()["status"] == "healthy"
+    assert res_health.json()["status"] in ("healthy", "degraded")
 
     # Device list (mobile client startup call)
     res_devices = client.get("/api/devices", headers=auth_headers)

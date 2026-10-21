@@ -8,6 +8,7 @@ import time
 import shutil
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, Any
 import psutil
 
@@ -34,7 +35,7 @@ class ContextAwarenessEngine:
         mem_avail_gb = round(mem.available / (1024 ** 3), 2)
 
         # 3. Disk storage
-        total, used, free = shutil.disk_usage("C:\\")
+        total, used, free = shutil.disk_usage(str(Path.home()))
         disk_free_gb = round(free / (1024 ** 3), 2)
         disk_total_gb = round(total / (1024 ** 3), 2)
         disk_free_pct = round((free / total) * 100, 1)

@@ -3,7 +3,9 @@
 import datetime
 import shutil
 import logging
-from typing import Dict, Any
+import os
+from pathlib import Path
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger("JARVIS.Skills.System")
 
@@ -18,13 +20,21 @@ class SystemControlSkill:
             "iso": now.isoformat(),
         }
 
-    def get_storage_status(self, drive_letter: str = "C:") -> Dict[str, Any]:
-        """Returns total, used, and free disk space for specified drive."""
+    def get_storage_status(self, drive_letter: Optional[str] = None) -> Dict[str, Any]:
+        """Returns disk space for the requested drive or the current home volume."""
         try:
-            total, used, free = shutil.disk_usage(f"{drive_letter}\\")
+            if drive_letter:
+                target = drive_letter
+                if os.name == "nt" and len(drive_letter) == 2 and drive_letter[1] == ":":
+                    target = drive_letter + "\\"
+            elif os.name == "nt":
+                target = os.environ.get("SystemDrive", "C:") + "\\"
+            else:
+                target = str(Path.home())
+            total, used, free = shutil.disk_usage(target)
             gb = 1024 ** 3
             return {
-                "drive": drive_letter,
+                "drive": drive_letter or target,
                 "total_gb": round(total / gb, 2),
                 "used_gb": round(used / gb, 2),
                 "free_gb": round(free / gb, 2),

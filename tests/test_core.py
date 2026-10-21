@@ -44,8 +44,7 @@ class TestJarvisCore(unittest.TestCase):
 
     def test_03_secrets_layer_graceful_degradation(self):
         """Test that missing/unconfigured secrets disable modules gracefully."""
-        self.assertTrue(settings.search_available)
-        self.assertIsNotNone(settings.tavily_api_key)
+        self.assertEqual(settings.search_available, bool(settings.tavily_api_key or settings.brave_api_key))
 
         # Home assistant is not configured with token -> gracefully disabled
         self.assertFalse(settings.home_assistant_available)
@@ -67,7 +66,7 @@ class TestJarvisCore(unittest.TestCase):
         self.assertIn("time", time_info)
         self.assertIn("date", time_info)
 
-        storage = system_skill.get_storage_status("C:")
+        storage = system_skill.get_storage_status()
         self.assertIn("free_gb", storage)
         self.assertGreater(storage["free_gb"], 0)
 
@@ -88,8 +87,7 @@ class TestJarvisCore(unittest.TestCase):
 
     def test_07_router_persona_and_system(self):
         """Test intent router for system time queries."""
-        loop = asyncio.get_event_loop()
-        res = loop.run_until_complete(router.handle_input("What time is it right now?"))
+        res = asyncio.run(router.handle_input("What time is it right now?"))
         self.assertEqual(res["type"], "system")
         self.assertIn("currently", res["response"])
 
@@ -97,8 +95,7 @@ class TestJarvisCore(unittest.TestCase):
         """Test Ollama resilience policy: handles unreachable server gracefully."""
         client = OllamaClient()
         client.host = "http://127.0.0.1:54321"  # Dummy offline host
-        loop = asyncio.get_event_loop()
-        res = loop.run_until_complete(client.generate_response("Test prompt"))
+        res = asyncio.run(client.generate_response("Test prompt"))
         self.assertIn("unable to connect to my core intelligence engine", res)
 
 

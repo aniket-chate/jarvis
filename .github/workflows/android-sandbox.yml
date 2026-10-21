@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - "feature/android-mobile-agent-v1"
+      - "audit/android-ui-e2e-2026-10-21"
   workflow_dispatch:
 
 concurrency:
-  group: android-jarvis-live-sandbox
+  group: android-jarvis-live-sandbox-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

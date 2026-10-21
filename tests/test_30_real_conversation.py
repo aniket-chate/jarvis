@@ -21,9 +21,11 @@ COMMANDS = [
     "Open GitHub.",
     "Search GitHub for FastAPI projects.",
     f"Create a file named {TEST_NAME} and put this information inside it: Black-box 30-turn verification.",
+    "yes",
     "Read the file I just created.",
     "Show me the file you just created.",
     f"Rename {TEST_NAME} to {RENAMED_NAME}.",
+    "yes",
     f"Read {RENAMED_NAME}.",
     f"Delete {RENAMED_NAME}.",
     "yes",
@@ -103,15 +105,15 @@ def main():
             s = summary(payload)
             response = s["response"].lower()
             result = s["result"]
-            external_media_block = n in (23, 24) and (
+            external_media_block = n in (25, 26) and (
                 result.get("status") == "external_access_required"
                 or (result.get("output") or {}).get("status") == "external_access_required"
             )
-            dependent_media_block = n in (25, 26) and bool(set(external_blocks).intersection({23, 24}))
+            dependent_media_block = n in (27, 28) and bool(set(external_blocks).intersection({25, 26}))
             ok = (
                 status == 200
                 and payload.get("status") == "ok"
-                and s["plan_status"] in {"completed", "blocked"}
+                and s["plan_status"] in {"completed", "blocked", "pending_approval"}
                 and not external_media_block
                 and not dependent_media_block
             )
@@ -121,22 +123,28 @@ def main():
                 dependent_media_blocks.append(n)
             if n == 2: ok &= "144" in response
             if n == 3: ok &= "can help" in response
-            if n == 16: ok &= "what should i name the file" in response
-            if n == 17: ok &= "which file" in response
-            if n == 18: ok &= "recipient" in response or "who should" in response
-            if n == 19: ok &= "when should" in response
-            if n == 20: ok &= "which branch" in response
-            if n == 22: ok &= "which song" in response or "which media" in response
-            if n == 23 and n not in external_blocks: ok &= result.get("is_playing") is True and float(result.get("delta_time", 0)) >= 0.4
-            if n == 24 and n not in external_blocks: ok &= result.get("is_playing") is True and result.get("browser_tab_reused") is True
-            if n == 25: ok &= "pause" in response
-            if n == 26: ok &= "resume" in response or "playing" in response
+            if n == 8: ok &= s["plan_status"] == "pending_approval" and "confirm" in response
+            if n == 9: ok &= "successfully created file" in response
+            if n == 12: ok &= s["plan_status"] == "pending_approval" and "confirm" in response
+            if n == 13: ok &= "successfully renamed" in response
+            if n == 15: ok &= s["plan_status"] == "pending_approval" and "confirm" in response
+            if n == 16: ok &= "successfully deleted" in response
+            if n == 18: ok &= "what should i name the file" in response
+            if n == 19: ok &= "which file" in response
+            if n == 20: ok &= "recipient" in response or "who should" in response
+            if n == 21: ok &= "when should" in response
+            if n == 22: ok &= "which branch" in response
+            if n == 24: ok &= "which song" in response or "which media" in response
+            if n == 25 and n not in external_blocks: ok &= result.get("is_playing") is True and float(result.get("delta_time", 0)) >= 0.4
+            if n == 26 and n not in external_blocks: ok &= result.get("is_playing") is True and result.get("browser_tab_reused") is True
+            if n == 27: ok &= "pause" in response
+            if n == 28: ok &= "resume" in response or "playing" in response
             results.append((n, command, ok, latency, s))
             print(f"[{n:02d}] {'PASS' if ok else 'FAIL'} {command}")
             print("     " + json.dumps(s, ensure_ascii=False, default=str)[:2500])
     finally:
         for name in (TEST_NAME, RENAMED_NAME):
-            p = ROOT / "workspace" / "documents" / name
+            p = Path.home() / "Documents" / name
             if p.exists():
                 p.unlink()
         server.terminate()
@@ -150,7 +158,7 @@ def main():
 
     passed = sum(1 for _, _, ok, _, _ in results if ok)
     blocked = sorted(set(external_blocks + dependent_media_blocks))
-    print(f"PASSED={passed}/30")
+    print(f"PASSED={passed}/32")
     if external_blocks:
         print(f"EXTERNAL_MEDIA_BLOCKED_TURNS={sorted(set(external_blocks))}")
         print("Blocked playback is reported separately and is never counted as verified playback.")
@@ -161,12 +169,12 @@ def main():
     allow_blocked = os.environ.get("JARVIS_ALLOW_EXTERNAL_MEDIA_BLOCK", "").strip().lower() == "true"
     only_explicit_media_blocks = (
         allow_blocked
-        and len(results) == 30
-        and passed + len(blocked) == 30
-        and set(external_blocks).issubset({23, 24})
-        and set(dependent_media_blocks).issubset({25, 26})
+        and len(results) == 32
+        and passed + len(blocked) == 32
+        and set(external_blocks).issubset({25, 26})
+        and set(dependent_media_blocks).issubset({27, 28})
     )
-    if passed != 30 and not only_explicit_media_blocks:
+    if passed != 32 and not only_explicit_media_blocks:
         raise SystemExit(1)
 
 if __name__ == "__main__":

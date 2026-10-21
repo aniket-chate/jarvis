@@ -1764,7 +1764,7 @@ class BrowserAutomationAgent:
 
     def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """Standardized interface for Orchestrator Agent Router, running strictly on dedicated single thread."""
-        future = self._executor.submit(self._execute_sync, inputs)
+        future = self._executor.submit(self._set_executor_ident_and_run, self._execute_sync, inputs)
         return future.result()
 
     def _execute_sync(self, inputs: Dict[str, Any]) -> Dict[str, Any]:

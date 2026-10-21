@@ -49,8 +49,17 @@ class IntentArbitrator:
         m_media = re.fullmatch(r"play\s+(.+?)(?:\s+on\s+youtube)?[.!?]?", clean, re.IGNORECASE)
         if m_media and ("youtube" in low or low.startswith("play ")):
             media_query = re.sub(r"\s+on\s+youtube\s*$", "", m_media.group(1).strip(), flags=re.IGNORECASE).rstrip(".!?").strip()
-            excluded_media = {"a song", "a music", "song", "music", "it", "that", "it again", "that again"}
-            if media_query.lower() not in excluded_media or ("youtube" in low and media_query.lower() in {"music", "a music"}):
+            normalized_media = media_query.lower()
+            contextual_media = {"it", "that", "it again", "that again"}
+            generic_media = {"a song", "a music", "song", "new song", "a new song", "new music", "some music", "something new"}
+            if normalized_media in contextual_media:
+                pass  # Let contextual reference resolution bind the active media target.
+            elif normalized_media in generic_media or normalized_media == "music":
+                if "youtube" in low and normalized_media in {"music", "a music"}:
+                    return StructuredIntent(domain="browser", action="play_youtube", target=media_query, params={"song": media_query})
+                prompt = "Which song, artist, or music category would you like me to play?"
+                return StructuredIntent(domain="browser", action="clarification", target="", params={"query": prompt, "response": prompt}, needs_clarification=True, clarification_prompt=prompt)
+            else:
                 return StructuredIntent(domain="browser", action="play_youtube", target=media_query, params={"song": media_query})
 
         m_open = re.fullmatch(r"(?:open|go to|navigate to)\s+(.+?)[.!?]?", clean, re.IGNORECASE)

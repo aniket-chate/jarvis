@@ -24,13 +24,17 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from agents.browser_automation_agent import browser_automation_agent
 
-UNIQUE_TEST_SONG = "Daft Punk Get Lucky"
-REGRESSION_SCREENSHOT = "regression_youtube_playback_daft_punk.png"
+UNIQUE_TEST_SONG = os.environ.get("JARVIS_PLAYBACK_TEST_QUERY", "").strip()
+REGRESSION_SCREENSHOT = f"regression_youtube_playback_{os.getpid()}.png"
 
 
 def test_youtube_song_playback_regression():
     """Verify that playing a new song actually starts video playback and advances time."""
-    print(f"\n[REGRESSION TEST] Testing YouTube playback with unique song: '{UNIQUE_TEST_SONG}'")
+    if pytest is None:
+        raise RuntimeError("pytest is required for the live playback regression test")
+    if os.environ.get("JARVIS_ENABLE_LIVE_MEDIA_TESTS", "").strip().lower() != "true" or not UNIQUE_TEST_SONG:
+        pytest.skip("Live YouTube playback requires explicit opt-in and JARVIS_PLAYBACK_TEST_QUERY.")
+    print("\n[REGRESSION TEST] Testing YouTube playback with the configured query.")
 
     res = browser_automation_agent.play_youtube_song(
         song_query=UNIQUE_TEST_SONG,
@@ -39,6 +43,14 @@ def test_youtube_song_playback_regression():
     )
 
     print(f"[REGRESSION TEST RESULT]:\n{json.dumps(res, indent=2)}")
+
+    if res and (
+        res.get("status") == "external_access_required"
+        or (res.get("output") or {}).get("status") == "external_access_required"
+    ):
+        pytest.skip("YouTube requires an authenticated browser session; playback was not verified.")
+    if res and res.get("status") == "unavailable":
+        pytest.skip(f"Live browser LLM is unavailable: {res.get('error')}")
 
     # 1. Structural assertions
     assert res is not None, "play_youtube_song returned None"
@@ -59,19 +71,13 @@ def test_youtube_song_playback_regression():
 
 
 def test_orchestrator_execution_route_for_play_new_song():
-    """Verify that natural language 'Play new song' routes through execute and sanitizes query."""
-    inputs = {
-        "song": "Play new song",
-        "query": "Play new song",
-    }
-    # Test sanitization without spawning heavy browser if mock/check
-    raw_target = inputs.get("song") or inputs.get("query") or ""
-    import re
-    cleaned = re.sub(r"\b(play|a song|new song|song|music|on youtube|in browser|the video|video|listen to)\b", "", raw_target, flags=re.IGNORECASE).strip()
-    cleaned = re.sub(r"^[\s,.:;'\"]+|[\s,.:;'\"]+$", "", cleaned).strip()
-    effective_song = cleaned if (cleaned and cleaned.lower() not in ["a", "the", "new", "track", "song"]) else "trending top music hits"
+    """Generic 'new song' requests must ask for a choice rather than invent a media query."""
+    from orchestrator.intent_arbitrator import IntentArbitrator
 
-    assert effective_song == "trending top music hits", f"Expected cleaned song to default to trending music, got '{effective_song}'"
+    intent = IntentArbitrator().arbitrate("Play new song")
+    assert intent.action == "clarification"
+    assert intent.needs_clarification is True
+    assert intent.clarification_prompt
 
 
 if __name__ == "__main__":

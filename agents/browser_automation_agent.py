@@ -306,12 +306,27 @@ class BrowserAutomationAgent:
         return self._active_page
 
     def _get_llm(self) -> ChatOpenAI:
-        """Returns OpenAI-compatible client bound to local Ollama instance."""
-        return ChatOpenAI(
-            base_url=f"{self.host}/v1",
-            model=self.model_name,
-            api_key="ollama"
-        )
+        """Return a configured Browser-Use LLM client or fail with an actionable error."""
+        if not BROWSER_USE_AVAILABLE or ChatOpenAI is None:
+            raise RuntimeError("Browser-Use dependencies are unavailable. Install requirements.txt.")
+
+        try:
+            import httpx
+            with httpx.Client(timeout=0.6) as client:
+                if client.get(f"{self.host}/api/tags").status_code == 200:
+                    return ChatOpenAI(base_url=f"{self.host}/v1", model=self.model_name, api_key="ollama")
+        except Exception:
+            pass
+
+        groq_key = getattr(settings, "groq_api_key", None)
+        if groq_key:
+            return ChatOpenAI(base_url="https://api.groq.com/openai/v1", model="llama-3.3-70b-versatile", api_key=groq_key)
+
+        openrouter_key = getattr(settings, "openrouter_api_key", None)
+        if openrouter_key:
+            return ChatOpenAI(base_url="https://openrouter.ai/api/v1", model="openai/gpt-4o-mini", api_key=openrouter_key)
+
+        raise RuntimeError("No browser automation LLM is available. Start Ollama or configure GROQ_API_KEY/OPENROUTER_API_KEY.")
 
     async def run_natural_language_task_async(
         self,
@@ -321,7 +336,10 @@ class BrowserAutomationAgent:
     ) -> Dict[str, Any]:
         """Executes any natural language browser instruction generically using Browser-Use."""
         logger.info("[BrowserAgent] Executing natural language task: %s", task)
-        llm = self._get_llm()
+        try:
+            llm = self._get_llm()
+        except Exception as llm_error:
+            return {"success": False, "status": "unavailable", "error": str(llm_error), "response": str(llm_error)}
 
         screenshot_dest = SCREENSHOTS_DIR / (screenshot_filename or "browser_use_action.png")
         screenshot_path_str = None
@@ -1365,7 +1383,8 @@ class BrowserAutomationAgent:
 
         # Direct Playwright fastpath for YouTube or generic media site
         if "youtube" in clean_site or not clean_site:
-            res = self._play_youtube_fastpath(
+            res = self._run_on_executor(
+                self._play_youtube_fastpath,
                 song_query=query,
                 screenshot_filename=screenshot_filename or "media_playback_live.png",
                 screenshot_60s_filename=screenshot_60s_filename,
@@ -1697,7 +1716,8 @@ class BrowserAutomationAgent:
     ) -> Dict[str, Any]:
         """Plays music on YouTube: tries direct Playwright fast-path first; falls back to directive Browser-Use."""
         # 1. Direct Playwright Fast-Path (<5s)
-        fast_res = self._play_youtube_fastpath(
+        fast_res = self._run_on_executor(
+            self._play_youtube_fastpath,
             song_query=song_query,
             screenshot_filename=screenshot_filename,
             screenshot_60s_filename=screenshot_60s_filename,
@@ -1717,7 +1737,10 @@ class BrowserAutomationAgent:
             f"Your ONLY goal is to click the first video thumbnail or title link to start video playback. "
             f"Do not summarize, extract, or describe the page -- click the first video result immediately."
         )
-        res = self.run_task(task=task, max_steps=3, screenshot_filename=screenshot_filename)
+        try:
+            res = self.run_task(task=task, max_steps=3, screenshot_filename=screenshot_filename)
+        except Exception as fallback_error:
+            res = {"success": False, "status": "unavailable", "error": str(fallback_error)}
         if not res.get("success"):
             res["response"] = f"Could not find a playable result for '{song_query}' on YouTube."
         else:

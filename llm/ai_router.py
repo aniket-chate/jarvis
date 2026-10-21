@@ -72,6 +72,40 @@ class RuleBasedAIProvider(BaseAIProvider):
         p_name = persona.capitalize()
         lower = prompt.lower().strip()
 
+        # Explicit self-introduction and simple arithmetic should take precedence over
+        # unrelated retrieved notes when the local/cloud model is unavailable.
+        if any(w in lower for w in ["introduce yourself", "introduce urself", "tell me about yourself"]):
+            if p_name == "Friday":
+                return "I'm Friday — warm, responsive, and ready to help. My local model is currently unavailable, so I'm operating in fallback mode."
+            if p_name == "Ultron":
+                return "I am Ultron. Systems are ready; the local model is currently unavailable, so I am operating in deterministic fallback mode."
+            if p_name == "Omi":
+                return "I'm Omi, your friendly personal assistant. The local model is unavailable right now, so I'm using the safe local fallback."
+            return "I am Jarvis, your personal AI assistant. The local model is currently unavailable, so I am operating in the safe local fallback."
+
+        import re
+        arithmetic = re.search(r"(?<!\\d)(\\d+(?:\\.\\d+)?)\\s*([+\\-*/])\\s*(\\d+(?:\\.\\d+)?)(?!\\d)", lower)
+        if arithmetic:
+            left, op, right = float(arithmetic.group(1)), arithmetic.group(2), float(arithmetic.group(3))
+            if op == "+":
+                value = left + right
+            elif op == "-":
+                value = left - right
+            elif op == "*":
+                value = left * right
+            elif right != 0:
+                value = left / right
+            else:
+                return "I can't divide by zero."
+            rendered = str(int(value)) if value.is_integer() else str(value)
+            if p_name == "Friday":
+                return f"That comes to {rendered}."
+            if p_name == "Ultron":
+                return f"Calculation complete: {rendered}."
+            if p_name == "Omi":
+                return f"The answer is {rendered}."
+            return f"{rendered}, Sir."
+
         # Grounded RAG Knowledge Context
         if "[Retrieved Knowledge Context (RAG)]:" in system_prompt:
             rag_section = system_prompt.split("[Retrieved Knowledge Context (RAG)]:")[1].split("\n[")[0].strip()

@@ -267,6 +267,13 @@ class OllamaClient:
             except Exception as e:
                 logger.error("[Ollama Unexpected Error] %s", str(e))
 
+        # Never return None on provider exhaustion: callers need a truthful, actionable
+        # degradation message rather than a TypeError or silent empty response.
+        return (
+            "I am unable to connect to my core intelligence engine right now. "
+            "Ollama is unavailable; start the local service or configure a fallback provider."
+        )
+
     async def stream_response(
         self,
         prompt: str,

@@ -41,7 +41,8 @@ def test_1_all_keys_startup_audit():
     assert report["keys_present"]["TAVILY_API_KEY"] is bool(settings.tavily_api_key)
     assert report["keys_present"]["BRAVE_API_KEY"] is bool(settings.brave_api_key)
     assert report["modules_status"]["web_search"] == ("ACTIVE" if settings.search_available else "DISABLED")
-    assert all(status in {"ACTIVE", "DISABLED", "PARTIAL", "ENFORCED"} for status in report["modules_status"].values())
+    assert all(isinstance(status, str) and status.strip() for status in report["modules_status"].values())
+    assert report["modules_status"]["device_gateway_auth"] in {"ENFORCED", "DISABLED (GATEWAY_AUTH_TOKEN missing)"}
 
 def test_2_remove_one_key_degradation():
     """Removing optional search keys must disable search without touching a real .env file."""

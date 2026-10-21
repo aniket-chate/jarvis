@@ -5,7 +5,7 @@ regex collisions and ambiguous pronoun failures.
 """
 
 import re
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import logging
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List
@@ -362,7 +362,8 @@ class IntentArbitrator:
             dir_target = f_params.get("directory") or "documents"
             content_txt = f_params.get("content") or ""
 
-            target_path = filename if (filename and (":\\" in filename or ":/" in filename)) else f"{dir_target}:{filename}"
+            is_absolute_path = bool(filename) and (Path(filename).is_absolute() or PureWindowsPath(filename).is_absolute())
+            target_path = filename if is_absolute_path else f"{dir_target}:{filename}"
 
             if f_action == "create":
                 is_desktop = (dir_target == "desktop" or "desktop" in low)

@@ -63,10 +63,16 @@ class ExecutionManager:
                 completed_step_ids.add(step.step_id)
                 step_outputs[step.step_id] = step.result
             else:
+                if step.status == "pending_approval":
+                    # Do not execute downstream steps while a safety confirmation is outstanding.
+                    break
                 failed_step_ids.add(step.step_id)
 
-        # 4. Determine final plan status
-        if len(completed_step_ids) == len(plan.steps):
+        # 4. Determine final plan status. Pending approval is a first-class state,
+        # not an execution failure; callers must surface the confirmation prompt.
+        if any(step.status == "pending_approval" for step in plan.steps):
+            plan.status = "pending_approval"
+        elif len(completed_step_ids) == len(plan.steps):
             plan.status = "completed"
         elif len(completed_step_ids) > 0 and len(failed_step_ids) > 0:
             plan.status = "partially_failed"
@@ -108,6 +114,15 @@ class ExecutionManager:
 
             try:
                 res = self.router.route_and_execute(step.required_agent_type, inputs, persona)
+                if res.get("status") == "pending_approval" or res.get("requires_confirmation") is True:
+                    step.status = "pending_approval"
+                    step.result = res
+                    logger.info(
+                        "[ExecutionManager] [%s] Step '%s' is awaiting explicit user confirmation.",
+                        persona,
+                        step.step_id,
+                    )
+                    return False
                 if res.get("status") == "blocked_by_safety_filter":
                     step.status = "blocked"
                     step.result = res

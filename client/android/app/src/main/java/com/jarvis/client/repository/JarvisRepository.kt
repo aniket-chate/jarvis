@@ -255,10 +255,8 @@ class JarvisRepository(
             val req = DeviceRegisterRequest(
                 deviceId = settingsManager.deviceId,
                 name = settingsManager.deviceName,
-                deviceType = "android",
-                platform = "android",
-                capabilities = capabilities,
-                metadata = mapOf("model" to "${Build.MANUFACTURER} ${Build.MODEL}".trim(), "client" to "Jarvis Mobile Android")
+                clientType = "phone",
+                capabilities = capabilities
             )
             val result = apiClient.registerDevice(req)
             result.onSuccess {

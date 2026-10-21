@@ -84,19 +84,24 @@ class RuleBasedAIProvider(BaseAIProvider):
             return "I am Jarvis, your personal AI assistant. The local model is currently unavailable, so I am operating in the safe local fallback."
 
         import re
-        arithmetic = re.search(r"(?<!\d)(\d+(?:\.\d+)?)\s*([-+*/])\s*(\d+(?:\.\d+)?)(?!\d)", lower)
+        arithmetic = re.search(
+            r"(?<!\d)(\d+(?:\.\d+)?)\s*(\+|-|\*|/|plus|minus|times|multiplied\s+by|multiply\s+by|divided\s+by|divide\s+by|over)\s*(\d+(?:\.\d+)?)(?!\d)",
+            lower,
+        )
         if arithmetic:
-            left, op, right = float(arithmetic.group(1)), arithmetic.group(2), float(arithmetic.group(3))
-            if op == "+":
+            left, op, right = float(arithmetic.group(1)), " ".join(arithmetic.group(2).split()), float(arithmetic.group(3))
+            if op in {"+", "plus"}:
                 value = left + right
-            elif op == "-":
+            elif op in {"-", "minus"}:
                 value = left - right
-            elif op == "*":
+            elif op in {"*", "times", "multiplied by", "multiply by"}:
                 value = left * right
-            elif right != 0:
+            elif op in {"/", "divided by", "divide by", "over"}:
+                if right == 0:
+                    return "I can't divide by zero."
                 value = left / right
             else:
-                return "I can't divide by zero."
+                return f"I couldn't safely parse the arithmetic operation in: {prompt}"
             rendered = str(int(value)) if value.is_integer() else str(value)
             if p_name == "Friday":
                 return f"That comes to {rendered}."

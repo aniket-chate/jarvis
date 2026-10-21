@@ -21,6 +21,81 @@ class ExecutionManager:
         self.router = router
         self.backoff_base = backoff_base  # Fast backoff for tests/local runtime
 
+    def stage_confirmation(self, plan: TaskPlan, step: TaskStep) -> Dict[str, Any]:
+        """Stage a pending transaction at the execution boundary, never in intent arbitration."""
+        from orchestrator.context_manager import context_manager
+        from orchestrator.memory import memory_manager
+
+        raw_action = str(step.inputs.get("action") or "execute").strip().lower()
+        action = {
+            "create": "create_file",
+            "stage_file_creation": "create_file",
+            "delete": "delete_file",
+            "rename": "rename_file",
+            "move": "move_file",
+        }.get(raw_action, raw_action)
+        target = next(
+            (
+                str(step.inputs.get(key))
+                for key in ("path", "file_path", "source", "src", "src_path", "target", "filename", "url", "app_name")
+                if step.inputs.get(key)
+            ),
+            step.description,
+        )
+        existing = context_manager.get_pending_confirmation()
+        if existing:
+            if existing.action != action or (existing.target and target and existing.target != target):
+                return {
+                    "success": False,
+                    "message": "Please confirm or cancel the pending action before starting another sensitive operation.",
+                }
+            return {"success": True, "message": "Confirmation already staged."}
+
+        payload = dict(step.inputs)
+        payload["user_confirmed"] = True
+        domain = {
+            "file_agent": "file",
+            "communication_agent": "communication",
+            "system_control_agent": "system",
+            "browser_automation_agent": "browser",
+            "scheduler_agent": "scheduler",
+        }.get(step.required_agent_type, step.required_agent_type.removesuffix("_agent"))
+        memory_manager.set_pending_action({
+            "action": action,
+            "required_agent_type": step.required_agent_type,
+            "inputs": payload,
+        })
+        context_manager.stage_confirmation(
+            action=action,
+            domain=domain,
+            target=target,
+            payload=payload,
+            original_request=plan.goal,
+        )
+        return {"success": True, "message": "Confirmation staged."}
+
+    def cancel_pending_confirmation(self) -> None:
+        """Cancel the pending transaction and clear only its matching legacy action."""
+        from orchestrator.context_manager import context_manager
+        from orchestrator.memory import memory_manager
+
+        tx = context_manager.pop_confirmation()
+        if tx is None:
+            return
+        pending = memory_manager.get_pending_action() or {}
+        pending_inputs = pending.get("inputs", {})
+        pending_targets = {
+            str(pending_inputs.get(key, ""))
+            for key in ("path", "file_path", "target", "source", "src", "src_path")
+            if pending_inputs.get(key)
+        }
+        tx_target = str(tx.target or "")
+        if (
+            pending.get("action") == tx.action
+            and (not pending_targets or not tx_target or tx_target in pending_targets)
+        ):
+            memory_manager.clear_pending_action()
+
     def execute_plan(self, plan: TaskPlan) -> Dict[str, Any]:
         """Executes all steps in a TaskPlan respecting dependencies and retries."""
         logger.info(

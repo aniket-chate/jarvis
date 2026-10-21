@@ -21,6 +21,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.hamcrest.Matchers.containsString
 import java.util.UUID
 
 /**
@@ -75,17 +76,18 @@ class JarvisMainActivityGatewayUiTest {
                     assertFalse("Settings should not close the app", activity.isFinishing)
                 }
 
-                // Wait for the real gateway connection before sending. "stop" has a
-                // deterministic server response and does not depend on unavailable CI LLMs.
+                // Wait for the real gateway connection before sending. The arithmetic
+                // query is supported by JARVIS's deterministic local fallback, so this
+                // tests an actual request/response without requiring cloud credentials.
                 waitForVisibleText("AUTHENTICATED", 25_000L)
                 scenario.onActivity { activity ->
                     val messageInput = activity.findViewById<android.widget.EditText>(com.jarvis.client.R.id.etMessageInput)
-                    messageInput.setText("stop")
+                    messageInput.setText("What is 12 multiplied by 12?")
                     val sendButton = activity.findViewById<android.view.View>(com.jarvis.client.R.id.btnSendMessage)
                     check(sendButton.isShown && sendButton.isEnabled) { "Send control is not visible/enabled" }
                     sendButton.performClick()
                 }
-                waitForVisibleText("Stopped.", 15_000L)
+                waitForVisibleTextContaining("144", 15_000L)
             }
         } finally {
             app.repository.stop()
@@ -99,17 +101,29 @@ class JarvisMainActivityGatewayUiTest {
             ?: error("Missing instrumentation argument: $key")
 
     private fun waitForVisibleText(text: String, timeoutMs: Long) {
+        waitForVisibleTextMatcher(withText(text), text, timeoutMs)
+    }
+
+    private fun waitForVisibleTextContaining(text: String, timeoutMs: Long) {
+        waitForVisibleTextMatcher(withText(containsString(text)), "text containing '$text'", timeoutMs)
+    }
+
+    private fun waitForVisibleTextMatcher(
+        matcher: org.hamcrest.Matcher<android.view.View>,
+        expected: String,
+        timeoutMs: Long
+    ) {
         val deadline = SystemClock.elapsedRealtime() + timeoutMs
         var lastError: Throwable? = null
         while (SystemClock.elapsedRealtime() < deadline) {
             try {
-                onView(withText(text)).check(matches(isDisplayed()))
+                onView(matcher).check(matches(isDisplayed()))
                 return
             } catch (error: Throwable) {
                 lastError = error
                 SystemClock.sleep(250)
             }
         }
-        fail("JARVIS did not show the expected UI response '$text' within ${timeoutMs}ms. Last error: $lastError")
+        fail("JARVIS did not show the expected UI response ($expected) within ${timeoutMs}ms. Last error: $lastError")
     }
 }

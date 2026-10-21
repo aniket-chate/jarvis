@@ -37,6 +37,12 @@ class JarvisMainActivityGatewayUiTest {
         // Grant runtime permissions through the emulator's instrumentation shell.
         instrumentation.uiAutomation.grantRuntimePermission(context.packageName, Manifest.permission.POST_NOTIFICATIONS)
         instrumentation.uiAutomation.grantRuntimePermission(context.packageName, Manifest.permission.RECORD_AUDIO)
+        // CI emulators can boot with the display/keyguard unfocused; wake and unlock before Espresso.
+        instrumentation.uiAutomation.executeShellCommand("input keyevent KEYCODE_WAKEUP").close()
+        instrumentation.uiAutomation.executeShellCommand("wm dismiss-keyguard").close()
+        instrumentation.uiAutomation.executeShellCommand("input keyevent KEYCODE_HOME").close()
+        SystemClock.sleep(500)
+
         val app = context.applicationContext as JarvisApp
         val settings = app.settingsManager
         val args = InstrumentationRegistry.getArguments()

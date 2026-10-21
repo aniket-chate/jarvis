@@ -36,7 +36,7 @@ class DeviceHeartbeatManager(
                     onHeartbeatTick?.invoke()
                     val result = apiClient.sendHeartbeat(settingsManager.deviceId)
                     result.onSuccess {
-                        Log.d(tag, "Device heartbeat sent successfully: ${it.lastSeen}")
+                        Log.d(tag, "Device heartbeat response: device=${it.deviceId}, status=${it.status}")
                     }.onFailure {
                         Log.w(tag, "Device heartbeat failed: ${it.message}")
                     }

@@ -107,18 +107,25 @@ class IntentArbitrator:
                     )
             elif any(re.search(r"\b" + re.escape(w) + r"\b", low) for w in ["no", "cancel", "stop", "abort", "don't", "dont", "wait", "nevermind"]):
                 tx = context_manager.pop_confirmation()
-                if tx and getattr(tx, "action", "") == "create_file":
+                if tx:
                     try:
                         from orchestrator.memory import memory_manager
                         pending = memory_manager.get_pending_action() or {}
                         pending_inputs = pending.get("inputs", {})
+                        pending_action = pending.get("action")
+                        pending_targets = {
+                            str(pending_inputs.get(key, ""))
+                            for key in ("path", "file_path", "target", "source", "src", "src_path")
+                            if pending_inputs.get(key)
+                        }
+                        tx_target = str(getattr(tx, "target", "") or "")
                         if (
-                            pending.get("action") == "create_file"
-                            and pending_inputs.get("path") == getattr(tx, "target", "")
+                            pending_action == getattr(tx, "action", "")
+                            and (not pending_targets or not tx_target or tx_target in pending_targets)
                         ):
                             memory_manager.clear_pending_action()
                     except Exception:
-                        logger.debug("Unable to clear cancelled create_file memory action", exc_info=True)
+                        logger.debug("Unable to clear cancelled confirmation memory action", exc_info=True)
                 logger.info("[IntentArbitrator] Explicitly cancelled pending transaction: %s", getattr(tx, "action", "action"))
                 return StructuredIntent(
                     domain="system",

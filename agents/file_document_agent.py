@@ -333,6 +333,35 @@ class FileDocumentAgent:
                 confirmed=user_confirmed
             )
             if not perm.allowed:
+                from orchestrator.memory import memory_manager
+                memory_manager.set_pending_action({
+                    "action": "rename_file",
+                    "required_agent_type": "file_agent",
+                    "inputs": {
+                        "action": "rename_file",
+                        "src_path": str(src),
+                        "path": str(src),
+                        "new_name": new_name,
+                        "user_confirmed": True,
+                    },
+                })
+                try:
+                    from orchestrator.context_manager import context_manager
+                    context_manager.stage_confirmation(
+                        action="rename_file",
+                        domain="file",
+                        target=str(src),
+                        payload={
+                            "action": "rename_file",
+                            "src_path": str(src),
+                            "path": str(src),
+                            "new_name": new_name,
+                            "user_confirmed": True,
+                        },
+                        original_request=f"Rename {src.name} to {new_name}",
+                    )
+                except Exception:
+                    logger.debug("Unable to stage rename confirmation", exc_info=True)
                 return {
                     "success": False,
                     "status": "pending_approval",
@@ -340,6 +369,8 @@ class FileDocumentAgent:
                     "message": perm.message,
                     "prompt": f"Two-Gate Safety Alert: Confirmation required to rename file '{src.name}' to '{new_name}'.",
                     "action": "rename_file",
+                    "source": str(src),
+                    "destination": str(src.with_name(new_name)),
                 }
 
         try:

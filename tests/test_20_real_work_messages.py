@@ -17,6 +17,7 @@ COMMANDS = [
     "Read the file I just created.",
     "Show me the file you just created.",
     f"Rename {TEST_NAME} to {RENAMED_NAME}.",
+    "yes",
     f"Read {RENAMED_NAME}.",
     f"Delete {RENAMED_NAME}.",
     "yes",
@@ -92,14 +93,18 @@ def main():
                 status, payload, latency = request(command)
                 summary = summarize(payload)
                 summary["latency_ms"] = latency
-                ok = status == 200 and payload.get("status") == "ok" and summary["plan_status"] in {"completed", "blocked"}
+                ok = status == 200 and payload.get("status") == "ok" and summary["plan_status"] in {"completed", "blocked", "pending_approval"}
                 response = summary["response"].lower()
                 if i == 2: ok = ok and "144" in response
-                if i == 15: ok = ok and ("what should i name the file" in response)
-                if i == 16: ok = ok and ("which file would you like me to delete" in response)
-                if i == 17: ok = ok and ("recipient" in response or "who should i send the message to" in response)
-                if i == 18: ok = ok and ("when should i schedule it" in response)
-                if i == 19: ok = ok and ("which branch should i switch back to" in response)
+                if i == 6: ok = ok and summary["plan_status"] == "pending_approval" and "confirm" in response
+                if i == 7: ok = ok and "successfully renamed" in response
+                if i == 9: ok = ok and summary["plan_status"] == "pending_approval" and "confirm" in response
+                if i == 10: ok = ok and ("successfully deleted" in response or "deleted file" in response)
+                if i == 16: ok = ok and ("what should i name the file" in response)
+                if i == 17: ok = ok and ("which file would you like me to delete" in response)
+                if i == 18: ok = ok and ("recipient" in response or "who should i send the message to" in response)
+                if i == 19: ok = ok and ("when should i schedule it" in response)
+                if i == 20: ok = ok and ("which branch should i switch back to" in response)
                 results.append((i, command, ok, summary))
                 print(f"[{i:02d}] {'PASS' if ok else 'FAIL'} {command}")
                 print("     " + json.dumps(summary, ensure_ascii=False, default=str))
@@ -117,9 +122,9 @@ def main():
         except Exception: pass
         if SERVER_LOG.exists(): SERVER_LOG.unlink()
     passed = sum(1 for _, _, ok, _ in results if ok)
-    print("\n=== BLACK-BOX 20-TURN SUMMARY ===")
-    print(f"PASSED={passed}/20")
+    print("\n=== BLACK-BOX 21-TURN SUMMARY ===")
+    print(f"PASSED={passed}/21")
     print(json.dumps(results, ensure_ascii=False, indent=2, default=str))
-    if passed != 20: sys.exit(1)
+    if passed != 21: sys.exit(1)
 
 if __name__ == "__main__": main()

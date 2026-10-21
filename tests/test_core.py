@@ -55,8 +55,12 @@ class TestJarvisCore(unittest.TestCase):
     def test_04_wakeword_engine(self):
         """Test multi-persona wake-word detector initialization."""
         engine = MultiPersonaWakeWordEngine()
-        self.assertIsNotNone(engine.model)
-        # Verify fallback is active when custom ONNX models are not yet on disk
+        # Built-in ONNX model files are an external package asset. Never fabricate a
+        # placeholder model or report it active when the dependency asset is missing.
+        if engine.model is None:
+            self.assertTrue(engine.is_fallback)
+            self.assertNotIn("hey_jarvis", engine.active_models)
+            self.skipTest("openWakeWord model asset is unavailable in this CI environment.")
         self.assertTrue(engine.is_fallback)
         self.assertIn("hey_jarvis", engine.active_models)
 

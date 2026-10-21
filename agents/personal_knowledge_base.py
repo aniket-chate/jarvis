@@ -316,7 +316,66 @@ class PersonalKnowledgeBase:
         max_age_days: float = 30.0,
     ) -> List[Dict[str, Any]]:
         """Performs dense vector semantic search across personal knowledge with truthful status."""
-        results = self.vector_store.search(query=query, top_k=top_k, namespace=namespace)
+        # Retrieve a broad dense candidate set, then blend in a lexical relevance signal.
+        # This keeps local hash embeddings useful without letting a single approximate vector
+        # match hide an exact title/tag/content match.
+        dense_results = self.vector_store.search(
+            query=query,
+            top_k=max(top_k, len(self.index)),
+            namespace=namespace,
+        )
+        dense_by_id = {item.get("doc_id"): item for item in dense_results if item.get("doc_id")}
+        embedder = getattr(self.vector_store, "embedder", None)
+        stopwords = getattr(embedder, "STOPWORDS", set())
+        query_terms = set(embedder._tokenize(query)) - set(stopwords) if embedder else set()
+        candidates = {}
+
+        for note_id, meta in self.index.items():
+            if namespace and meta.get("namespace") != namespace:
+                continue
+            note = self.get_note(note_id)
+            if not note:
+                continue
+            dense = dense_by_id.get(note_id, {
+                "doc_id": note_id,
+                "title": note.get("title", meta.get("title", note_id)),
+                "content": note.get("content", ""),
+                "score": 0.0,
+                "metadata": meta,
+            })
+            title_terms = set(embedder._tokenize(note.get("title", ""))) if embedder else set()
+            content_terms = set(embedder._tokenize(note.get("content", ""))) if embedder else set()
+            tag_terms = {
+                token
+                for tag in note.get("tags", [])
+                for token in (embedder._tokenize(str(tag)) if embedder else [])
+            }
+            searchable_terms = title_terms | content_terms | tag_terms
+            overlap_ratio = (
+                len(query_terms & searchable_terms) / len(query_terms)
+                if query_terms else 0.0
+            )
+            title_ratio = (
+                len(query_terms & title_terms) / len(query_terms)
+                if query_terms else 0.0
+            )
+            tag_ratio = (
+                len(query_terms & tag_terms) / len(query_terms)
+                if query_terms else 0.0
+            )
+            lexical_score = min(1.0, 0.7 * overlap_ratio + 0.2 * title_ratio + 0.1 * tag_ratio)
+            dense["score"] = max(float(dense.get("score", 0.0)), lexical_score)
+            candidates[note_id] = dense
+
+        # Include any dense-only candidates not represented in the persisted note index.
+        for note_id, dense in dense_by_id.items():
+            candidates.setdefault(note_id, dense)
+
+        results = sorted(
+            candidates.values(),
+            key=lambda item: float(item.get("score", 0.0)),
+            reverse=True,
+        )[:top_k]
         now = datetime.now()
         for r in results:
             full_note = self.get_note(r["doc_id"])

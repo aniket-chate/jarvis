@@ -1321,7 +1321,7 @@ async def websocket_gateway(
                             full_text += token
                             stream_buffer += token
 
-                            logger.debug("[LLM_CHUNK] [request_id=%s, response_id=%s] token: '%s'", req_id, resp_id, token)
+                            logger.debug("[LLM_CHUNK] [request_id=%s, response_id=%s] token_length=%d", req_id, resp_id, len(token))
                             await websocket.send_json({
                                 "type": "chat_stream_chunk",
                                 "request_id": req_id,
@@ -1336,7 +1336,7 @@ async def websocket_gateway(
                                 s_chunk = stream_buffer.strip()
                                 stream_buffer = ""
                                 first_chunk_sent = True
-                                logger.info("[SENTENCE_READY] [request_id=%s, response_id=%s] Early clause: '%s'", req_id, resp_id, s_chunk[:35])
+                                logger.info("[SENTENCE_READY] [request_id=%s, response_id=%s] Early clause ready (length=%d)", req_id, resp_id, len(s_chunk))
                                 logger.info("[TTS_QUEUE_ADD] [request_id=%s, response_id=%s] Queued early clause", req_id, resp_id)
                                 await sentence_queue.put((s_chunk, False))
 
@@ -1348,7 +1348,7 @@ async def websocket_gateway(
                                     s_chunk = stream_buffer.strip()
                                     stream_buffer = ""
                                     first_chunk_sent = True
-                                    logger.info("[SENTENCE_READY] [request_id=%s, response_id=%s] Sentence: '%s'", req_id, resp_id, s_chunk[:35])
+                                    logger.info("[SENTENCE_READY] [request_id=%s, response_id=%s] Sentence ready (length=%d)", req_id, resp_id, len(s_chunk))
                                     logger.info("[TTS_QUEUE_ADD] [request_id=%s, response_id=%s] Queued sentence", req_id, resp_id)
                                     await sentence_queue.put((s_chunk, False))
 
@@ -1356,7 +1356,7 @@ async def websocket_gateway(
                         if stream_buffer.strip():
                             s_chunk = stream_buffer.strip()
                             stream_buffer = ""
-                            logger.info("[SENTENCE_READY] [request_id=%s, response_id=%s] Remaining final chunk: '%s'", req_id, resp_id, s_chunk[:35])
+                            logger.info("[SENTENCE_READY] [request_id=%s, response_id=%s] Final chunk ready (length=%d)", req_id, resp_id, len(s_chunk))
                             logger.info("[TTS_QUEUE_ADD] [request_id=%s, response_id=%s] Queued final chunk", req_id, resp_id)
                             await sentence_queue.put((s_chunk, True))
 

@@ -80,3 +80,13 @@ def test_shutdown_only_terminates_registered_child_processes(monkeypatch):
     assert registered.terminated is True
     assert unrelated.terminated is False
     assert main.CHILD_PROCESSES == []
+
+
+
+def test_demo_scenario_c_never_reuses_stored_biometrics_or_sends_email():
+    source = (ROOT / "main.py").read_text(encoding="utf-8")
+    scenario_c = source.split('elif scenario == "c":', 1)[1].split("shutdown_all_layers()", 1)[0]
+
+    assert ".send_email(" not in scenario_c
+    assert "face_embedding" not in scenario_c
+    assert "draft_email(" in scenario_c

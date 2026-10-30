@@ -359,6 +359,10 @@ async def execute_capability(
 
     cap_id = req.capability or req.action
     params = dict(req.parameters or {})
+    # Approval flags are trusted only when produced below from a valid,
+    # action-bound, one-time confirmation token. Never accept them from callers.
+    params.pop("confirmed", None)
+    params.pop("user_confirmed", None)
     domain = cap_id.split(".", 1)[0]
 
     # Prevent a confused-deputy path where a caller selects one capability
@@ -381,7 +385,10 @@ async def execute_capability(
             raise HTTPException(status_code=403, detail="Invalid, expired, or already-used confirmation token")
         if pending.action_name != req.action or pending.action_domain != domain:
             raise HTTPException(status_code=403, detail="Confirmation token does not match requested action")
-        params.update(pending.parameters)
+        # Execute exactly the parameters that were staged for this token.
+        # Do not merge in caller-supplied fields from the confirmation request.
+        params = dict(pending.parameters)
+        params.pop("user_confirmed", None)
         params["confirmed"] = True
 
     decision = policy_kernel.evaluate(domain=domain, action=req.action, parameters=params, request_id=request_id)

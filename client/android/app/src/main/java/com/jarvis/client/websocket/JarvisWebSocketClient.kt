@@ -91,12 +91,22 @@ class JarvisWebSocketClient(
         val wsUrl = settingsManager.getWebSocketUrl()
         Log.i(tag, "Connecting WebSocket to: $wsUrl")
 
-        val token = settingsManager.authToken.ifBlank { settingsManager.userId }
-        val requestBuilder = Request.Builder().url(wsUrl)
-        if (token.isNotBlank()) {
-            requestBuilder.header("Authorization", "Bearer $token")
+        val token = WebSocketAuthPolicy.resolveToken(settingsManager.authToken)
+        if (token == null) {
+            _connectionState.value = ConnectionState.ERROR
+            Log.e(tag, "Cannot connect: JARVIS authentication token is not configured.")
+            scope.launch {
+                _errorEvents.emit(
+                    WsError(code = "auth_token_missing", message = "Configure a JARVIS gateway authentication token in Settings.")
+                )
+            }
+            return
         }
-        val request = requestBuilder.build()
+
+        val request = Request.Builder()
+            .url(wsUrl)
+            .header("Authorization", "Bearer $token")
+            .build()
 
         webSocket = okHttpClient.newWebSocket(request, this)
     }
@@ -159,7 +169,7 @@ class JarvisWebSocketClient(
         val json = gson.toJson(voiceTurn)
         val sent = sendRaw(json)
         if (sent) {
-            Log.i(tag, "VOICE_STATE: VOICE_TURN_SENT $turnId | text='$text' | wake='$wakePhrase' (profile=$wakeProfileId)")
+            Log.i(tag, "VOICE_STATE: VOICE_TURN_SENT $turnId | text_length=${text.length} | wake_phrase_present=${!wakePhrase.isNullOrBlank()} | profile=$wakeProfileId")
         }
         return sent
     }
@@ -182,21 +192,29 @@ class JarvisWebSocketClient(
         reconnectAttempts = 0
 
         // Authenticate immediately if required
-        val token = settingsManager.authToken.ifBlank { settingsManager.userId }
-        if (token.isNotBlank()) {
-            _connectionState.value = ConnectionState.AUTHENTICATING
-            sendAuth(token)
-        } else {
-            _connectionState.value = ConnectionState.AUTHENTICATED
+        val token = WebSocketAuthPolicy.resolveToken(settingsManager.authToken)
+        if (token == null) {
+            _connectionState.value = ConnectionState.ERROR
+            Log.e(tag, "WebSocket opened without a configured authentication token; closing fail-closed.")
+            webSocket.close(1008, "Authentication token is not configured")
+            scope.launch {
+                _errorEvents.emit(
+                    WsError(code = "auth_token_missing", message = "Configure a JARVIS gateway authentication token in Settings.")
+                )
+            }
+            return
         }
+
+        _connectionState.value = ConnectionState.AUTHENTICATING
+        sendAuth(token)
     }
 
     override fun onMessage(webSocket: WebSocket, text: String) {
-        Log.d(tag, "Received WebSocket message: $text")
         scope.launch {
             try {
                 val jsonObject: JsonObject = JsonParser.parseString(text).asJsonObject
                 val msgType = if (jsonObject.has("type")) jsonObject.get("type").asString else ""
+                Log.d(tag, "Received WebSocket message type=$msgType")
 
                 when (msgType) {
                     "auth_success" -> {
@@ -214,7 +232,7 @@ class JarvisWebSocketClient(
                     "voice_response" -> {
                         val voiceResp = gson.fromJson(jsonObject, WsVoiceResponse::class.java)
                         val respId = voiceResp.voiceTurnId ?: voiceResp.requestId ?: "unknown"
-                        Log.i(tag, "VOICE_STATE: VOICE_RESPONSE_RECEIVED $respId | status='${voiceResp.status}' | text='${voiceResp.text}'")
+                        Log.i(tag, "VOICE_STATE: VOICE_RESPONSE_RECEIVED $respId | status='${voiceResp.status}' | text_length=${voiceResp.text.length}")
                         _voiceResponses.emit(voiceResp)
                     }
                     "skill_request" -> {

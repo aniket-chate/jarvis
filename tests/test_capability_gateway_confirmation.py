@@ -237,3 +237,44 @@ def test_policy_kernel_requires_one_time_confirmation_for_mesh_mutations(action)
     assert pending is not None
     assert pending.parameters == parameters
     assert kernel.confirm_token(decision.confirmation_token, request_id="req-mesh-policy") is None
+
+
+
+def test_policy_evaluation_purges_expired_tokens_and_preserves_live_tokens(monkeypatch):
+    import safety.policy_kernel as policy_module
+    from safety.policy_kernel import PendingConfirmation
+
+    now = 10_000.0
+    monkeypatch.setattr(policy_module.time, "time", lambda: now)
+    kernel = PolicyKernel()
+    expired = PendingConfirmation(
+        token="expired-token",
+        action_domain="mesh",
+        action_name="mesh.route_to_device",
+        parameters={"target_device_id": "old"},
+        created_at=now - 120,
+        expires_at=now - 1,
+    )
+    live = PendingConfirmation(
+        token="live-token",
+        action_domain="mesh",
+        action_name="mesh.route_to_device",
+        parameters={"target_device_id": "live"},
+        created_at=now - 10,
+        expires_at=now + 50,
+    )
+    kernel._pending_confirmations = {
+        expired.token: expired,
+        live.token: live,
+    }
+
+    decision = kernel.evaluate(
+        domain="mesh",
+        action="mesh.route_to_device",
+        parameters={"request_id": "req-expiry", "target_device_id": "new"},
+        request_id="req-expiry",
+    )
+
+    assert expired.token not in kernel._pending_confirmations
+    assert kernel._pending_confirmations[live.token] is live
+    assert decision.confirmation_token in kernel._pending_confirmations

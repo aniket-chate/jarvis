@@ -278,3 +278,31 @@ def test_policy_evaluation_purges_expired_tokens_and_preserves_live_tokens(monke
     assert expired.token not in kernel._pending_confirmations
     assert kernel._pending_confirmations[live.token] is live
     assert decision.confirmation_token in kernel._pending_confirmations
+
+
+
+def test_confirmation_store_rejects_new_tokens_when_capacity_is_reached():
+    from safety.policy_kernel import PendingConfirmation
+
+    kernel = PolicyKernel()
+    kernel.max_pending_confirmations = 1
+    existing = PendingConfirmation(
+        token="existing-live-token",
+        action_domain="mesh",
+        action_name="mesh.route_to_device",
+        parameters={"target_device_id": "existing"},
+        created_at=1.0,
+        expires_at=10_000_000_000.0,
+    )
+    kernel._pending_confirmations[existing.token] = existing
+
+    decision = kernel.evaluate(
+        domain="mesh",
+        action="mesh.route_to_device",
+        parameters={"request_id": "req-capacity", "target_device_id": "new"},
+        request_id="req-capacity",
+    )
+
+    assert decision.allowed is False
+    assert decision.confirmation_token is None
+    assert list(kernel._pending_confirmations) == [existing.token]

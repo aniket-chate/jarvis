@@ -278,7 +278,7 @@ class BrowserAutomationAgent:
         screenshot_filename: Optional[str] = None
     ) -> Dict[str, Any]:
         """Executes any natural language browser instruction generically using Browser-Use."""
-        logger.info("[BrowserAgent] Executing natural language task: %s", task)
+        logger.info("[BrowserAgent] Executing natural language task (length=%d)", len(task))
         llm = self._get_llm()
 
         screenshot_dest = SCREENSHOTS_DIR / (screenshot_filename or "browser_use_action.png")
@@ -344,14 +344,14 @@ class BrowserAutomationAgent:
                 "screenshot_path": screenshot_path_str
             }
         except asyncio.TimeoutError:
-            logger.error("[BrowserAgent] Task timed out after 60s hard limit: %s", task)
+            logger.error("[BrowserAgent] Task timed out after 60s hard limit (task_length=%d)", len(task))
             return {
                 "success": False,
                 "task": task,
                 "error": "Browser automation task timed out after 60s."
             }
         except Exception as e:
-            logger.error("[BrowserAgent] Task execution failed: %s", str(e))
+            logger.error("[BrowserAgent] Task execution failed (%s)", type(e).__name__)
             return {
                 "success": False,
                 "task": task,
@@ -743,7 +743,7 @@ class BrowserAutomationAgent:
         screenshot_name = screenshot_filename or f"web_{clean_site or 'action'}_{int(time.time())}.png"
         screenshot_dest = SCREENSHOTS_DIR / screenshot_name
 
-        logger.info("[BrowserAgent AstraLoop] Starting live web action on %s (headless=%s) for task: '%s'", target_url, headless, clean_task)
+        logger.info("[BrowserAgent AstraLoop] Starting live web action on %s (headless=%s, task_length=%d)", target_url, headless, len(clean_task))
         page = self._get_or_create_active_page(headless=headless)
         self._active_page = page
 
@@ -902,7 +902,7 @@ class BrowserAutomationAgent:
         screenshot_name = screenshot_filename or f"maps_{int(time.time())}.png"
         screenshot_dest = SCREENSHOTS_DIR / screenshot_name
 
-        logger.info("[BrowserAgent MapsRoute] Opening Google Maps visibly: %s", maps_url)
+        logger.info("[BrowserAgent MapsRoute] Opening Google Maps visibly (query_present=%s)", bool(maps_url))
         page = self._get_or_create_active_page(headless=headless)
         self._active_page = page
 
@@ -1227,7 +1227,7 @@ class BrowserAutomationAgent:
                 fallback_search_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}"
             elif "wikipedia" in clean_site:
                 fallback_search_url = f"https://en.wikipedia.org/w/index.php?search={urllib.parse.quote(query)}"
-            logger.info("[BrowserAgent ChainedSearch] Direct navigation fallback to %s", fallback_search_url)
+            logger.info("[BrowserAgent ChainedSearch] Direct navigation fallback (query_length=%d)", len(query))
             page.goto(fallback_search_url, wait_until="domcontentloaded", timeout=25000)
 
         # Step 6: Wait and confirm result state
@@ -1493,7 +1493,7 @@ class BrowserAutomationAgent:
             }
 
         except Exception as e:
-            logger.error("[BrowserAgent WhatsApp] Error during WhatsApp automation: %s", e)
+            logger.error("[BrowserAgent WhatsApp] Error during WhatsApp automation (%s)", type(e).__name__)
             return {"success": False, "error": str(e), "response": f"WhatsApp automation error: {e}"}
 
     def whatsapp_start_call(
@@ -1522,7 +1522,7 @@ class BrowserAutomationAgent:
         screenshot_name = screenshot_filename or f"whatsapp_call_{int(time.time())}.png"
         screenshot_dest = SCREENSHOTS_DIR / screenshot_name
 
-        logger.info("[BrowserAgent WhatsApp] Initiating WhatsApp voice call to '%s'...", target_name)
+        logger.info("[BrowserAgent WhatsApp] Initiating WhatsApp voice call")
         try:
             page = self._get_or_create_active_page(headless=False)
             self._active_page = page
@@ -1562,7 +1562,7 @@ class BrowserAutomationAgent:
                     except Exception:
                         page.keyboard.press("Enter")
             except Exception as s_err:
-                logger.warning("[BrowserAgent WhatsApp] Contact search warning: %s", s_err)
+                logger.warning("[BrowserAgent WhatsApp] Contact search warning (%s)", type(s_err).__name__)
 
             time.sleep(2.0)
 
@@ -1590,7 +1590,7 @@ class BrowserAutomationAgent:
                 call_btn.click()
                 time.sleep(2.5)
                 page.screenshot(path=str(screenshot_dest))
-                logger.info("[BrowserAgent WhatsApp] Voice call initiated for '%s'", contact_name)
+                logger.info("[BrowserAgent WhatsApp] Voice call initiated")
                 return {
                     "success": True,
                     "action": "whatsapp_call",
@@ -1616,7 +1616,7 @@ class BrowserAutomationAgent:
                     "output": f"Opened chat with '{contact_name}' on WhatsApp Web to initiate voice call."
                 }
         except Exception as e:
-            logger.error("[BrowserAgent WhatsApp Call] Error: %s", e)
+            logger.error("[BrowserAgent WhatsApp Call] Error (%s)", type(e).__name__)
             return {"success": False, "error": str(e), "response": f"Failed to initiate WhatsApp call: {e}"}
 
     def run_task(
@@ -1829,7 +1829,7 @@ class BrowserAutomationAgent:
             return {"success": False, "error": "No media query was provided.", "response": "Which song or media would you like me to play?", "output": "Which song or media would you like me to play?"}
 
         if song and (action in ["play_youtube", "play_song", "play_music"] or any(w in raw_target.lower() for w in ["play", "song", "music", "youtube"])):
-            logger.info("[BrowserAgent] Initiating chained song playback for: '%s'", song)
+            logger.info("[BrowserAgent] Initiating chained song playback (query_length=%d)", len(song))
             play_duration_sec = float(inputs.get("play_duration_sec", 0.0))
             screenshot_60s_name = inputs.get("screenshot_60s_filename")
             res = self.chained_play_media(

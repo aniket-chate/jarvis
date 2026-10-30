@@ -69,6 +69,12 @@ def init_all_layers() -> bool:
         logger.critical("[INIT FAILED] Error during layer initialization: %s", str(e), exc_info=True)
         return False
 
+def require_layers_initialized() -> None:
+    """Abort startup when any required JARVIS layer fails to initialize."""
+    if not init_all_layers():
+        logger.critical("JARVIS startup aborted because layer initialization failed.")
+        raise SystemExit(1)
+
 
 def shutdown_all_layers() -> None:
     """Performs clean shutdown, memory flush, and process cleanup guaranteeing zero orphans."""
@@ -124,7 +130,7 @@ signal.signal(signal.SIGTERM, handle_signals)
 
 async def run_scenario(scenario_id: str):
     """Runs one of the 3 full-system integration scenarios."""
-    init_all_layers()
+    require_layers_initialized()
     scenario = scenario_id.lower()
 
     if scenario == "a":
@@ -201,14 +207,16 @@ def main():
         lines = tail_logs(40)
         print("\n".join(lines))
     elif args.learn:
-        init_all_layers()
-        result = learning_engine.run_learning_cycle()
-        print(f"\n[Continuous Learning Result]:\n{result}")
-        shutdown_all_layers()
+        require_layers_initialized()
+        try:
+            result = learning_engine.run_learning_cycle()
+            print(f"\n[Continuous Learning Result]:\n{result}")
+        finally:
+            shutdown_all_layers()
     elif args.scenario:
         asyncio.run(run_scenario(args.scenario))
     elif args.start or args.cli:
-        init_all_layers()
+        require_layers_initialized()
         print(f"\nJARVIS Active ({settings.active_persona_name}). Enter commands or type 'exit' to quit.")
         try:
             while True:
@@ -226,9 +234,11 @@ def main():
         finally:
             shutdown_all_layers()
     else:
-        init_all_layers()
-        settings.check_secrets()
-        shutdown_all_layers()
+        require_layers_initialized()
+        try:
+            settings.check_secrets()
+        finally:
+            shutdown_all_layers()
 
 
 if __name__ == "__main__":

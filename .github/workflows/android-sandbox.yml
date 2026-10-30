@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - "feature/android-mobile-agent-v1"
+  pull_request:
+    paths:
+      - "client/android/**"
+      - "server/**"
+      - "gateway/**"
+      - "config/**"
+      - ".github/workflows/android-sandbox.yml"
   workflow_dispatch:
 
 concurrency:

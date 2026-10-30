@@ -629,7 +629,7 @@ class JarvisVoiceService : Service() {
         }
 
         recoverToStandby("Initial service foreground start")
-        Log.i(tag, "JarvisVoiceService started in foreground (profile_id='${profile.profileId}')")
+        Log.i(tag, "JarvisVoiceService started in foreground")
     }
 
     private fun onWakeWordDetected() {
@@ -651,7 +651,7 @@ class JarvisVoiceService : Service() {
             source = "sherpa_kws"
         )
         Log.i(tag, "VOICE_STATE: STANDBY_EXIT | Wake phrase detected")
-        Log.i(tag, "WakeWordEvent triggered (profile='${wakeEvent.profileId}')")
+        Log.i(tag, "WakeWordEvent triggered")
 
         transitionTo(ServiceVoiceState.WAKE_DETECTED, MicOwner.NONE, "KWS spotter detected wake phrase '${profile.phrase}'")
 

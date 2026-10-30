@@ -84,6 +84,14 @@ def shutdown_all_layers() -> None:
     except Exception as e:
         logger.error("[SHUTDOWN] Error saving memory: %s", type(e).__name__)
 
+    scheduler_module = sys.modules.get("agents.scheduler_agent")
+    scheduler = getattr(scheduler_module, "scheduler_agent", None) if scheduler_module else None
+    if scheduler is not None:
+        try:
+            scheduler.shutdown()
+        except Exception as exc:
+            logger.warning("[SHUTDOWN] Scheduler cleanup warning (%s).", type(exc).__name__)
+
     # Only terminate child processes explicitly started and registered by JARVIS.
     # User-requested applications and externally managed services stay untouched.
     terminate_registered_processes(timeout_seconds=3.0)

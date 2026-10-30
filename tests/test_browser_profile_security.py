@@ -1,7 +1,6 @@
 """Regression tests ensuring JARVIS never copies personal Chrome profile secrets."""
 
 from pathlib import Path
-import os
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -16,9 +15,7 @@ def test_managed_browser_profile_does_not_copy_personal_chrome_state(tmp_path, m
     # location, including its Windows-style expansion behavior on non-Windows CI.
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     monkeypatch.chdir(tmp_path)
-    personal_profile = Path(os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data"))
-    if not personal_profile.is_absolute():
-        personal_profile = tmp_path / personal_profile
+    personal_profile = tmp_path / "Google" / "Chrome" / "User Data"
     default_profile = personal_profile / "Default"
     default_profile.mkdir(parents=True)
     (personal_profile / "Local State").write_text("private-dpapi-state", encoding="utf-8")

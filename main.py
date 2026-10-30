@@ -162,37 +162,25 @@ async def run_scenario(scenario_id: str):
         print(f"\n[Playback Result]:\n{res}")
 
     elif scenario == "c":
-        print("\n" + "=" * 65)
-        print("SCENARIO C: Calendar & Email Draft with Two-Gate Send Approval")
+        print("\\n" + "=" * 65)
+        print("SCENARIO C: Calendar Read & Email Draft (No Automatic Send)")
         print("=" * 65)
         from agents.calendar_agent import calendar_agent
         from agents.communication_agent import communication_agent
-        from agents.identity_agent import identity_agent
 
-        # 1. Read calendar
         cal = calendar_agent.get_upcoming_events(max_results=2)
         print(f"[Calendar Read]: {cal.get('events', 'Auth needed')}")
 
-        # 2. Draft email
         draft = communication_agent.draft_email(
             to="meeting.partner@example.com",
             subject="Confirming Tomorrow's Meeting",
             body="Hi, confirming our scheduled discussion for tomorrow as planned."
         )
         print(f"[Email Draft]: {draft}")
-
-        # 3. Two-Gate Approval check
-        profile = identity_agent.owner_profile
-        owner_emb = profile.get("face_embedding")
-
-        send_res = communication_agent.send_email(
-            to="meeting.partner@example.com",
-            subject="Confirming Tomorrow's Meeting",
-            body="Hi, confirming our scheduled discussion for tomorrow as planned.",
-            user_confirmed=True,
-            face_embedding=owner_emb
+        print(
+            "[Email Send] Skipped: a demo scenario must not reuse a stored face embedding "
+            "as live biometric proof or send an email automatically."
         )
-        print(f"[Two-Gate Approved Send]: {send_res}")
 
     shutdown_all_layers()
 

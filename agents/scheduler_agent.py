@@ -35,6 +35,15 @@ class SchedulerAgent:
         self.active_alarms: Dict[str, Dict[str, Any]] = {}
         logger.info("[SchedulerAgent] In-app scheduler initialized and running.")
 
+    def shutdown(self) -> None:
+        """Stop the in-process scheduler so no new notification children are spawned."""
+        try:
+            if self.scheduler and self.scheduler.running:
+                self.scheduler.shutdown(wait=False)
+                logger.info("[SchedulerAgent] In-app scheduler stopped.")
+        except Exception as exc:
+            logger.warning("[SchedulerAgent] Scheduler shutdown warning (%s).", type(exc).__name__)
+
     def _show_windows_notification(self, title: str, message: str) -> None:
         """Dispatches a real native Windows notification balloon and sound alert."""
         try:

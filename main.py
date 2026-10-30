@@ -11,10 +11,10 @@ Ensures clean startup, clean shutdown, and zero orphaned processes.
 import sys
 import os
 import signal
+import subprocess
 import argparse
 import asyncio
 import logging
-import psutil
 from pathlib import Path
 
 # Add project root to sys.path
@@ -34,6 +34,14 @@ logger = logging.getLogger("JARVIS.Main")
 
 # Global tracking of active child subprocesses
 CHILD_PROCESSES = []
+
+def register_child_process(process: subprocess.Popen) -> subprocess.Popen:
+    """Register a subprocess explicitly owned by JARVIS for safe shutdown."""
+    if process is not None and process not in CHILD_PROCESSES:
+        CHILD_PROCESSES.append(process)
+    return process
+
+
 
 
 def init_all_layers() -> bool:
@@ -77,43 +85,41 @@ def require_layers_initialized() -> None:
 
 
 def shutdown_all_layers() -> None:
-    """Performs clean shutdown, memory flush, and process cleanup guaranteeing zero orphans."""
+    """Flush memory and stop only subprocesses explicitly owned by JARVIS."""
     logger.info("=" * 65)
     logger.info("INITIATING CLEAN SHUTDOWN PROTOCOL")
     logger.info("=" * 65)
 
-    # 1. Flush persistent memory
     try:
         memory_manager._save_persistent()
         logger.info("[SHUTDOWN] Persistent long-term memory saved to disk.")
     except Exception as e:
-        logger.error("[SHUTDOWN] Error saving memory: %s", str(e))
+        logger.error("[SHUTDOWN] Error saving memory: %s", type(e).__name__)
 
-    # 2. Terminate any tracked child processes
-    current_proc = psutil.Process(os.getpid())
-    children = current_proc.children(recursive=True)
-    if children:
-        logger.info("[SHUTDOWN] Terminating %d child process(es)...", len(children))
-        for child in children:
-            try:
+    # Never terminate every descendant of this process: that can kill unrelated
+    # user applications (for example an already-running Chrome or Ollama process).
+    # Only stop subprocesses registered by the component that created them.
+    for child in list(CHILD_PROCESSES):
+        try:
+            if child.poll() is None:
                 child.terminate()
-            except Exception:
-                pass
-        gone, alive = psutil.wait_procs(children, timeout=3)
-        for p in alive:
-            try:
-                p.kill()
-            except Exception:
-                pass
+                try:
+                    child.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    child.wait(timeout=3)
+            logger.info("[SHUTDOWN] Stopped JARVIS-owned child process (pid=%s).", child.pid)
+        except Exception as exc:
+            logger.warning("[SHUTDOWN] Could not stop a registered child process (%s).", type(exc).__name__)
+        finally:
+            if child in CHILD_PROCESSES:
+                CHILD_PROCESSES.remove(child)
 
-    # Verify process list
-    remaining = current_proc.children(recursive=True)
-    if not remaining:
-        logger.info("[SHUTDOWN] Confirmed: Zero orphaned processes remain.")
-    else:
-        logger.warning("[SHUTDOWN] Warning: %d process(es) remaining.", len(remaining))
-
-    logger.info("JARVIS shutdown sequence completed cleanly.")
+    logger.info(
+        "[SHUTDOWN] Shutdown complete; no unregistered processes were signalled. "
+        "Registered child processes remaining: %d",
+        len(CHILD_PROCESSES),
+    )
 
 
 def handle_signals(sig, frame):
@@ -203,7 +209,15 @@ def main():
 
     args = parser.parse_args()
 
-    if args.logs:
+    if args.status:
+        print("\\n" + "=" * 60)
+        print(" JARVIS RUNTIME STATUS")
+        print("=" * 60)
+        print(f" Active persona : {settings.active_persona_name}")
+        print(f" Core model     : {settings.hardware.get('core_llm', 'Not configured')}")
+        print(f" LLM provider   : {settings.llm_provider}")
+        settings.check_secrets()
+    elif args.logs:
         lines = tail_logs(40)
         print("\n".join(lines))
     elif args.learn:

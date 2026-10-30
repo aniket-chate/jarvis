@@ -11,7 +11,6 @@ Ensures clean startup, clean shutdown, and zero orphaned processes.
 import sys
 import os
 import signal
-import subprocess
 import argparse
 import asyncio
 import logging
@@ -29,20 +28,9 @@ from orchestrator.memory import memory_manager
 from orchestrator.learning import learning_engine
 from perception.events import PerceptionEvent, event_bus
 from voice.tts_piper import tts_engine
+from utils.process_registry import CHILD_PROCESSES, register_child_process, terminate_registered_processes
 
 logger = logging.getLogger("JARVIS.Main")
-
-# Global tracking of active child subprocesses
-CHILD_PROCESSES = []
-
-def register_child_process(process: subprocess.Popen) -> subprocess.Popen:
-    """Register a subprocess explicitly owned by JARVIS for safe shutdown."""
-    if process is not None and process not in CHILD_PROCESSES:
-        CHILD_PROCESSES.append(process)
-    return process
-
-
-
 
 def init_all_layers() -> bool:
     """Initializes all layers in strict sequential order with confirmation logs."""
@@ -96,30 +84,10 @@ def shutdown_all_layers() -> None:
     except Exception as e:
         logger.error("[SHUTDOWN] Error saving memory: %s", type(e).__name__)
 
-    # Never terminate every descendant of this process: that can kill unrelated
-    # user applications (for example an already-running Chrome or Ollama process).
-    # Only stop subprocesses registered by the component that created them.
-    for child in list(CHILD_PROCESSES):
-        try:
-            if child.poll() is None:
-                child.terminate()
-                try:
-                    child.wait(timeout=3)
-                except subprocess.TimeoutExpired:
-                    child.kill()
-                    child.wait(timeout=3)
-            logger.info("[SHUTDOWN] Stopped JARVIS-owned child process (pid=%s).", child.pid)
-        except Exception as exc:
-            logger.warning("[SHUTDOWN] Could not stop a registered child process (%s).", type(exc).__name__)
-        finally:
-            if child in CHILD_PROCESSES:
-                CHILD_PROCESSES.remove(child)
-
-    logger.info(
-        "[SHUTDOWN] Shutdown complete; no unregistered processes were signalled. "
-        "Registered child processes remaining: %d",
-        len(CHILD_PROCESSES),
-    )
+    # Only terminate child processes explicitly started and registered by JARVIS.
+    # User-requested applications and externally managed services stay untouched.
+    terminate_registered_processes(timeout_seconds=3.0)
+    logger.info("[SHUTDOWN] Registered JARVIS-owned subprocess cleanup completed.")
 
 
 def handle_signals(sig, frame):

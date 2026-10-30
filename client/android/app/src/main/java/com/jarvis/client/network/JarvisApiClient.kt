@@ -67,7 +67,7 @@ class JarvisApiClient(
                         val deviceResp = gson.fromJson(respBody, DeviceResponse::class.java)
                         Result.success(deviceResp)
                     } else {
-                        Result.failure(Exception("Registration failed (${response.code}): $respBody"))
+                        Result.failure(Exception("Registration failed with HTTP status ${response.code}"))
                     }
                 }
             } catch (e: Exception) {
@@ -90,7 +90,7 @@ class JarvisApiClient(
                         val heartbeatResp = gson.fromJson(respBody, HeartbeatResponse::class.java)
                         Result.success(heartbeatResp)
                     } else {
-                        Result.failure(Exception("Heartbeat failed (${response.code}): $respBody"))
+                        Result.failure(Exception("Heartbeat failed with HTTP status ${response.code}"))
                     }
                 }
             } catch (e: Exception) {

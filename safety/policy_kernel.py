@@ -172,7 +172,6 @@ class PolicyKernel:
                 )
             import uuid
             token = f"auth_comms_{uuid.uuid4().hex[:12]}"
-            now = time.time()
             self._pending_confirmations[token] = PendingConfirmation(
                 token=token,
                 action_domain=domain,
@@ -219,7 +218,6 @@ class PolicyKernel:
                 )
             import uuid
             token = f"auth_mesh_{uuid.uuid4().hex[:12]}"
-            now = time.time()
             self._pending_confirmations[token] = PendingConfirmation(
                 token=token,
                 action_domain=domain,
@@ -256,9 +254,15 @@ class PolicyKernel:
             or any(w in low_query for w in ["delete a file", "delete that file", "delete file", "delete folder", "delete a folder", "delete directory", "drop table", "drop database"])
         )
         if is_destructive and not (parameters.get("confirmed", False) or parameters.get("user_confirmed", False)):
+            if len(self._pending_confirmations) >= self.max_pending_confirmations:
+                return SafetyDecision(
+                    level=PolicyLevel.CONFIRMATION_REQUIRED,
+                    allowed=False,
+                    reason="Pending confirmation capacity reached; retry after existing confirmations expire.",
+                    risk_score=0.7,
+                )
             import uuid
             token = f"auth_del_{uuid.uuid4().hex[:12]}"
-            now = time.time()
             self._pending_confirmations[token] = PendingConfirmation(
                 token=token,
                 action_domain=domain,

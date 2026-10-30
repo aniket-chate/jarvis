@@ -182,7 +182,6 @@ async def run_scenario(scenario_id: str):
             "as live biometric proof or send an email automatically."
         )
 
-    shutdown_all_layers()
 
 
 def main():
@@ -197,7 +196,9 @@ def main():
 
     args = parser.parse_args()
 
-    if args.status:
+    if args.check_secrets:
+        settings.check_secrets()
+    elif args.status:
         print("\n" + "=" * 60)
         print(" JARVIS RUNTIME STATUS")
         print("=" * 60)
@@ -216,7 +217,10 @@ def main():
         finally:
             shutdown_all_layers()
     elif args.scenario:
-        asyncio.run(run_scenario(args.scenario))
+        try:
+            asyncio.run(run_scenario(args.scenario))
+        finally:
+            shutdown_all_layers()
     elif args.start or args.cli:
         require_layers_initialized()
         print(f"\nJARVIS Active ({settings.active_persona_name}). Enter commands or type 'exit' to quit.")

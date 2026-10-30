@@ -135,7 +135,7 @@ async def startup_warmup_gate():
                 "active_persona": ev.active_persona or settings.active_persona_name,
                 "timestamp": time.time(),
             }
-            logger.info("[Server EventBus] Broadcasting alarm_triggered to clients: %s", payload)
+            logger.info("[Server EventBus] Broadcasting alarm_triggered event: alarm_id=%s active_persona=%s", payload.get("alarm_id"), payload.get("active_persona"))
             try:
                 loop = asyncio.get_running_loop()
                 loop.create_task(gateway_registry.broadcast_all(payload))
@@ -1118,7 +1118,7 @@ async def websocket_gateway(
                 if query:
                     t_received = time.time()
                     t_received_perf = time.perf_counter()
-                    logger.info("[RESPONSE_START] Starting response generation [request_id=%s, response_id=%s, persona=%s, query='%s', accessible=%s]", req_id, resp_id, persona, query, req_accessibility)
+                    logger.info("[RESPONSE_START] Starting response generation [request_id=%s, response_id=%s, persona=%s, query_length=%d, accessible=%s]", req_id, resp_id, persona, len(query), req_accessibility)
 
                     # Publish event to Layer 1 Event Bus
                     event = PerceptionEvent(
@@ -1205,7 +1205,7 @@ async def websocket_gateway(
                     if first_agent == "core_llm_agent" and getattr(plan, "intent", None) != "persona_switch":
                         # Startup health-gate: If query arrives before Ollama is confirmed warm, respond honestly
                         if not ollama_warm and ollama_warming:
-                            logger.info("[Startup Gate] Query '%s' received while Ollama is warming up. Responding honestly.", query)
+                            logger.info("[Startup Gate] Query received while Ollama is warming up (query_length=%d). Responding honestly.", len(query))
                             warm_notice = f"[{persona}]: I am still starting up and warming the local models, one moment please."
                             await websocket.send_json({
                                 "type": "chat_response",
@@ -1262,7 +1262,7 @@ async def websocket_gateway(
 
                                     s_text, is_final = item
                                     seq_id = s_idx + 1
-                                    logger.info("[TTS_SYNTH_START] [request_id=%s, response_id=%s, sequence_id=%d] Synthesizing: '%s'", req_id, resp_id, seq_id, s_text[:40])
+                                    logger.info("[TTS_SYNTH_START] [request_id=%s, response_id=%s, sequence_id=%d] Synthesizing response (text_length=%d)", req_id, resp_id, seq_id, len(s_text))
                                     t_synth_start = time.perf_counter()
                                     b64 = await asyncio.to_thread(_fast_synth_b64, s_text, persona)
                                     synth_dur = (time.perf_counter() - t_synth_start) * 1000
@@ -1425,7 +1425,7 @@ async def websocket_gateway(
                         result = await asyncio.to_thread(orchestrator_core.process_event, event, plan)
                         t_tool_end = time.perf_counter()
                         resp_str = result.get("response", "")
-                        logger.info("[TOOL_EXEC_COMPLETE] [request_id=%s, response_id=%s] Tool executed in %.1fms. Result text: '%s'", req_id, resp_id, (t_tool_end - t_tool_start) * 1000, resp_str[:60])
+                        logger.info("[TOOL_EXEC_COMPLETE] [request_id=%s, response_id=%s] Tool executed in %.1fms (result_length=%d)", req_id, resp_id, (t_tool_end - t_tool_start) * 1000, len(resp_str))
 
                         final_persona = result.get("active_persona", persona) if result.get("type") == "persona_switch" else persona
                         # Authoritative UI message matching exact tool response dispatched IMMEDIATELY
@@ -1484,7 +1484,7 @@ async def websocket_gateway(
                                 is_final_chunk = (s_idx == len(sentences) - 1)
                                 seq_id = s_idx + 1
                                 try:
-                                    logger.info("[TTS_SYNTH_START] [request_id=%s, response_id=%s, sequence_id=%d] Synthesizing tool speech: '%s'", r_id, rp_id, seq_id, s_text[:35])
+                                    logger.info("[TTS_SYNTH_START] [request_id=%s, response_id=%s, sequence_id=%d] Synthesizing tool speech (text_length=%d)", r_id, rp_id, seq_id, len(s_text))
                                     t_s_start = time.perf_counter()
                                     b64_audio = await asyncio.to_thread(_fast_synth_b64, s_text, p_name)
                                     t_s_dur = (time.perf_counter() - t_s_start) * 1000
@@ -1521,7 +1521,7 @@ async def websocket_gateway(
                         if not is_media and ("playing '" in resp_str.lower() or "playback" in resp_str.lower()):
                             is_media = True
                         if is_media:
-                            logger.info("[WebSocket] Emitting REAL media_playback_started event for: '%s'", query)
+                            logger.info("[WebSocket] Emitting REAL media_playback_started event (query_length=%d)", len(query))
                             await websocket.send_json({
                                 "type": "media_playback_started",
                                 "query": query,

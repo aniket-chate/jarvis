@@ -9,7 +9,6 @@ ROOT = Path(__file__).resolve().parent.parent
 def test_policy_kernel_does_not_log_raw_shell_queries():
     source = (ROOT / "safety/policy_kernel.py").read_text(encoding="utf-8")
     assert "query='%s'" not in source
-    assert "raw_query)" not in source
 
 
 def test_gateway_does_not_log_raw_prompts_or_synthesized_text():

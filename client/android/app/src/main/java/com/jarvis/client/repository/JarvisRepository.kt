@@ -107,7 +107,7 @@ class JarvisRepository(
             scope.launch {
                 recognizer.transcriptionResults.collect { recognizedText ->
                     if (!com.jarvis.client.voice.JarvisVoiceService.isRunning.value) {
-                        Log.i(tag, "Received manual voice transcription: '$recognizedText' -> Sending via WebSocket")
+                        Log.i(tag, "Received manual voice transcription (text_length=${recognizedText.length}); sending via WebSocket")
                         sendMessage(recognizedText)
                     }
                 }

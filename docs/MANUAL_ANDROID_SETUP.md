@@ -91,6 +91,8 @@ Use the PC's LAN address, for example:
 http://192.168.x.x:8000
 ```
 
+**Debug builds only:** this plain-HTTP example is permitted for local development. Do not use it with a release APK.
+
 Do not use `10.0.2.2` on a physical phone. That address is for the Android emulator to reach the host PC.
 
 ## 5. Tailscale connection
@@ -109,9 +111,15 @@ Use the returned Tailscale IP:
 http://100.x.y.z:8000
 ```
 
-If MagicDNS is enabled, the PC hostname can be used instead.
+**Debug builds only:** this plain-HTTP example is permitted for local development. For a release APK, configure a TLS endpoint, for example a Tailscale Serve HTTPS hostname:
 
-Tailscale supplies private network connectivity; JARVIS still needs its own FastAPI/WebSocket service running on port 8000.
+```
+https://<device>.<tailnet>.ts.net
+```
+
+If MagicDNS is enabled, the PC hostname can be used for network discovery; it does not by itself make HTTP secure.
+
+Tailscale supplies private network connectivity; JARVIS still needs its own FastAPI/WebSocket service running on port 8000. For release builds, the service must be exposed through HTTPS (for example, Tailscale Serve) rather than a raw HTTP IP.
 
 ## Network transport security
 
@@ -162,8 +170,10 @@ The app generates its own Android device ID and derives a runtime device name fr
 Open JARVIS Settings and enter:
 
 **Backend URL**
-- LAN: `http://PC_LAN_IP:8000`
-- Tailscale: `http://PC_TAILSCALE_IP:8000`
+
+- **Debug build only — LAN:** `http://PC_LAN_IP:8000`
+- **Debug build only — Tailscale IP:** `http://PC_TAILSCALE_IP:8000`
+- **Release build — HTTPS only:** `https://<device>.<tailnet>.ts.net` (or your own valid HTTPS reverse-proxy hostname)
 
 **User ID**
 - Choose a stable local identifier for this installation, such as `default_user`.

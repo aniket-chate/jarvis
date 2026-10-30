@@ -111,7 +111,11 @@ def test_scenario_entrypoint_always_runs_shutdown(monkeypatch):
 
     shutdown_calls = []
     monkeypatch.setattr(sys, "argv", ["main.py", "--scenario", "a"])
-    monkeypatch.setattr(main.asyncio, "run", lambda _coroutine: (_ for _ in ()).throw(RuntimeError("scenario failed")))
+    def fail_run(coroutine):
+        coroutine.close()
+        raise RuntimeError("scenario failed")
+
+    monkeypatch.setattr(main.asyncio, "run", fail_run)
     monkeypatch.setattr(main, "shutdown_all_layers", lambda: shutdown_calls.append(True))
 
     with pytest.raises(RuntimeError, match="scenario failed"):

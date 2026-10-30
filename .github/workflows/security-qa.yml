@@ -30,6 +30,8 @@ jobs:
         run: pytest -q tests/test_capability_gateway_confirmation.py
       - name: Run main lifecycle regressions
         run: pytest -q tests/test_main_lifecycle.py
+      - name: Run sensitive logging regressions
+        run: pytest -q tests/test_sensitive_logging.py
       - name: Run production intent arbitration tests
         run: pytest -q tests/test_intent_arbitrator_production.py
       - name: Install browser display support

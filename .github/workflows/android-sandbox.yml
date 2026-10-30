@@ -1,5 +1,8 @@
 name: Android + JARVIS Live Sandbox
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
@@ -88,6 +91,10 @@ jobs:
         run: |
           cd "$GITHUB_WORKSPACE/client/android"
           bash ./gradlew assembleRelease --stacktrace
+          manifest="$(find app/build/intermediates -type f -path '*release*' -name AndroidManifest.xml | head -n 1)"
+          test -n "$manifest"
+          grep -Eq 'android:usesCleartextTraffic="false"' "$manifest"
+          echo "Verified release manifest disables cleartext traffic: $manifest"
 
       - name: Dump gateway log on failure
         if: failure()

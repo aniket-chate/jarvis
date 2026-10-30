@@ -30,3 +30,53 @@ def test_entrypoints_abort_when_required_layers_fail(monkeypatch, arguments):
         main.main()
 
     assert exc.value.code == 1
+
+
+
+def test_status_command_reports_configuration_without_starting_runtime(monkeypatch, capsys):
+    import main
+
+    monkeypatch.setattr(sys, "argv", ["main.py", "--status"])
+    monkeypatch.setattr(main.settings, "check_secrets", lambda: {"modules_status": {}})
+    monkeypatch.setattr(main, "init_all_layers", lambda: pytest.fail("status must not initialize runtime layers"))
+
+    main.main()
+    output = capsys.readouterr().out
+    assert "JARVIS RUNTIME STATUS" in output
+    assert "Active persona" in output
+
+
+def test_shutdown_only_terminates_registered_child_processes(monkeypatch):
+    import main
+
+    class FakeProcess:
+        pid = 43210
+
+        def __init__(self):
+            self.running = True
+            self.terminated = False
+
+        def poll(self):
+            return None if self.running else 0
+
+        def terminate(self):
+            self.terminated = True
+            self.running = False
+
+        def wait(self, timeout=None):
+            return 0
+
+        def kill(self):
+            self.running = False
+
+    registered = FakeProcess()
+    unrelated = FakeProcess()
+    monkeypatch.setattr(main.memory_manager, "_save_persistent", lambda: None)
+    main.CHILD_PROCESSES.clear()
+    main.register_child_process(registered)
+
+    main.shutdown_all_layers()
+
+    assert registered.terminated is True
+    assert unrelated.terminated is False
+    assert main.CHILD_PROCESSES == []

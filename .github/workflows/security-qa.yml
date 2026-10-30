@@ -26,6 +26,8 @@ jobs:
         env:
           GATEWAY_AUTH_TOKEN: ci-test-token
         run: pytest -q tests/test_security_regressions.py
+      - name: Run capability gateway confirmation regressions
+        run: pytest -q tests/test_capability_gateway_confirmation.py
       - name: Run production intent arbitration tests
         run: pytest -q tests/test_intent_arbitrator_production.py
       - name: Install browser display support

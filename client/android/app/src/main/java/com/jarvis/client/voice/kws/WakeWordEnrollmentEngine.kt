@@ -294,7 +294,7 @@ class WakeWordEnrollmentEngine(
                 )
 
                 spotter = KeywordSpotter(assetManager = null, config = kwsConfig)
-                Log.i(tag, "Isolated Sherpa KeywordSpotter initialized for enrollment telemetry of '$tokenizedKeyword'")
+                Log.i(tag, "Isolated Sherpa KeywordSpotter initialized for enrollment telemetry")
                 true
             } catch (t: Throwable) {
                 Log.w(tag, "Optional enrollment KeywordSpotter could not be initialized: ${t.message}")

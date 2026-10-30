@@ -232,13 +232,13 @@ class JarvisVoiceService : Service() {
                 if (!isServiceActive) return@collect
                 val state = _voiceState.value
                 if (state != ServiceVoiceState.LISTENING_COMMAND && state != ServiceVoiceState.LISTENING_CONFIRMATION) {
-                    Log.d(tag, "Ignored late transcription '$recognizedText' while state=$state")
+                    Log.d(tag, "Ignored late transcription (text_length=${recognizedText.length}) while state=$state")
                     return@collect
                 }
 
                 val now = System.currentTimeMillis()
                 val latFromListen = if (listeningStartTime > 0) now - listeningStartTime else 0L
-                Log.i(tag, "VOICE_STATE: SPEECH_RESULT text='$recognizedText' elapsed_since_listening=${latFromListen}ms")
+                Log.i(tag, "VOICE_STATE: SPEECH_RESULT text_length=${recognizedText.length} elapsed_since_listening=${latFromListen}ms")
                 val profile = getActiveWakeProfile()
 
                 if (isAwaitingVoiceConfirmation || state == ServiceVoiceState.LISTENING_CONFIRMATION) {
@@ -251,11 +251,11 @@ class JarvisVoiceService : Service() {
 
                     Log.i(
                         tag,
-                        "CONFIRMATION_RECOGNIZED text='$trimmed' voice_turn_id=$turnId pending_action=$actionId is_approval=$isApproval is_denial=$isDenial timestamp=$now"
+                        "CONFIRMATION_RECOGNIZED text_length=${trimmed.length} voice_turn_id=$turnId pending_action=$actionId is_approval=$isApproval is_denial=$isDenial timestamp=$now"
                     )
 
                     val dispatchText = if (isApproval) "yes" else if (isDenial) "no" else trimmed
-                    transitionTo(ServiceVoiceState.EXECUTING, MicOwner.NONE, "Confirmation recognized: '$dispatchText'")
+                    transitionTo(ServiceVoiceState.EXECUTING, MicOwner.NONE, "Voice confirmation recognized")
                     updateNotification("Processing Confirmation", "Dispatching: \"$dispatchText\"")
 
                     isAwaitingVoiceConfirmation = false
@@ -265,7 +265,7 @@ class JarvisVoiceService : Service() {
 
                     Log.i(
                         tag,
-                        "CONFIRMATION_SENT voice_turn_id=$turnId pending_action=$actionId text='$dispatchText' timestamp=$now"
+                        "CONFIRMATION_SENT voice_turn_id=$turnId pending_action=$actionId timestamp=$now"
                     )
 
                     repository.sendVoiceTurn(
@@ -279,7 +279,7 @@ class JarvisVoiceService : Service() {
                 val cleanedCommand = cleanWakePrefix(recognizedText, profile)
 
                 if (cleanedCommand.isBlank()) {
-                    Log.i(tag, "Recognized text was only wake phrase ('$recognizedText') -> No command -> Returning to standby")
+                    Log.i(tag, "Recognized utterance contained only the wake phrase; returning to standby")
                     recoverToStandby("Wake-only utterance without command")
                     return@collect
                 }
@@ -287,10 +287,10 @@ class JarvisVoiceService : Service() {
                 commandReceivedTime = now
                 Log.i(
                     tag,
-                    "LATENCY_METRIC: LISTENING_COMMAND -> VOICE_TURN_RECEIVED ${now - listeningStartTime}ms (turn='$cleanedCommand')"
+                    "LATENCY_METRIC: LISTENING_COMMAND -> VOICE_TURN_RECEIVED ${now - listeningStartTime}ms (command_length=${cleanedCommand.length})"
                 )
 
-                transitionTo(ServiceVoiceState.EXECUTING, MicOwner.NONE, "Command recognized: '$cleanedCommand'")
+                transitionTo(ServiceVoiceState.EXECUTING, MicOwner.NONE, "Voice command recognized")
                 updateNotification("Processing...", "Processing: \"$cleanedCommand\"")
 
                 repository.sendVoiceTurn(
@@ -325,7 +325,7 @@ class JarvisVoiceService : Service() {
                     )
                     transitionTo(ServiceVoiceState.WAITING_CONFIRMATION, MicOwner.NONE, "Awaiting voice confirmation response")
                 } else {
-                    transitionTo(ServiceVoiceState.TTS, MicOwner.NONE, "TTS vocalizing response: '$spoken'")
+                    transitionTo(ServiceVoiceState.TTS, MicOwner.NONE, "TTS vocalizing response")
                 }
 
                 updateNotification("Jarvis Speaking", text)
@@ -354,7 +354,7 @@ class JarvisVoiceService : Service() {
                     }
 
                     ttsManager.speak(text = text, spokenText = spoken) {
-                        Log.i(tag, "VOICE_STATE: TTS_COMPLETE text='$spoken'")
+                        Log.i(tag, "VOICE_STATE: TTS_COMPLETE text_length=${spoken.length}")
                         invokeNextState()
                     }
 
@@ -397,7 +397,7 @@ class JarvisVoiceService : Service() {
                     )
                     transitionTo(ServiceVoiceState.WAITING_CONFIRMATION, MicOwner.NONE, "Awaiting voice confirmation response (fallback)")
                 } else {
-                    transitionTo(ServiceVoiceState.TTS, MicOwner.NONE, "TTS vocalizing fallback response: '$text'")
+                    transitionTo(ServiceVoiceState.TTS, MicOwner.NONE, "TTS vocalizing fallback response")
                 }
 
                 updateNotification("Jarvis Speaking", text)
@@ -426,7 +426,7 @@ class JarvisVoiceService : Service() {
                     }
 
                     ttsManager.speak(text = text, spokenText = spoken) {
-                        Log.i(tag, "VOICE_STATE: TTS_COMPLETE fallback text='$spoken'")
+                        Log.i(tag, "VOICE_STATE: TTS_COMPLETE fallback text_length=${spoken.length}")
                         invokeNextState()
                     }
 
@@ -566,7 +566,7 @@ class JarvisVoiceService : Service() {
         val timestamp = timeFormat.format(Date())
         Log.i(
             tag,
-            "STATE_TRANSITION [$timestamp] state: $oldState -> $newState | mic: $oldOwner -> $newOwner | reason: $reason | gen=${sessionGeneration.get()}"
+            "STATE_TRANSITION [$timestamp] state: $oldState -> $newState | mic: $oldOwner -> $newOwner | reason_present=${reason.isNotBlank()} | gen=${sessionGeneration.get()}"
         )
     }
 
@@ -629,7 +629,7 @@ class JarvisVoiceService : Service() {
         }
 
         recoverToStandby("Initial service foreground start")
-        Log.i(tag, "JarvisVoiceService started in foreground for active phrase: '${profile.phrase}' (user='${profile.userId}')")
+        Log.i(tag, "JarvisVoiceService started in foreground (profile_id='${profile.profileId}')")
     }
 
     private fun onWakeWordDetected() {
@@ -650,8 +650,8 @@ class JarvisVoiceService : Service() {
             confidence = _micDiagnostics.value.lastConfidence,
             source = "sherpa_kws"
         )
-        Log.i(tag, "VOICE_STATE: STANDBY_EXIT | Wake detected for phrase='${profile.phrase}'")
-        Log.i(tag, "WakeWordEvent triggered: phrase='${wakeEvent.phrase}' (profile='${wakeEvent.profileId}', user='${wakeEvent.userId}')")
+        Log.i(tag, "VOICE_STATE: STANDBY_EXIT | Wake phrase detected")
+        Log.i(tag, "WakeWordEvent triggered (profile='${wakeEvent.profileId}')")
 
         transitionTo(ServiceVoiceState.WAKE_DETECTED, MicOwner.NONE, "KWS spotter detected wake phrase '${profile.phrase}'")
 
@@ -781,7 +781,7 @@ class JarvisVoiceService : Service() {
                 )
             }
 
-            Log.i(TAG_KWS, "VOICE_STATE: KWS_RESTART_REQUEST reason='$reason' gen=$currentGen")
+            Log.i(TAG_KWS, "VOICE_STATE: KWS_RESTART_REQUEST gen=$currentGen")
             applyThresholdConfiguration()
 
             if (::wakeWordDetector.isInitialized) {
@@ -840,7 +840,7 @@ class JarvisVoiceService : Service() {
                         formatStandbyTitle(micDiag),
                         formatStandbySummary(micDiag)
                     )
-                    Log.i(TAG_KWS, "VOICE_STATE: STANDBY_CONFIRMED recording=true verified_pcm=true gen=$currentGen reason='$reason'")
+                    Log.i(TAG_KWS, "VOICE_STATE: STANDBY_CONFIRMED recording=true verified_pcm=true gen=$currentGen")
                 } else {
                     Log.e(
                         TAG_KWS,

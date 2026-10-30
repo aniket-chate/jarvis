@@ -178,7 +178,17 @@ def test_confirmation_executes_only_the_parameters_that_were_staged(api_client, 
     assert captured["confirmed"] is True
 
 
-def test_policy_kernel_requires_one_time_confirmation_for_mesh_route():
+@pytest.mark.parametrize(
+    "action",
+    [
+        "mesh.route_to_device",
+        "mesh.register_device",
+        "mesh.revoke_device",
+        "mesh.set_device_trust",
+        "mesh.sync_state",
+    ],
+)
+def test_policy_kernel_requires_one_time_confirmation_for_mesh_mutations(action):
     kernel = PolicyKernel()
     parameters = {
         "request_id": "req-mesh-policy",
@@ -188,7 +198,7 @@ def test_policy_kernel_requires_one_time_confirmation_for_mesh_route():
 
     decision = kernel.evaluate(
         domain="mesh",
-        action="mesh.route_to_device",
+        action=action,
         parameters=parameters,
         request_id="req-mesh-policy",
     )

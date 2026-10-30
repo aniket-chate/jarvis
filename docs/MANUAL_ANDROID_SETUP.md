@@ -113,6 +113,12 @@ If MagicDNS is enabled, the PC hostname can be used instead.
 
 Tailscale supplies private network connectivity; JARVIS still needs its own FastAPI/WebSocket service running on port 8000.
 
+## Network transport security
+
+The Android **debug** build permits cleartext HTTP so the emulator and local development server can use `http://10.0.2.2:8000` or a private LAN URL.
+
+The **release** build disables cleartext traffic. Configure the Android Backend URL with an HTTPS endpoint before using a release APK. For remote/private access, use a TLS-protected endpoint such as Tailscale Serve; a raw Tailscale IP with `http://` is not sufficient for a release build. Do not weaken the release manifest to make HTTP work.
+
 ## 6. Build and install the Android client
 
 From Windows:

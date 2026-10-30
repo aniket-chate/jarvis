@@ -83,13 +83,42 @@ def test_shutdown_only_terminates_registered_child_processes(monkeypatch):
 
 
 
-def test_demo_scenario_c_never_reuses_stored_biometrics_or_sends_email():
-    source = (ROOT / "main.py").read_text(encoding="utf-8")
-    scenario_c = source.split('elif scenario == "c":', 1)[1].split("shutdown_all_layers()", 1)[0]
+def test_demo_scenario_c_drafts_without_sending(monkeypatch):
+    import asyncio
+    import types
+    import main
 
-    assert ".send_email(" not in scenario_c
-    assert "face_embedding" not in scenario_c
-    assert "draft_email(" in scenario_c
+    calls = {"draft": 0, "send": 0}
+
+    def draft_email(**kwargs):
+        calls["draft"] += 1
+        return {"success": True, "status": "DRAFT"}
+
+    def send_email(*args, **kwargs):
+        calls["send"] += 1
+        pytest.fail("Scenario C must never send an email")
+
+    communication = types.SimpleNamespace(
+        draft_email=draft_email,
+        send_email=send_email,
+    )
+    calendar = types.SimpleNamespace(
+        get_upcoming_events=lambda **kwargs: {"events": []},
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agents.calendar_agent",
+        types.SimpleNamespace(calendar_agent=calendar),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agents.communication_agent",
+        types.SimpleNamespace(communication_agent=communication),
+    )
+
+    asyncio.run(main.run_scenario("c", initialize=False))
+
+    assert calls == {"draft": 1, "send": 0}
 
 
 

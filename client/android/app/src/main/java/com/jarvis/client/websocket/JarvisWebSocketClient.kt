@@ -285,7 +285,7 @@ class JarvisWebSocketClient(
                     }
                 }
             } catch (e: Exception) {
-                Log.e(tag, "Error parsing WebSocket message payload: ${e.message}", e)
+                Log.e(tag, "Error parsing WebSocket message payload (${e.javaClass.simpleName})")
                 _errorEvents.emit(WsError(code = "parse_error", message = e.message ?: "Invalid JSON"))
             }
         }
@@ -306,7 +306,7 @@ class JarvisWebSocketClient(
     }
 
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-        Log.e(tag, "WebSocket failure: ${t.message}", t)
+        Log.e(tag, "WebSocket failure (${t.javaClass.simpleName})")
         _connectionState.value = ConnectionState.ERROR
         if (!isManualDisconnect) {
             scheduleReconnect()

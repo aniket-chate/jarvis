@@ -177,13 +177,19 @@ class PolicyKernel:
         # -------------------------------------------------------------
         # 5. CONFIRMATION REQUIRED: Remote device command dispatch
         # -------------------------------------------------------------
-        # A trusted device route can trigger UI actions, notifications, or other
-        # side effects on another device. Require a one-time confirmation token
-        # before any mesh.route_to_device operation is dispatched.
-        is_remote_device_route = (
-            low_domain == "mesh" and low_action == "mesh.route_to_device"
+        # Device-mesh mutations can change trust or execute actions on another
+        # device. Require a one-time confirmation token for these operations.
+        remote_device_mutations = {
+            "mesh.route_to_device",
+            "mesh.register_device",
+            "mesh.revoke_device",
+            "mesh.set_device_trust",
+            "mesh.sync_state",
+        }
+        is_remote_device_mutation = (
+            low_domain == "mesh" and low_action in remote_device_mutations
         )
-        if is_remote_device_route and not parameters.get("confirmed", False):
+        if is_remote_device_mutation and not parameters.get("confirmed", False):
             import uuid
             token = f"auth_mesh_{uuid.uuid4().hex[:12]}"
             now = time.time()
@@ -198,7 +204,7 @@ class PolicyKernel:
                 is_privileged=False,
             )
             prompt = (
-                f"Remote device command '{action}' requires explicit confirmation. "
+                f"Remote device operation '{action}' requires explicit confirmation. "
                 f"Confirm to proceed (TTL {int(self.confirmation_ttl)}s)."
             )
             logger.info(
@@ -208,7 +214,7 @@ class PolicyKernel:
             return SafetyDecision(
                 level=PolicyLevel.CONFIRMATION_REQUIRED,
                 allowed=False,
-                reason="Pending explicit confirmation for remote device command",
+                reason="Pending explicit confirmation for remote device operation",
                 confirmation_token=token,
                 confirmation_prompt=prompt,
                 risk_score=0.7,

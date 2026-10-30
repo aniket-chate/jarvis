@@ -85,7 +85,8 @@ class PolicyKernel:
         low_query = raw_query.lower().strip()
         low_action = action.lower().strip()
         low_domain = domain.lower().strip()
-        self._purge_expired_confirmations()
+        now = time.time()
+        self._purge_expired_confirmations(now)
 
         # -------------------------------------------------------------
         # 1. PROHIBITED: Arbitrary shell execution (whoami, ipconfig, cmd, powershell)
@@ -131,7 +132,6 @@ class PolicyKernel:
         if is_external_side_effect and not parameters.get("confirmed", False):
             import uuid
             token = f"auth_ext_{uuid.uuid4().hex[:12]}"
-            now = time.time()
             self._pending_confirmations[token] = PendingConfirmation(
                 token=token,
                 action_domain=domain,

@@ -30,6 +30,8 @@ jobs:
         run: pytest -q tests/test_capability_gateway_confirmation.py
       - name: Run main lifecycle regressions
         run: pytest -q tests/test_main_lifecycle.py
+      - name: Run server shutdown cleanup regressions
+        run: pytest -q tests/test_server_shutdown_cleanup.py
       - name: Smoke-test main.py status entrypoints
         env:
           GATEWAY_AUTH_TOKEN: ci-test-token

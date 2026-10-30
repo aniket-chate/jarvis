@@ -79,9 +79,10 @@ class JarvisWebSocketClient(
     private val _errorEvents = MutableSharedFlow<WsError>()
     val errorEvents: SharedFlow<WsError> = _errorEvents.asSharedFlow()
 
+    @Synchronized
     fun connect() {
-        if (_connectionState.value == ConnectionState.CONNECTED || _connectionState.value == ConnectionState.AUTHENTICATED) {
-            Log.d(tag, "WebSocket already connected.")
+        if (!WebSocketConnectionPolicy.canStart(_connectionState.value)) {
+            Log.d(tag, "WebSocket connection is already active, starting, or retrying.")
             return
         }
 
@@ -322,6 +323,10 @@ class JarvisWebSocketClient(
             val delaySeconds = min(2 * (1 shl (reconnectAttempts - 1)), 16)
             Log.i(tag, "Scheduling reconnection attempt #$reconnectAttempts in ${delaySeconds}s...")
             delay(delaySeconds * 1000L)
+            if (isManualDisconnect || _connectionState.value != ConnectionState.RECONNECTING) {
+                return@launch
+            }
+            _connectionState.value = ConnectionState.DISCONNECTED
             connect()
         }
     }

@@ -20,6 +20,10 @@ def test_gateway_does_not_log_raw_prompts_or_synthesized_text():
         "Synthesizing tool speech: '%s'",
         "media_playback_started event for: '%s'",
         "Broadcasting alarm_triggered to clients: %s",
+        "token: '%s'",
+        "Early clause: '%s'",
+        "Sentence: '%s'",
+        "Remaining final chunk: '%s'",
     ]
     for fragment in forbidden:
         assert fragment not in source
@@ -32,6 +36,10 @@ def test_browser_automation_does_not_log_search_query_text():
         "submitted query '%s'",
         "for query '%s'",
         "for query: '%s'",
+        "window '%s' to front",
+        "Found video: '%s'",
+        "URL=%s, Title=%s",
+        "message to '%s'",
     ]
     for fragment in forbidden:
         assert fragment not in source

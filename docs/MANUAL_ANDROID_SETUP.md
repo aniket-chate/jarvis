@@ -145,7 +145,7 @@ JARVIS uses the configured local Chrome DevTools Protocol endpoint (`integration
 3. Open the tab you want JARVIS to use before issuing the browser command.
 4. Confirm `cdp_endpoint` in `config/config.yaml` points to that local endpoint.
 
-JARVIS reuses the active page when it can attach to that Chrome session. If the endpoint is unavailable, it falls back to its own persistent managed browser profile and does not copy your personal Chrome cookies, passwords, history, or session databases. Sign in manually to websites in that managed profile if you use the fallback.
+JARVIS reuses the active page when it can attach to that Chrome session. If the endpoint is unavailable, it falls back to its own persistent managed browser profile and does not copy your personal Chrome cookies, passwords, history, or session databases. Sign in manually to websites in that managed profile if you use the fallback. Existing files copied into `workspace/browser_profile` by older JARVIS versions are not deleted by this update; review and secure that existing folder yourself after making any backup you need.
 
 ## 7. First Android launch
 

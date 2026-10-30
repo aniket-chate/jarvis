@@ -106,7 +106,7 @@ class WakeWordProfileManager(private val context: Context) {
                         return profile
                     }
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 Log.w(tag, "Failed to parse KWS profile; recreating default")
             }
         }
@@ -189,7 +189,7 @@ class WakeWordProfileManager(private val context: Context) {
                 if (targetFile.exists()) targetFile.delete()
                 tempFile.renameTo(targetFile)
             } else false
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Log.e(tag, "Error saving draft KWS profile")
             if (tempFile.exists()) tempFile.delete()
             false
@@ -203,7 +203,7 @@ class WakeWordProfileManager(private val context: Context) {
                 FileReader(file).use { reader ->
                     return gson.fromJson(reader, WakeWordProfile::class.java)
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 Log.w(tag, "Failed to load draft KWS profile")
             }
         }
@@ -288,7 +288,7 @@ class WakeWordProfileManager(private val context: Context) {
             } else {
                 false
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Log.e(tag, "Error saving KWS profile")
             if (tempFile.exists()) tempFile.delete()
             false
@@ -310,7 +310,7 @@ class WakeWordProfileManager(private val context: Context) {
                 if (kwFile.exists()) kwFile.delete()
                 tempFile.renameTo(kwFile)
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Log.e(tag, "Error writing KWS keywords file")
             if (tempFile.exists()) tempFile.delete()
         }

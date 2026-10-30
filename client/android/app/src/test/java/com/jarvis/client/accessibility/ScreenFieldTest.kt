@@ -17,6 +17,7 @@ class ScreenFieldTest {
         ).toMap()
 
         assertFalse(result.containsKey("text"))
+        assertEquals("Password", result["description"])
         assertEquals(true, result["password"])
         assertEquals(true, result["editable"])
     }

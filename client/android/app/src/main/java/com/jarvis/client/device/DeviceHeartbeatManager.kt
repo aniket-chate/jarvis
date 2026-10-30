@@ -29,7 +29,7 @@ class DeviceHeartbeatManager(
             return
         }
 
-        Log.i(tag, "Starting device heartbeat every ${intervalSeconds}s for device '${settingsManager.deviceId}'")
+        Log.i(tag, "Starting device heartbeat every ${intervalSeconds}s")
         heartbeatJob = scope.launch {
             while (isActive) {
                 try {

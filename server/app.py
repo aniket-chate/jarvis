@@ -363,6 +363,10 @@ async def execute_capability(
     # action-bound, one-time confirmation token. Never accept them from callers.
     params.pop("confirmed", None)
     params.pop("user_confirmed", None)
+    # Biometric embeddings are proof material, not caller-controlled parameters.
+    # Until a server-verifiable live-capture proof is wired end-to-end, remote
+    # capability requests must never be allowed to assert an identity by vector.
+    params.pop("face_embedding", None)
     domain = cap_id.split(".", 1)[0]
 
     # Prevent a confused-deputy path where a caller selects one capability

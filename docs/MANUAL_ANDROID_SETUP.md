@@ -136,6 +136,17 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 
 If using Android Studio, open `client/android` and run the `app` configuration.
 
+## Browser session reuse (same Chrome tab)
+
+JARVIS uses the configured local Chrome DevTools Protocol endpoint (`integrations.browser_automation.cdp_endpoint`, currently `http://127.0.0.1:9222`) when it is available. To let browser automation reuse an already-open tab:
+
+1. Start the Chrome instance you want JARVIS to control with remote debugging enabled on localhost port `9222`.
+2. Keep the debugging endpoint bound to localhost; do not expose port `9222` to your LAN or the public Internet.
+3. Open the tab you want JARVIS to use before issuing the browser command.
+4. Confirm `cdp_endpoint` in `config/config.yaml` points to that local endpoint.
+
+JARVIS reuses the active page when it can attach to that Chrome session. If the endpoint is unavailable, it falls back to its own persistent managed browser profile and does not copy your personal Chrome cookies, passwords, history, or session databases. Sign in manually to websites in that managed profile if you use the fallback.
+
 ## 7. First Android launch
 
 Open JARVIS and grant:

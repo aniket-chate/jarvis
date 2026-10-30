@@ -417,7 +417,7 @@ class BrowserAutomationAgent:
         screenshot_dest = SCREENSHOTS_DIR / screenshot_filename
         screenshot_60s_dest = SCREENSHOTS_DIR / (screenshot_60s_filename or f"60s_{screenshot_filename}") if play_duration_sec > 0 else None
 
-        logger.info("[BrowserAgent FastPath] Attempting persistent visible playback for: '%s' (duration=%.1fs)", song_query, play_duration_sec)
+        logger.info("[BrowserAgent FastPath] Attempting persistent visible playback (query_length=%d, duration=%.1fs)", len(song_query), play_duration_sec)
         try:
             previous_page = self._active_page
             page = self._get_or_create_active_page(headless=headless)
@@ -837,7 +837,7 @@ class BrowserAutomationAgent:
                         time.sleep(0.5)
                         loc.press("Enter")
                         search_executed = True
-                        logger.info("[BrowserAgent AstraLoop] Located search element via '%s' and submitted query '%s'", sel, clean_query)
+                        logger.info("[BrowserAgent AstraLoop] Located search element via '%s' and submitted query (length=%d)", sel, len(clean_query))
                         break
                 except Exception:
                     continue
@@ -1201,7 +1201,7 @@ class BrowserAutomationAgent:
             }
             base_url = site_map.get(clean_site, f"https://www.{clean_site}.com")
 
-        logger.info("[BrowserAgent ChainedSearch] Step 1: Navigating to %s for query '%s'", base_url, query)
+        logger.info("[BrowserAgent ChainedSearch] Step 1: Navigating to %s (query_length=%d)", base_url, len(query))
         page = self._get_or_create_active_page(headless=headless)
         self._active_page = page
 
@@ -1364,7 +1364,7 @@ class BrowserAutomationAgent:
     ) -> Dict[str, Any]:
         """Executes generalized chained media playback: open platform -> search -> click first result -> verify progression -> leave playing."""
         clean_site = site.lower().strip()
-        logger.info("[BrowserAgent ChainedPlay] Generalized media playback chain on '%s' for query: '%s'", clean_site, query)
+        logger.info("[BrowserAgent ChainedPlay] Generalized media playback chain on '%s' (query_length=%d)", clean_site, len(query))
 
         # Direct Playwright fastpath for YouTube or generic media site
         if "youtube" in clean_site or not clean_site:

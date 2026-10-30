@@ -1,12 +1,13 @@
 """Regression tests for server shutdown of JARVIS-owned background resources."""
 
 import asyncio
+import importlib
 import sys
 from types import SimpleNamespace
 
 
 def test_server_shutdown_stops_loaded_scheduler_and_owned_processes(monkeypatch):
-    from server import app as server_module
+    server_module = importlib.import_module("server.app")
     import utils.process_registry as process_registry
 
     calls = []

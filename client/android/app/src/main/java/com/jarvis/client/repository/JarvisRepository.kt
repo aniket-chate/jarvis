@@ -263,7 +263,7 @@ class JarvisRepository(
             val result = apiClient.registerDevice(req)
             result.onSuccess {
                 lastRegisteredCapabilities = capabilities
-                Log.i(tag, "Device registered successfully with backend: ${it.deviceId} (${it.name}), capabilities=$capabilities")
+                Log.i(tag, "Device registered successfully with backend; capabilities_count=${capabilities.size}")
                 heartbeatManager.startHeartbeat()
             }.onFailure {
                 Log.w(tag, "Device registration failed: ${it.message}")

@@ -162,7 +162,7 @@ async def run_scenario(scenario_id: str):
         print(f"\n[Playback Result]:\n{res}")
 
     elif scenario == "c":
-        print("\\n" + "=" * 65)
+        print("\n" + "=" * 65)
         print("SCENARIO C: Calendar Read & Email Draft (No Automatic Send)")
         print("=" * 65)
         from agents.calendar_agent import calendar_agent
@@ -198,7 +198,7 @@ def main():
     args = parser.parse_args()
 
     if args.status:
-        print("\\n" + "=" * 60)
+        print("\n" + "=" * 60)
         print(" JARVIS RUNTIME STATUS")
         print("=" * 60)
         print(f" Active persona : {settings.active_persona_name}")

@@ -86,7 +86,7 @@ class PolicyKernel:
             or any(w in low_query for w in ["cmd /c", "rmdir /s", "del /f", "format c:"])
         )
         if is_shell_cmd:
-            logger.warning("[SafetyKernel] PROHIBITED: Arbitrary shell command attempt: domain='%s', action='%s', query='%s'", domain, action, raw_query)
+            logger.warning("[SafetyKernel] PROHIBITED: Arbitrary shell command attempt: domain='%s', action='%s'", domain, action)
             return SafetyDecision(
                 level=PolicyLevel.PROHIBITED,
                 allowed=False,

@@ -89,7 +89,7 @@ class JarvisWebSocketClient(
         _connectionState.value = ConnectionState.CONNECTING
 
         val wsUrl = settingsManager.getWebSocketUrl()
-        Log.i(tag, "Connecting WebSocket to: $wsUrl")
+        Log.i(tag, "Connecting WebSocket.")
 
         val token = WebSocketAuthPolicy.resolveToken(settingsManager.authToken)
         if (token == null) {
@@ -169,7 +169,7 @@ class JarvisWebSocketClient(
         val json = gson.toJson(voiceTurn)
         val sent = sendRaw(json)
         if (sent) {
-            Log.i(tag, "VOICE_STATE: VOICE_TURN_SENT $turnId | text_length=${text.length} | wake_phrase_present=${!wakePhrase.isNullOrBlank()} | profile=$wakeProfileId")
+            Log.i(tag, "VOICE_STATE: VOICE_TURN_SENT text_length=${text.length} | wake_phrase_present=${!wakePhrase.isNullOrBlank()}")
         }
         return sent
     }

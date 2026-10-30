@@ -10,6 +10,9 @@ on:
       - "client/android/**"
       - ".github/workflows/android-qa.yml"
 
+permissions:
+  contents: read
+
 concurrency:
   group: android-mobile-agent-qa-${{ github.ref }}
   cancel-in-progress: true

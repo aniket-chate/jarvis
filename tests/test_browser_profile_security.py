@@ -68,3 +68,43 @@ def test_active_browser_page_is_reused_instead_of_opening_another_tab(monkeypatc
 
     assert selected is existing_page
     assert context.created_pages == 0
+
+
+
+def test_browser_agent_reuses_existing_live_tab_without_creating_another(monkeypatch):
+    from agents.browser_automation_agent import BrowserAutomationAgent
+    from orchestrator.action_memory import action_memory_manager
+
+    class ExistingPage:
+        def __init__(self):
+            self.closed = False
+
+        def is_closed(self):
+            return self.closed
+
+    class Context:
+        def __init__(self):
+            self.pages = [existing_page]
+            self.created_pages = 0
+
+        def new_page(self):
+            self.created_pages += 1
+            page = ExistingPage()
+            self.pages.append(page)
+            return page
+
+    existing_page = ExistingPage()
+    context = Context()
+    agent = BrowserAutomationAgent.__new__(BrowserAutomationAgent)
+    agent._context = context
+    agent._active_page = None
+    agent._get_persistent_context = lambda headless=False: context
+    agent._bring_chrome_window_to_front = lambda *args, **kwargs: None
+    monkeypatch.setattr(action_memory_manager, "get_live_page", lambda: existing_page)
+
+    result = agent._get_or_create_active_page()
+
+    assert result is existing_page
+    assert agent._active_page is existing_page
+    assert context.created_pages == 0
+    assert len(context.pages) == 1

@@ -5,6 +5,7 @@ import com.jarvis.client.model.DeviceRegisterRequest
 import com.jarvis.client.model.DeviceResponse
 import com.jarvis.client.model.HeartbeatResponse
 import com.jarvis.client.settings.JarvisSettingsManager
+import com.jarvis.client.websocket.WebSocketAuthPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -29,13 +30,9 @@ class JarvisApiClient(
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     private fun buildRequestHeaders(builder: Request.Builder): Request.Builder {
-        val token = settingsManager.authToken
-        if (token.isNotBlank()) {
-            builder.addHeader("Authorization", "Bearer $token")
-        } else {
-            builder.addHeader("X-User-ID", settingsManager.userId)
-        }
-        return builder
+        val token = WebSocketAuthPolicy.resolveToken(settingsManager.authToken)
+            ?: throw IllegalStateException("JARVIS gateway authentication token is not configured")
+        return builder.header("Authorization", "Bearer $token")
     }
 
     suspend fun checkHealth(): Result<Boolean> = withContext(Dispatchers.IO) {
@@ -70,7 +67,7 @@ class JarvisApiClient(
                         val deviceResp = gson.fromJson(respBody, DeviceResponse::class.java)
                         Result.success(deviceResp)
                     } else {
-                        Result.failure(Exception("Registration failed (${response.code}): $respBody"))
+                        Result.failure(Exception("Registration failed with HTTP status ${response.code}"))
                     }
                 }
             } catch (e: Exception) {
@@ -93,7 +90,7 @@ class JarvisApiClient(
                         val heartbeatResp = gson.fromJson(respBody, HeartbeatResponse::class.java)
                         Result.success(heartbeatResp)
                     } else {
-                        Result.failure(Exception("Heartbeat failed (${response.code}): $respBody"))
+                        Result.failure(Exception("Heartbeat failed with HTTP status ${response.code}"))
                     }
                 }
             } catch (e: Exception) {

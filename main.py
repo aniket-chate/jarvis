@@ -14,7 +14,6 @@ import signal
 import argparse
 import asyncio
 import logging
-import psutil
 from pathlib import Path
 
 # Add project root to sys.path
@@ -29,12 +28,9 @@ from orchestrator.memory import memory_manager
 from orchestrator.learning import learning_engine
 from perception.events import PerceptionEvent, event_bus
 from voice.tts_piper import tts_engine
+from utils.process_registry import CHILD_PROCESSES, register_child_process, terminate_registered_processes
 
 logger = logging.getLogger("JARVIS.Main")
-
-# Global tracking of active child subprocesses
-CHILD_PROCESSES = []
-
 
 def init_all_layers() -> bool:
     """Initializes all layers in strict sequential order with confirmation logs."""
@@ -69,45 +65,37 @@ def init_all_layers() -> bool:
         logger.critical("[INIT FAILED] Error during layer initialization: %s", str(e), exc_info=True)
         return False
 
+def require_layers_initialized() -> None:
+    """Abort startup when any required JARVIS layer fails to initialize."""
+    if not init_all_layers():
+        logger.critical("JARVIS startup aborted because layer initialization failed.")
+        raise SystemExit(1)
+
 
 def shutdown_all_layers() -> None:
-    """Performs clean shutdown, memory flush, and process cleanup guaranteeing zero orphans."""
+    """Flush memory and stop only subprocesses explicitly owned by JARVIS."""
     logger.info("=" * 65)
     logger.info("INITIATING CLEAN SHUTDOWN PROTOCOL")
     logger.info("=" * 65)
 
-    # 1. Flush persistent memory
     try:
         memory_manager._save_persistent()
         logger.info("[SHUTDOWN] Persistent long-term memory saved to disk.")
     except Exception as e:
-        logger.error("[SHUTDOWN] Error saving memory: %s", str(e))
+        logger.error("[SHUTDOWN] Error saving memory: %s", type(e).__name__)
 
-    # 2. Terminate any tracked child processes
-    current_proc = psutil.Process(os.getpid())
-    children = current_proc.children(recursive=True)
-    if children:
-        logger.info("[SHUTDOWN] Terminating %d child process(es)...", len(children))
-        for child in children:
-            try:
-                child.terminate()
-            except Exception:
-                pass
-        gone, alive = psutil.wait_procs(children, timeout=3)
-        for p in alive:
-            try:
-                p.kill()
-            except Exception:
-                pass
+    scheduler_module = sys.modules.get("agents.scheduler_agent")
+    scheduler = getattr(scheduler_module, "scheduler_agent", None) if scheduler_module else None
+    if scheduler is not None:
+        try:
+            scheduler.shutdown()
+        except Exception as exc:
+            logger.warning("[SHUTDOWN] Scheduler cleanup warning (%s).", type(exc).__name__)
 
-    # Verify process list
-    remaining = current_proc.children(recursive=True)
-    if not remaining:
-        logger.info("[SHUTDOWN] Confirmed: Zero orphaned processes remain.")
-    else:
-        logger.warning("[SHUTDOWN] Warning: %d process(es) remaining.", len(remaining))
-
-    logger.info("JARVIS shutdown sequence completed cleanly.")
+    # Only terminate child processes explicitly started and registered by JARVIS.
+    # User-requested applications and externally managed services stay untouched.
+    terminate_registered_processes(timeout_seconds=3.0)
+    logger.info("[SHUTDOWN] Registered JARVIS-owned subprocess cleanup completed.")
 
 
 def handle_signals(sig, frame):
@@ -122,9 +110,10 @@ signal.signal(signal.SIGINT, handle_signals)
 signal.signal(signal.SIGTERM, handle_signals)
 
 
-async def run_scenario(scenario_id: str):
+async def run_scenario(scenario_id: str, *, initialize: bool = True):
     """Runs one of the 3 full-system integration scenarios."""
-    init_all_layers()
+    if initialize:
+        require_layers_initialized()
     scenario = scenario_id.lower()
 
     if scenario == "a":
@@ -151,38 +140,25 @@ async def run_scenario(scenario_id: str):
 
     elif scenario == "c":
         print("\n" + "=" * 65)
-        print("SCENARIO C: Calendar & Email Draft with Two-Gate Send Approval")
+        print("SCENARIO C: Calendar Read & Email Draft (No Automatic Send)")
         print("=" * 65)
         from agents.calendar_agent import calendar_agent
         from agents.communication_agent import communication_agent
-        from agents.identity_agent import identity_agent
 
-        # 1. Read calendar
         cal = calendar_agent.get_upcoming_events(max_results=2)
         print(f"[Calendar Read]: {cal.get('events', 'Auth needed')}")
 
-        # 2. Draft email
         draft = communication_agent.draft_email(
             to="meeting.partner@example.com",
             subject="Confirming Tomorrow's Meeting",
             body="Hi, confirming our scheduled discussion for tomorrow as planned."
         )
         print(f"[Email Draft]: {draft}")
-
-        # 3. Two-Gate Approval check
-        profile = identity_agent.owner_profile
-        owner_emb = profile.get("face_embedding")
-
-        send_res = communication_agent.send_email(
-            to="meeting.partner@example.com",
-            subject="Confirming Tomorrow's Meeting",
-            body="Hi, confirming our scheduled discussion for tomorrow as planned.",
-            user_confirmed=True,
-            face_embedding=owner_emb
+        print(
+            "[Email Send] Skipped: a demo scenario must not reuse a stored face embedding "
+            "as live biometric proof or send an email automatically."
         )
-        print(f"[Two-Gate Approved Send]: {send_res}")
 
-    shutdown_all_layers()
 
 
 def main():
@@ -197,18 +173,34 @@ def main():
 
     args = parser.parse_args()
 
-    if args.logs:
+    if args.check_secrets:
+        settings.check_secrets()
+    elif args.status:
+        print("\n" + "=" * 60)
+        print(" JARVIS RUNTIME STATUS")
+        print("=" * 60)
+        print(f" Active persona : {settings.active_persona_name}")
+        print(f" Core model     : {settings.hardware.get('core_llm', 'Not configured')}")
+        print(f" LLM provider   : {settings.llm_provider}")
+        settings.check_secrets()
+    elif args.logs:
         lines = tail_logs(40)
         print("\n".join(lines))
     elif args.learn:
-        init_all_layers()
-        result = learning_engine.run_learning_cycle()
-        print(f"\n[Continuous Learning Result]:\n{result}")
-        shutdown_all_layers()
+        require_layers_initialized()
+        try:
+            result = learning_engine.run_learning_cycle()
+            print(f"\n[Continuous Learning Result]:\n{result}")
+        finally:
+            shutdown_all_layers()
     elif args.scenario:
-        asyncio.run(run_scenario(args.scenario))
+        require_layers_initialized()
+        try:
+            asyncio.run(run_scenario(args.scenario, initialize=False))
+        finally:
+            shutdown_all_layers()
     elif args.start or args.cli:
-        init_all_layers()
+        require_layers_initialized()
         print(f"\nJARVIS Active ({settings.active_persona_name}). Enter commands or type 'exit' to quit.")
         try:
             while True:
@@ -226,9 +218,11 @@ def main():
         finally:
             shutdown_all_layers()
     else:
-        init_all_layers()
-        settings.check_secrets()
-        shutdown_all_layers()
+        require_layers_initialized()
+        try:
+            settings.check_secrets()
+        finally:
+            shutdown_all_layers()
 
 
 if __name__ == "__main__":

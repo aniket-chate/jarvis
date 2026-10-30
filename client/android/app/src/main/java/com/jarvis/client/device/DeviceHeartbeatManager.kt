@@ -29,7 +29,7 @@ class DeviceHeartbeatManager(
             return
         }
 
-        Log.i(tag, "Starting device heartbeat every ${intervalSeconds}s for device '${settingsManager.deviceId}'")
+        Log.i(tag, "Starting device heartbeat every ${intervalSeconds}s")
         heartbeatJob = scope.launch {
             while (isActive) {
                 try {
@@ -38,10 +38,10 @@ class DeviceHeartbeatManager(
                     result.onSuccess {
                         Log.d(tag, "Device heartbeat sent successfully: ${it.lastSeen}")
                     }.onFailure {
-                        Log.w(tag, "Device heartbeat failed: ${it.message}")
+                        Log.w(tag, "Device heartbeat failed.")
                     }
                 } catch (e: Exception) {
-                    Log.w(tag, "Error during heartbeat transmission: ${e.message}")
+                    Log.w(tag, "Error during heartbeat transmission (${e.javaClass.simpleName}).")
                 }
                 delay(intervalSeconds * 1000L)
             }

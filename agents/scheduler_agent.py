@@ -21,6 +21,7 @@ from apscheduler.triggers.date import DateTrigger
 from config.settings import settings
 from perception.events import PerceptionEvent, event_bus
 from voice.tts_piper import tts_engine
+from utils.process_registry import register_child_process
 
 logger = logging.getLogger("JARVIS.SchedulerAgent")
 
@@ -33,6 +34,15 @@ class SchedulerAgent:
         self.scheduler.start()
         self.active_alarms: Dict[str, Dict[str, Any]] = {}
         logger.info("[SchedulerAgent] In-app scheduler initialized and running.")
+
+    def shutdown(self) -> None:
+        """Stop the in-process scheduler so no new notification children are spawned."""
+        try:
+            if self.scheduler and self.scheduler.running:
+                self.scheduler.shutdown(wait=False)
+                logger.info("[SchedulerAgent] In-app scheduler stopped.")
+        except Exception as exc:
+            logger.warning("[SchedulerAgent] Scheduler shutdown warning (%s).", type(exc).__name__)
 
     def _show_windows_notification(self, title: str, message: str) -> None:
         """Dispatches a real native Windows notification balloon and sound alert."""
@@ -54,14 +64,15 @@ class SchedulerAgent:
         $notify.Dispose()
         '''
         try:
-            subprocess.Popen(["powershell", "-NoProfile", "-Command", ps_script])
-            logger.info("[SchedulerAgent] Dispatched native Windows notification: '%s' - '%s'", title, message)
+            process = subprocess.Popen(["powershell", "-NoProfile", "-Command", ps_script])
+            register_child_process(process, reap_on_exit=True)
+            logger.info("[SchedulerAgent] Dispatched native Windows notification (content redacted)")
         except Exception as e:
-            logger.warning("[SchedulerAgent] Windows notification display error: %s", e)
+            logger.warning("[SchedulerAgent] Windows notification display error: %s", type(e).__name__)
 
     def _on_alarm_fired(self, alarm_id: str, message: str, persona: str) -> None:
         """Callback executed by APScheduler when alarm triggers."""
-        logger.info("[SchedulerAgent] ALARM FIRED: id=%s, message='%s', persona=%s", alarm_id, message, persona)
+        logger.info("[SchedulerAgent] ALARM FIRED: id=%s, persona=%s", alarm_id, persona)
 
         # 1. Update alarm status in registry
         if alarm_id in self.active_alarms:
@@ -77,7 +88,7 @@ class SchedulerAgent:
             announcement = f"Alert: {message}"
             tts_engine.speak(announcement, persona_name=persona)
         except Exception as tts_err:
-            logger.warning("[SchedulerAgent] Spoken alarm TTS warning: %s", tts_err)
+            logger.warning("[SchedulerAgent] Spoken alarm TTS warning: %s", type(tts_err).__name__)
 
         # 4. Emit PerceptionEvent for mesh & web client
         try:
@@ -93,7 +104,7 @@ class SchedulerAgent:
             )
             event_bus.publish(event)
         except Exception as bus_err:
-            logger.warning("[SchedulerAgent] Event bus publish error: %s", bus_err)
+            logger.warning("[SchedulerAgent] Event bus publish error: %s", type(bus_err).__name__)
 
     def set_alarm(
         self,

@@ -88,7 +88,7 @@ class JarvisTTSManager(
         currentOnDoneCallback = onDone
         val utteranceId = "jarvis_utt_" + UUID.randomUUID().toString()
 
-        Log.i(tag, "Vocalizing: '$textToVocalize'")
+        Log.i(tag, "Vocalizing response (text_length=${textToVocalize.length})")
         tts?.speak(textToVocalize, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
     }
 

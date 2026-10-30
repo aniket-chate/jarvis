@@ -91,6 +91,8 @@ Use the PC's LAN address, for example:
 http://192.168.x.x:8000
 ```
 
+**Debug builds only:** this plain-HTTP example is permitted for local development. Do not use it with a release APK.
+
 Do not use `10.0.2.2` on a physical phone. That address is for the Android emulator to reach the host PC.
 
 ## 5. Tailscale connection
@@ -109,9 +111,21 @@ Use the returned Tailscale IP:
 http://100.x.y.z:8000
 ```
 
-If MagicDNS is enabled, the PC hostname can be used instead.
+**Debug builds only:** this plain-HTTP example is permitted for local development. For a release APK, configure a TLS endpoint, for example a Tailscale Serve HTTPS hostname:
 
-Tailscale supplies private network connectivity; JARVIS still needs its own FastAPI/WebSocket service running on port 8000.
+```
+https://<device>.<tailnet>.ts.net
+```
+
+If MagicDNS is enabled, the PC hostname can be used for network discovery; it does not by itself make HTTP secure.
+
+Tailscale supplies private network connectivity; JARVIS still needs its own FastAPI/WebSocket service running on port 8000. For release builds, the service must be exposed through HTTPS (for example, Tailscale Serve) rather than a raw HTTP IP.
+
+## Network transport security
+
+The Android **debug** build permits cleartext HTTP so the emulator and local development server can use `http://10.0.2.2:8000` or a private LAN URL.
+
+The **release** build disables cleartext traffic. Configure the Android Backend URL with an HTTPS endpoint before using a release APK. For remote/private access, use a TLS-protected endpoint such as Tailscale Serve; a raw Tailscale IP with `http://` is not sufficient for a release build. Do not weaken the release manifest to make HTTP work.
 
 ## 6. Build and install the Android client
 
@@ -130,6 +144,17 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 
 If using Android Studio, open `client/android` and run the `app` configuration.
 
+## Browser session reuse (same Chrome tab)
+
+JARVIS uses the configured local Chrome DevTools Protocol endpoint (`integrations.browser_automation.cdp_endpoint`, currently `http://127.0.0.1:9222`) when it is available. To let browser automation reuse an already-open tab:
+
+1. Start the Chrome instance you want JARVIS to control with remote debugging enabled on localhost port `9222`.
+2. Keep the debugging endpoint bound to localhost; do not expose port `9222` to your LAN or the public Internet.
+3. Open the tab you want JARVIS to use before issuing the browser command.
+4. Confirm `cdp_endpoint` in `config/config.yaml` points to that local endpoint.
+
+JARVIS reuses the active page when it can attach to that Chrome session. If the endpoint is unavailable, it falls back to its own persistent managed browser profile and does not copy your personal Chrome cookies, passwords, history, or session databases. Sign in manually to websites in that managed profile if you use the fallback. Existing files copied into `workspace/browser_profile` by older JARVIS versions are not deleted by this update; review and secure that existing folder yourself after making any backup you need.
+
 ## 7. First Android launch
 
 Open JARVIS and grant:
@@ -145,8 +170,10 @@ The app generates its own Android device ID and derives a runtime device name fr
 Open JARVIS Settings and enter:
 
 **Backend URL**
-- LAN: `http://PC_LAN_IP:8000`
-- Tailscale: `http://PC_TAILSCALE_IP:8000`
+
+- **Debug build only — LAN:** `http://PC_LAN_IP:8000`
+- **Debug build only — Tailscale IP:** `http://PC_TAILSCALE_IP:8000`
+- **Release build — HTTPS only:** `https://<device>.<tailnet>.ts.net` (or your own valid HTTPS reverse-proxy hostname)
 
 **User ID**
 - Choose a stable local identifier for this installation, such as `default_user`.

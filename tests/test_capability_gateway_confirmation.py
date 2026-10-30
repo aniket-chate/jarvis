@@ -1,0 +1,308 @@
+"""Regression tests for API confirmation provenance and remote-device routing."""
+
+from types import SimpleNamespace
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import importlib
+import pytest
+from fastapi.testclient import TestClient
+
+from config.settings import settings
+from safety.policy_kernel import PolicyKernel
+
+
+@pytest.fixture
+def api_client(monkeypatch):
+    """Create an isolated gateway client with an isolated confirmation store."""
+    policy_module = importlib.import_module("safety.policy_kernel")
+    kernel = PolicyKernel()
+    monkeypatch.setattr(policy_module, "policy_kernel", kernel)
+    monkeypatch.setattr(
+        settings,
+        "gateway_auth_token",
+        "unit-test-gateway-token-with-sufficient-length",
+    )
+    from server.app import app
+
+    return TestClient(app), kernel
+
+
+def route_request(parameters, action="mesh.route_to_device"):
+    """Build a capability request for the remote device mesh route."""
+    return {
+        "capability": "mesh.route_to_device",
+        "action": action,
+        "parameters": parameters,
+    }
+
+
+def test_remote_device_route_never_stages_caller_supplied_biometric_embedding(api_client):
+    client, kernel = api_client
+    request_id = "req-mesh-forged-biometric"
+    response = client.post(
+        "/api/v1/capabilities/execute",
+        headers={"Authorization": "Bearer unit-test-gateway-token-with-sufficient-length"},
+        json=route_request(
+            {
+                "request_id": request_id,
+                "target_device_id": "android_test_device",
+                "payload": {"type": "skill_request", "skill_id": "ui_observe"},
+                "face_embedding": [0.1] * 128,
+            }
+        ),
+    )
+
+    assert response.status_code == 403
+    token = response.json()["detail"]["confirmation_token"]
+    pending = kernel._pending_confirmations[token]
+    assert "face_embedding" not in pending.parameters
+
+
+def test_remote_device_route_rejects_forged_confirmation_flags(api_client):
+    client, kernel = api_client
+    request_id = "req-mesh-forged-approval"
+    response = client.post(
+        "/api/v1/capabilities/execute",
+        headers={"Authorization": "Bearer unit-test-gateway-token-with-sufficient-length"},
+        json=route_request(
+            {
+                "request_id": request_id,
+                "target_device_id": "android_test_device",
+                "confirmed": True,
+                "user_confirmed": True,
+                "payload": {
+                    "type": "skill_request",
+                    "request_id": request_id,
+                    "skill_id": "ui_tap",
+                    "parameters": {"target": "Pay", "human_approved": True},
+                },
+            }
+        ),
+    )
+
+    assert response.status_code == 403
+    detail = response.json()["detail"]
+    assert detail["status"] == "BLOCKED"
+    token = detail["confirmation_token"]
+    assert token.startswith("auth_mesh_")
+
+    pending = kernel._pending_confirmations[token]
+    assert "confirmed" not in pending.parameters
+    assert "user_confirmed" not in pending.parameters
+
+
+def test_remote_device_confirmation_is_action_bound_and_one_time(api_client):
+    client, _kernel = api_client
+    headers = {"Authorization": "Bearer unit-test-gateway-token-with-sufficient-length"}
+    request_id = "req-mesh-action-binding"
+    initial = client.post(
+        "/api/v1/capabilities/execute",
+        headers=headers,
+        json=route_request(
+            {
+                "request_id": request_id,
+                "target_device_id": "android_test_device",
+                "payload": {"type": "skill_request", "request_id": request_id, "skill_id": "ui_observe"},
+            }
+        ),
+    )
+    assert initial.status_code == 403
+    token = initial.json()["detail"]["confirmation_token"]
+
+    mismatched = client.post(
+        "/api/v1/capabilities/execute",
+        headers=headers,
+        json=route_request(
+            {
+                "request_id": request_id,
+                "confirmation_token": token,
+                "device_id": "android_test_device",
+                "trust_state": "TRUSTED",
+            },
+            action="mesh.set_device_trust",
+        ),
+    )
+    assert mismatched.status_code == 403
+    assert mismatched.json()["detail"] == "Confirmation token does not match requested action"
+
+    replay = client.post(
+        "/api/v1/capabilities/execute",
+        headers=headers,
+        json=route_request(
+            {
+                "request_id": request_id,
+                "confirmation_token": token,
+                "target_device_id": "android_test_device",
+                "payload": {"type": "skill_request", "request_id": request_id, "skill_id": "ui_observe"},
+            }
+        ),
+    )
+    assert replay.status_code == 403
+    assert replay.json()["detail"] == "Invalid, expired, or already-used confirmation token"
+
+
+def test_confirmation_executes_only_the_parameters_that_were_staged(api_client, monkeypatch):
+    client, _kernel = api_client
+    from capabilities.intelligence import capability_intelligence
+
+    provider = capability_intelligence.select_provider("mesh.route_to_device")
+    assert provider is not None
+
+    captured = {}
+    monkeypatch.setattr(provider, "is_available", lambda: True)
+
+    def fake_execute(action, parameters):
+        captured.update(parameters)
+        return SimpleNamespace(
+            status="SUCCESS",
+            output={"status": "captured"},
+            message="Captured in test",
+            evidence={},
+            execution_time_ms=0.0,
+        )
+
+    monkeypatch.setattr(provider, "execute", fake_execute)
+
+    headers = {"Authorization": "Bearer unit-test-gateway-token-with-sufficient-length"}
+    request_id = "req-mesh-parameter-binding"
+    original_payload = {
+        "request_id": request_id,
+        "target_device_id": "original_device",
+        "payload": {
+            "type": "skill_request",
+            "request_id": request_id,
+            "skill_id": "ui_observe",
+        },
+    }
+    initial = client.post(
+        "/api/v1/capabilities/execute",
+        headers=headers,
+        json=route_request(original_payload),
+    )
+    assert initial.status_code == 403
+    token = initial.json()["detail"]["confirmation_token"]
+
+    confirmed = client.post(
+        "/api/v1/capabilities/execute",
+        headers=headers,
+        json=route_request(
+            {
+                "request_id": request_id,
+                "confirmation_token": token,
+                "target_device_id": "attacker_substituted_device",
+                "payload": {"type": "skill_request", "skill_id": "ui_tap", "parameters": {"target": "Pay"}},
+            }
+        ),
+    )
+
+    assert confirmed.status_code == 200
+    assert captured["target_device_id"] == "original_device"
+    assert captured["payload"] == original_payload["payload"]
+    assert captured["confirmed"] is True
+
+
+@pytest.mark.parametrize(
+    "action",
+    [
+        "mesh.route_to_device",
+        "mesh.register_device",
+        "mesh.revoke_device",
+        "mesh.set_device_trust",
+        "mesh.sync_state",
+    ],
+)
+def test_policy_kernel_requires_one_time_confirmation_for_mesh_mutations(action):
+    kernel = PolicyKernel()
+    parameters = {
+        "request_id": "req-mesh-policy",
+        "target_device_id": "android_test_device",
+        "payload": {"type": "skill_request", "skill_id": "ui_tap"},
+    }
+
+    decision = kernel.evaluate(
+        domain="mesh",
+        action=action,
+        parameters=parameters,
+        request_id="req-mesh-policy",
+    )
+
+    assert decision.allowed is False
+    assert decision.confirmation_token
+    pending = kernel.confirm_token(decision.confirmation_token, request_id="req-mesh-policy")
+    assert pending is not None
+    assert pending.parameters == parameters
+    assert kernel.confirm_token(decision.confirmation_token, request_id="req-mesh-policy") is None
+
+
+
+def test_policy_evaluation_purges_expired_tokens_and_preserves_live_tokens(monkeypatch):
+    import safety.policy_kernel as policy_module
+    from safety.policy_kernel import PendingConfirmation
+
+    now = 10_000.0
+    monkeypatch.setattr(policy_module.time, "time", lambda: now)
+    kernel = PolicyKernel()
+    expired = PendingConfirmation(
+        token="expired-token",
+        action_domain="mesh",
+        action_name="mesh.route_to_device",
+        parameters={"target_device_id": "old"},
+        created_at=now - 120,
+        expires_at=now - 1,
+    )
+    live = PendingConfirmation(
+        token="live-token",
+        action_domain="mesh",
+        action_name="mesh.route_to_device",
+        parameters={"target_device_id": "live"},
+        created_at=now - 10,
+        expires_at=now + 50,
+    )
+    kernel._pending_confirmations = {
+        expired.token: expired,
+        live.token: live,
+    }
+
+    decision = kernel.evaluate(
+        domain="mesh",
+        action="mesh.route_to_device",
+        parameters={"request_id": "req-expiry", "target_device_id": "new"},
+        request_id="req-expiry",
+    )
+
+    assert expired.token not in kernel._pending_confirmations
+    assert kernel._pending_confirmations[live.token] is live
+    assert decision.confirmation_token in kernel._pending_confirmations
+
+
+
+def test_confirmation_store_rejects_new_tokens_when_capacity_is_reached():
+    from safety.policy_kernel import PendingConfirmation
+
+    kernel = PolicyKernel()
+    kernel.max_pending_confirmations = 1
+    existing = PendingConfirmation(
+        token="existing-live-token",
+        action_domain="mesh",
+        action_name="mesh.route_to_device",
+        parameters={"target_device_id": "existing"},
+        created_at=1.0,
+        expires_at=10_000_000_000.0,
+    )
+    kernel._pending_confirmations[existing.token] = existing
+
+    decision = kernel.evaluate(
+        domain="mesh",
+        action="mesh.route_to_device",
+        parameters={"request_id": "req-capacity", "target_device_id": "new"},
+        request_id="req-capacity",
+    )
+
+    assert decision.allowed is False
+    assert decision.confirmation_token is None
+    assert list(kernel._pending_confirmations) == [existing.token]

@@ -135,7 +135,7 @@ async def startup_warmup_gate():
                 "active_persona": ev.active_persona or settings.active_persona_name,
                 "timestamp": time.time(),
             }
-            logger.info("[Server EventBus] Broadcasting alarm_triggered to clients: %s", payload)
+            logger.info("[Server EventBus] Broadcasting alarm_triggered event: alarm_id=%s active_persona=%s", payload.get("alarm_id"), payload.get("active_persona"))
             try:
                 loop = asyncio.get_running_loop()
                 loop.create_task(gateway_registry.broadcast_all(payload))
@@ -143,6 +143,19 @@ async def startup_warmup_gate():
                 pass
 
     event_bus.subscribe("alarm_triggered", _on_alarm_event)
+
+
+@app.on_event("shutdown")
+async def shutdown_owned_runtime_resources():
+    """Stop JARVIS-owned background workers and subprocesses on API shutdown."""
+    import sys
+    scheduler_module = sys.modules.get("agents.scheduler_agent")
+    scheduler = getattr(scheduler_module, "scheduler_agent", None) if scheduler_module else None
+    if scheduler is not None:
+        scheduler.shutdown()
+
+    from utils.process_registry import terminate_registered_processes
+    terminate_registered_processes(timeout_seconds=3.0)
 
 
 # -------------------------------------------------------------------------
@@ -359,6 +372,14 @@ async def execute_capability(
 
     cap_id = req.capability or req.action
     params = dict(req.parameters or {})
+    # Approval flags are trusted only when produced below from a valid,
+    # action-bound, one-time confirmation token. Never accept them from callers.
+    params.pop("confirmed", None)
+    params.pop("user_confirmed", None)
+    # Biometric embeddings are proof material, not caller-controlled parameters.
+    # Until a server-verifiable live-capture proof is wired end-to-end, remote
+    # capability requests must never be allowed to assert an identity by vector.
+    params.pop("face_embedding", None)
     domain = cap_id.split(".", 1)[0]
 
     # Prevent a confused-deputy path where a caller selects one capability
@@ -381,7 +402,10 @@ async def execute_capability(
             raise HTTPException(status_code=403, detail="Invalid, expired, or already-used confirmation token")
         if pending.action_name != req.action or pending.action_domain != domain:
             raise HTTPException(status_code=403, detail="Confirmation token does not match requested action")
-        params.update(pending.parameters)
+        # Execute exactly the parameters that were staged for this token.
+        # Do not merge in caller-supplied fields from the confirmation request.
+        params = dict(pending.parameters)
+        params.pop("user_confirmed", None)
         params["confirmed"] = True
 
     decision = policy_kernel.evaluate(domain=domain, action=req.action, parameters=params, request_id=request_id)
@@ -1111,7 +1135,7 @@ async def websocket_gateway(
                 if query:
                     t_received = time.time()
                     t_received_perf = time.perf_counter()
-                    logger.info("[RESPONSE_START] Starting response generation [request_id=%s, response_id=%s, persona=%s, query='%s', accessible=%s]", req_id, resp_id, persona, query, req_accessibility)
+                    logger.info("[RESPONSE_START] Starting response generation [request_id=%s, response_id=%s, persona=%s, query_length=%d, accessible=%s]", req_id, resp_id, persona, len(query), req_accessibility)
 
                     # Publish event to Layer 1 Event Bus
                     event = PerceptionEvent(
@@ -1198,7 +1222,7 @@ async def websocket_gateway(
                     if first_agent == "core_llm_agent" and getattr(plan, "intent", None) != "persona_switch":
                         # Startup health-gate: If query arrives before Ollama is confirmed warm, respond honestly
                         if not ollama_warm and ollama_warming:
-                            logger.info("[Startup Gate] Query '%s' received while Ollama is warming up. Responding honestly.", query)
+                            logger.info("[Startup Gate] Query received while Ollama is warming up (query_length=%d). Responding honestly.", len(query))
                             warm_notice = f"[{persona}]: I am still starting up and warming the local models, one moment please."
                             await websocket.send_json({
                                 "type": "chat_response",
@@ -1255,7 +1279,7 @@ async def websocket_gateway(
 
                                     s_text, is_final = item
                                     seq_id = s_idx + 1
-                                    logger.info("[TTS_SYNTH_START] [request_id=%s, response_id=%s, sequence_id=%d] Synthesizing: '%s'", req_id, resp_id, seq_id, s_text[:40])
+                                    logger.info("[TTS_SYNTH_START] [request_id=%s, response_id=%s, sequence_id=%d] Synthesizing response (text_length=%d)", req_id, resp_id, seq_id, len(s_text))
                                     t_synth_start = time.perf_counter()
                                     b64 = await asyncio.to_thread(_fast_synth_b64, s_text, persona)
                                     synth_dur = (time.perf_counter() - t_synth_start) * 1000
@@ -1314,7 +1338,7 @@ async def websocket_gateway(
                             full_text += token
                             stream_buffer += token
 
-                            logger.debug("[LLM_CHUNK] [request_id=%s, response_id=%s] token: '%s'", req_id, resp_id, token)
+                            logger.debug("[LLM_CHUNK] [request_id=%s, response_id=%s] token_length=%d", req_id, resp_id, len(token))
                             await websocket.send_json({
                                 "type": "chat_stream_chunk",
                                 "request_id": req_id,
@@ -1329,7 +1353,7 @@ async def websocket_gateway(
                                 s_chunk = stream_buffer.strip()
                                 stream_buffer = ""
                                 first_chunk_sent = True
-                                logger.info("[SENTENCE_READY] [request_id=%s, response_id=%s] Early clause: '%s'", req_id, resp_id, s_chunk[:35])
+                                logger.info("[SENTENCE_READY] [request_id=%s, response_id=%s] Early clause ready (length=%d)", req_id, resp_id, len(s_chunk))
                                 logger.info("[TTS_QUEUE_ADD] [request_id=%s, response_id=%s] Queued early clause", req_id, resp_id)
                                 await sentence_queue.put((s_chunk, False))
 
@@ -1341,7 +1365,7 @@ async def websocket_gateway(
                                     s_chunk = stream_buffer.strip()
                                     stream_buffer = ""
                                     first_chunk_sent = True
-                                    logger.info("[SENTENCE_READY] [request_id=%s, response_id=%s] Sentence: '%s'", req_id, resp_id, s_chunk[:35])
+                                    logger.info("[SENTENCE_READY] [request_id=%s, response_id=%s] Sentence ready (length=%d)", req_id, resp_id, len(s_chunk))
                                     logger.info("[TTS_QUEUE_ADD] [request_id=%s, response_id=%s] Queued sentence", req_id, resp_id)
                                     await sentence_queue.put((s_chunk, False))
 
@@ -1349,7 +1373,7 @@ async def websocket_gateway(
                         if stream_buffer.strip():
                             s_chunk = stream_buffer.strip()
                             stream_buffer = ""
-                            logger.info("[SENTENCE_READY] [request_id=%s, response_id=%s] Remaining final chunk: '%s'", req_id, resp_id, s_chunk[:35])
+                            logger.info("[SENTENCE_READY] [request_id=%s, response_id=%s] Final chunk ready (length=%d)", req_id, resp_id, len(s_chunk))
                             logger.info("[TTS_QUEUE_ADD] [request_id=%s, response_id=%s] Queued final chunk", req_id, resp_id)
                             await sentence_queue.put((s_chunk, True))
 
@@ -1418,7 +1442,7 @@ async def websocket_gateway(
                         result = await asyncio.to_thread(orchestrator_core.process_event, event, plan)
                         t_tool_end = time.perf_counter()
                         resp_str = result.get("response", "")
-                        logger.info("[TOOL_EXEC_COMPLETE] [request_id=%s, response_id=%s] Tool executed in %.1fms. Result text: '%s'", req_id, resp_id, (t_tool_end - t_tool_start) * 1000, resp_str[:60])
+                        logger.info("[TOOL_EXEC_COMPLETE] [request_id=%s, response_id=%s] Tool executed in %.1fms (result_length=%d)", req_id, resp_id, (t_tool_end - t_tool_start) * 1000, len(resp_str))
 
                         final_persona = result.get("active_persona", persona) if result.get("type") == "persona_switch" else persona
                         # Authoritative UI message matching exact tool response dispatched IMMEDIATELY
@@ -1477,7 +1501,7 @@ async def websocket_gateway(
                                 is_final_chunk = (s_idx == len(sentences) - 1)
                                 seq_id = s_idx + 1
                                 try:
-                                    logger.info("[TTS_SYNTH_START] [request_id=%s, response_id=%s, sequence_id=%d] Synthesizing tool speech: '%s'", r_id, rp_id, seq_id, s_text[:35])
+                                    logger.info("[TTS_SYNTH_START] [request_id=%s, response_id=%s, sequence_id=%d] Synthesizing tool speech (text_length=%d)", r_id, rp_id, seq_id, len(s_text))
                                     t_s_start = time.perf_counter()
                                     b64_audio = await asyncio.to_thread(_fast_synth_b64, s_text, p_name)
                                     t_s_dur = (time.perf_counter() - t_s_start) * 1000
@@ -1514,7 +1538,7 @@ async def websocket_gateway(
                         if not is_media and ("playing '" in resp_str.lower() or "playback" in resp_str.lower()):
                             is_media = True
                         if is_media:
-                            logger.info("[WebSocket] Emitting REAL media_playback_started event for: '%s'", query)
+                            logger.info("[WebSocket] Emitting REAL media_playback_started event (query_length=%d)", len(query))
                             await websocket.send_json({
                                 "type": "media_playback_started",
                                 "query": query,

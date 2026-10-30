@@ -77,61 +77,19 @@ class BrowserAutomationAgent:
         return False
 
     def _get_chrome_user_data_dir(self) -> Path:
-        """Resolves Chrome User Data directory with full recursive profile synchronization (Local State, IndexedDB, LevelDB, Cookies)."""
+        """Resolve JARVIS's isolated persistent profile without copying personal Chrome data.
+
+        User Chrome cookies, passwords, DPAPI material, history, and session databases
+        must remain in the user's original profile. Connecting to an existing Chrome
+        session is supported only through an explicitly configured CDP endpoint.
+        """
         configured_profile = self._managed_profile_dir.strip()
         automation_dir = (
             Path(os.path.expandvars(configured_profile)).expanduser()
             if configured_profile
             else settings.project_root / "workspace" / "browser_profile"
         )
-        real_user_data = Path(os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")).expanduser()
         automation_dir.mkdir(parents=True, exist_ok=True)
-        target_default = automation_dir / "Default"
-        target_default.mkdir(parents=True, exist_ok=True)
-
-        # Synchronize essential profile session state, DPAPI master key, cookies, and logins
-        if real_user_data.exists():
-            real_default = real_user_data / "Default"
-            import shutil
-
-            # 1. Sync root Local State (CRITICAL: Contains DPAPI encrypted key for cookies/passwords)
-            local_state = real_user_data / "Local State"
-            if local_state.exists():
-                try:
-                    shutil.copy2(local_state, automation_dir / "Local State")
-                    logger.info("[BrowserAgent] Synchronized root Local State DPAPI key file.")
-                except Exception as ls_err:
-                    logger.debug("[BrowserAgent] Local State copy note: %s", ls_err)
-
-            # 2. Sync primary profile state files
-            for item in ["Preferences", "Login Data", "Web Data", "Favicons", "History", "Secure Preferences"]:
-                src = real_default / item
-                dst = target_default / item
-                if src.exists():
-                    try:
-                        shutil.copy2(src, dst)
-                    except Exception:
-                        pass
-
-            # 3. Recursive sync for IndexedDB (WhatsApp Web & Google Session tokens), Local Storage (leveldb), Network, Sessions
-            def _sync_folder_recursive(src_dir: Path, dst_dir: Path):
-                if not (src_dir.exists() and src_dir.is_dir()):
-                    return
-                for root, dirs, files in os.walk(src_dir):
-                    rel = Path(root).relative_to(src_dir)
-                    dest_sub = dst_dir / rel
-                    dest_sub.mkdir(parents=True, exist_ok=True)
-                    for f in files:
-                        try:
-                            shutil.copy2(Path(root) / f, dest_sub / f)
-                        except Exception:
-                            pass
-
-            for folder in ["Local Storage", "IndexedDB", "Network", "Sessions", "Session Storage"]:
-                _sync_folder_recursive(real_default / folder, target_default / folder)
-
-            logger.info("[BrowserAgent] Completed full recursive profile synchronization to %s", automation_dir)
-
         return automation_dir
 
     def _get_persistent_context(self, headless: bool = False):
@@ -220,7 +178,7 @@ class BrowserAutomationAgent:
                                 ctypes.windll.user32.SetForegroundWindow(hwnd)
                                 ctypes.windll.user32.keybd_event(0x12, 0, 2, 0)
                             except Exception as ex:
-                                logger.debug("[BrowserAgent] Could not bring window '%s' to front: %s", title, ex)
+                                logger.debug("[BrowserAgent] Could not bring browser window to front (%s)", type(ex).__name__)
                 return True
 
             hdesk = None
@@ -320,7 +278,7 @@ class BrowserAutomationAgent:
         screenshot_filename: Optional[str] = None
     ) -> Dict[str, Any]:
         """Executes any natural language browser instruction generically using Browser-Use."""
-        logger.info("[BrowserAgent] Executing natural language task: %s", task)
+        logger.info("[BrowserAgent] Executing natural language task (length=%d)", len(task))
         llm = self._get_llm()
 
         screenshot_dest = SCREENSHOTS_DIR / (screenshot_filename or "browser_use_action.png")
@@ -386,14 +344,14 @@ class BrowserAutomationAgent:
                 "screenshot_path": screenshot_path_str
             }
         except asyncio.TimeoutError:
-            logger.error("[BrowserAgent] Task timed out after 60s hard limit: %s", task)
+            logger.error("[BrowserAgent] Task timed out after 60s hard limit (task_length=%d)", len(task))
             return {
                 "success": False,
                 "task": task,
                 "error": "Browser automation task timed out after 60s."
             }
         except Exception as e:
-            logger.error("[BrowserAgent] Task execution failed: %s", str(e))
+            logger.error("[BrowserAgent] Task execution failed (%s)", type(e).__name__)
             return {
                 "success": False,
                 "task": task,
@@ -417,7 +375,7 @@ class BrowserAutomationAgent:
         screenshot_dest = SCREENSHOTS_DIR / screenshot_filename
         screenshot_60s_dest = SCREENSHOTS_DIR / (screenshot_60s_filename or f"60s_{screenshot_filename}") if play_duration_sec > 0 else None
 
-        logger.info("[BrowserAgent FastPath] Attempting persistent visible playback for: '%s' (duration=%.1fs)", song_query, play_duration_sec)
+        logger.info("[BrowserAgent FastPath] Attempting persistent visible playback (query_length=%d, duration=%.1fs)", len(song_query), play_duration_sec)
         try:
             previous_page = self._active_page
             page = self._get_or_create_active_page(headless=headless)
@@ -444,7 +402,7 @@ class BrowserAutomationAgent:
 
             first_video = page.locator("ytd-video-renderer #video-title").first
             video_title = first_video.inner_text(timeout=5000)
-            logger.info("[BrowserAgent FastPath] Found video: '%s', clicking to play...", video_title)
+            logger.info("[BrowserAgent FastPath] Found a video result (title_length=%d); clicking to play...", len(video_title))
             first_video.click(timeout=5000)
 
             # Wait for video watch page
@@ -785,7 +743,7 @@ class BrowserAutomationAgent:
         screenshot_name = screenshot_filename or f"web_{clean_site or 'action'}_{int(time.time())}.png"
         screenshot_dest = SCREENSHOTS_DIR / screenshot_name
 
-        logger.info("[BrowserAgent AstraLoop] Starting live web action on %s (headless=%s) for task: '%s'", target_url, headless, clean_task)
+        logger.info("[BrowserAgent AstraLoop] Starting live web action on %s (headless=%s, task_length=%d)", target_url, headless, len(clean_task))
         page = self._get_or_create_active_page(headless=headless)
         self._active_page = page
 
@@ -837,7 +795,7 @@ class BrowserAutomationAgent:
                         time.sleep(0.5)
                         loc.press("Enter")
                         search_executed = True
-                        logger.info("[BrowserAgent AstraLoop] Located search element via '%s' and submitted query '%s'", sel, clean_query)
+                        logger.info("[BrowserAgent AstraLoop] Located search element via '%s' and submitted query (length=%d)", sel, len(clean_query))
                         break
                 except Exception:
                     continue
@@ -944,7 +902,7 @@ class BrowserAutomationAgent:
         screenshot_name = screenshot_filename or f"maps_{int(time.time())}.png"
         screenshot_dest = SCREENSHOTS_DIR / screenshot_name
 
-        logger.info("[BrowserAgent MapsRoute] Opening Google Maps visibly: %s", maps_url)
+        logger.info("[BrowserAgent MapsRoute] Opening Google Maps visibly (query_present=%s)", bool(maps_url))
         page = self._get_or_create_active_page(headless=headless)
         self._active_page = page
 
@@ -1201,7 +1159,7 @@ class BrowserAutomationAgent:
             }
             base_url = site_map.get(clean_site, f"https://www.{clean_site}.com")
 
-        logger.info("[BrowserAgent ChainedSearch] Step 1: Navigating to %s for query '%s'", base_url, query)
+        logger.info("[BrowserAgent ChainedSearch] Step 1: Navigating to %s (query_length=%d)", base_url, len(query))
         page = self._get_or_create_active_page(headless=headless)
         self._active_page = page
 
@@ -1269,14 +1227,14 @@ class BrowserAutomationAgent:
                 fallback_search_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}"
             elif "wikipedia" in clean_site:
                 fallback_search_url = f"https://en.wikipedia.org/w/index.php?search={urllib.parse.quote(query)}"
-            logger.info("[BrowserAgent ChainedSearch] Direct navigation fallback to %s", fallback_search_url)
+            logger.info("[BrowserAgent ChainedSearch] Direct navigation fallback (query_length=%d)", len(query))
             page.goto(fallback_search_url, wait_until="domcontentloaded", timeout=25000)
 
         # Step 6: Wait and confirm result state
         time.sleep(3.0)
         current_url = page.url
         current_title = page.title()
-        logger.info("[BrowserAgent ChainedSearch] Step 3: Result state confirmed: URL=%s, Title=%s", current_url, current_title)
+        logger.info("[BrowserAgent ChainedSearch] Step 3: Result state confirmed (url_present=%s, title_length=%d)", bool(current_url), len(current_title))
 
         # Step 7: Proof screenshot
         page.screenshot(path=str(screenshot_dest))
@@ -1364,7 +1322,7 @@ class BrowserAutomationAgent:
     ) -> Dict[str, Any]:
         """Executes generalized chained media playback: open platform -> search -> click first result -> verify progression -> leave playing."""
         clean_site = site.lower().strip()
-        logger.info("[BrowserAgent ChainedPlay] Generalized media playback chain on '%s' for query: '%s'", clean_site, query)
+        logger.info("[BrowserAgent ChainedPlay] Generalized media playback chain on '%s' (query_length=%d)", clean_site, len(query))
 
         # Direct Playwright fastpath for YouTube or generic media site
         if "youtube" in clean_site or not clean_site:
@@ -1418,7 +1376,7 @@ class BrowserAutomationAgent:
         screenshot_name = screenshot_filename or f"whatsapp_msg_{int(time.time())}.png"
         screenshot_dest = SCREENSHOTS_DIR / screenshot_name
 
-        logger.info("[BrowserAgent WhatsApp] Opening WhatsApp Web to message '%s'...", recipient)
+        logger.info("[BrowserAgent WhatsApp] Opening WhatsApp Web for a message workflow")
         try:
             page = self._get_or_create_active_page(headless=False)
             self._active_page = page
@@ -1513,7 +1471,7 @@ class BrowserAutomationAgent:
                     time.sleep(2.0)
                     page.screenshot(path=str(screenshot_dest))
 
-                    logger.info("[BrowserAgent WhatsApp] Successfully typed and sent message to '%s'", recipient)
+                    logger.info("[BrowserAgent WhatsApp] Message workflow completed successfully")
                     return {
                         "success": True,
                         "action": "whatsapp_send",
@@ -1535,7 +1493,7 @@ class BrowserAutomationAgent:
             }
 
         except Exception as e:
-            logger.error("[BrowserAgent WhatsApp] Error during WhatsApp automation: %s", e)
+            logger.error("[BrowserAgent WhatsApp] Error during WhatsApp automation (%s)", type(e).__name__)
             return {"success": False, "error": str(e), "response": f"WhatsApp automation error: {e}"}
 
     def whatsapp_start_call(
@@ -1564,7 +1522,7 @@ class BrowserAutomationAgent:
         screenshot_name = screenshot_filename or f"whatsapp_call_{int(time.time())}.png"
         screenshot_dest = SCREENSHOTS_DIR / screenshot_name
 
-        logger.info("[BrowserAgent WhatsApp] Initiating WhatsApp voice call to '%s'...", target_name)
+        logger.info("[BrowserAgent WhatsApp] Initiating WhatsApp voice call")
         try:
             page = self._get_or_create_active_page(headless=False)
             self._active_page = page
@@ -1604,7 +1562,7 @@ class BrowserAutomationAgent:
                     except Exception:
                         page.keyboard.press("Enter")
             except Exception as s_err:
-                logger.warning("[BrowserAgent WhatsApp] Contact search warning: %s", s_err)
+                logger.warning("[BrowserAgent WhatsApp] Contact search warning (%s)", type(s_err).__name__)
 
             time.sleep(2.0)
 
@@ -1632,7 +1590,7 @@ class BrowserAutomationAgent:
                 call_btn.click()
                 time.sleep(2.5)
                 page.screenshot(path=str(screenshot_dest))
-                logger.info("[BrowserAgent WhatsApp] Voice call initiated for '%s'", contact_name)
+                logger.info("[BrowserAgent WhatsApp] Voice call initiated")
                 return {
                     "success": True,
                     "action": "whatsapp_call",
@@ -1658,7 +1616,7 @@ class BrowserAutomationAgent:
                     "output": f"Opened chat with '{contact_name}' on WhatsApp Web to initiate voice call."
                 }
         except Exception as e:
-            logger.error("[BrowserAgent WhatsApp Call] Error: %s", e)
+            logger.error("[BrowserAgent WhatsApp Call] Error (%s)", type(e).__name__)
             return {"success": False, "error": str(e), "response": f"Failed to initiate WhatsApp call: {e}"}
 
     def run_task(
@@ -1871,7 +1829,7 @@ class BrowserAutomationAgent:
             return {"success": False, "error": "No media query was provided.", "response": "Which song or media would you like me to play?", "output": "Which song or media would you like me to play?"}
 
         if song and (action in ["play_youtube", "play_song", "play_music"] or any(w in raw_target.lower() for w in ["play", "song", "music", "youtube"])):
-            logger.info("[BrowserAgent] Initiating chained song playback for: '%s'", song)
+            logger.info("[BrowserAgent] Initiating chained song playback (query_length=%d)", len(song))
             play_duration_sec = float(inputs.get("play_duration_sec", 0.0))
             screenshot_60s_name = inputs.get("screenshot_60s_filename")
             res = self.chained_play_media(

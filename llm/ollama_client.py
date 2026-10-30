@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Any
 import httpx
 from config.settings import settings
 from llm.personas import get_system_prompt
+from utils.process_registry import register_child_process
 
 logger = logging.getLogger("JARVIS.LLM")
 
@@ -105,23 +106,21 @@ class OllamaClient:
 
         logger.info("[Ollama Engine] Ollama service is offline. Attempting to auto-launch '%s serve'...", bin_path)
         try:
+            launch_options = {
+                "stdout": subprocess.DEVNULL,
+                "stderr": subprocess.DEVNULL,
+                "stdin": subprocess.DEVNULL,
+            }
             if os.name == "nt":
-                proc = subprocess.Popen(
-                    f'start "" /B "{bin_path}" serve',
-                    shell=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    stdin=subprocess.DEVNULL
-                )
+                launch_options["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             else:
-                proc = subprocess.Popen(
-                    [bin_path, "serve"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    stdin=subprocess.DEVNULL,
-                    start_new_session=True
-                )
-            logger.info("[Ollama Engine] Auto-launched 'ollama serve' (PID=%d). Polling for readiness...", getattr(proc, "pid", 0))
+                launch_options["start_new_session"] = True
+
+            # Launch the server executable directly so the registered process is
+            # Ollama itself rather than a transient shell wrapper.
+            proc = subprocess.Popen([bin_path, "serve"], **launch_options)
+            register_child_process(proc)
+            logger.info("[Ollama Engine] Auto-launched Ollama service (PID=%d). Polling for readiness...", getattr(proc, "pid", 0))
         except Exception as launch_err:
             logger.error("[Ollama Engine] Failed to auto-launch 'ollama serve': %s", launch_err)
             return {"ready": False, "error": f"Failed to launch: {launch_err}"}

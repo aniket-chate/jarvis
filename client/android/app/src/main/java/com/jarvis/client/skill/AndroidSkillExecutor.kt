@@ -91,7 +91,7 @@ class AndroidSkillExecutor(private val context: Context) {
     }
 
     fun execute(requestId: String, skillId: String, parameters: Map<String, Any>?): WsSkillResult {
-        Log.i(tag, "Executing skill '$skillId' (req_id=$requestId) with params: $parameters")
+        Log.i(tag, "Executing skill '$skillId' (req_id=$requestId, parameter_count=${parameters?.size ?: 0})")
 
         return when (skillId.trim().lowercase()) {
             "open_app", "app.open", "openapp", "launch_app" -> executeOpenApp(requestId, parameters)
@@ -551,7 +551,7 @@ class AndroidSkillExecutor(private val context: Context) {
                 .build()
 
             val notificationId = (System.currentTimeMillis() % 10000).toInt()
-            Log.i(tag, "Posting notification id=$notificationId, title='$title', message='$message'")
+            Log.i(tag, "Posting notification id=$notificationId (notification content redacted)")
             notificationManager.notify(notificationId, notification)
             Log.i(tag, "Notification posted successfully")
 
@@ -580,7 +580,7 @@ class AndroidSkillExecutor(private val context: Context) {
     private var isTorchOn = false
 
     private fun executeFlashlight(requestId: String, params: Map<String, Any>?): WsSkillResult {
-        Log.i(tag, "Executing flashlight toggle (req_id=$requestId) with params: $params")
+        Log.i(tag, "Executing flashlight toggle (req_id=$requestId)")
         return try {
             val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager
             if (cameraManager == null) {

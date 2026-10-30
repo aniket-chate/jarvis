@@ -1,9 +1,19 @@
 name: Android + JARVIS Live Sandbox
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
       - "feature/android-mobile-agent-v1"
+  pull_request:
+    paths:
+      - "client/android/**"
+      - "server/**"
+      - "gateway/**"
+      - "config/**"
+      - ".github/workflows/android-sandbox.yml"
   workflow_dispatch:
 
 concurrency:
@@ -76,6 +86,15 @@ jobs:
             -Pandroid.testInstrumentationRunnerArguments.userId=sandbox_user
             -Pandroid.testInstrumentationRunnerArguments.authToken=ci-sandbox-token-2026-jarvis-device-mesh-test
             -Pandroid.testInstrumentationRunnerArguments.deviceName="JARVIS Sandbox Android"
+
+      - name: Verify release build uses the hardened manifest
+        run: |
+          cd "$GITHUB_WORKSPACE/client/android"
+          bash ./gradlew assembleRelease --stacktrace
+          manifest="$(find app/build/intermediates -type f -path '*release*' -name AndroidManifest.xml | head -n 1)"
+          test -n "$manifest"
+          grep -Eq 'android:usesCleartextTraffic="false"' "$manifest"
+          echo "Verified release manifest disables cleartext traffic: $manifest"
 
       - name: Dump gateway log on failure
         if: failure()

@@ -79,9 +79,10 @@ class JarvisWebSocketClient(
     private val _errorEvents = MutableSharedFlow<WsError>()
     val errorEvents: SharedFlow<WsError> = _errorEvents.asSharedFlow()
 
+    @Synchronized
     fun connect() {
-        if (_connectionState.value == ConnectionState.CONNECTED || _connectionState.value == ConnectionState.AUTHENTICATED) {
-            Log.d(tag, "WebSocket already connected.")
+        if (!WebSocketConnectionPolicy.canStart(_connectionState.value)) {
+            Log.d(tag, "WebSocket connection is already active, starting, or retrying.")
             return
         }
 
@@ -89,14 +90,24 @@ class JarvisWebSocketClient(
         _connectionState.value = ConnectionState.CONNECTING
 
         val wsUrl = settingsManager.getWebSocketUrl()
-        Log.i(tag, "Connecting WebSocket to: $wsUrl")
+        Log.i(tag, "Connecting WebSocket.")
 
-        val token = settingsManager.authToken.ifBlank { settingsManager.userId }
-        val requestBuilder = Request.Builder().url(wsUrl)
-        if (token.isNotBlank()) {
-            requestBuilder.header("Authorization", "Bearer $token")
+        val token = WebSocketAuthPolicy.resolveToken(settingsManager.authToken)
+        if (token == null) {
+            _connectionState.value = ConnectionState.ERROR
+            Log.e(tag, "Cannot connect: JARVIS authentication token is not configured.")
+            scope.launch {
+                _errorEvents.emit(
+                    WsError(code = "auth_token_missing", message = "Configure a JARVIS gateway authentication token in Settings.")
+                )
+            }
+            return
         }
-        val request = requestBuilder.build()
+
+        val request = Request.Builder()
+            .url(wsUrl)
+            .header("Authorization", "Bearer $token")
+            .build()
 
         webSocket = okHttpClient.newWebSocket(request, this)
     }
@@ -159,7 +170,7 @@ class JarvisWebSocketClient(
         val json = gson.toJson(voiceTurn)
         val sent = sendRaw(json)
         if (sent) {
-            Log.i(tag, "VOICE_STATE: VOICE_TURN_SENT $turnId | text='$text' | wake='$wakePhrase' (profile=$wakeProfileId)")
+            Log.i(tag, "VOICE_STATE: VOICE_TURN_SENT text_length=${text.length} | wake_phrase_present=${!wakePhrase.isNullOrBlank()}")
         }
         return sent
     }
@@ -182,21 +193,29 @@ class JarvisWebSocketClient(
         reconnectAttempts = 0
 
         // Authenticate immediately if required
-        val token = settingsManager.authToken.ifBlank { settingsManager.userId }
-        if (token.isNotBlank()) {
-            _connectionState.value = ConnectionState.AUTHENTICATING
-            sendAuth(token)
-        } else {
-            _connectionState.value = ConnectionState.AUTHENTICATED
+        val token = WebSocketAuthPolicy.resolveToken(settingsManager.authToken)
+        if (token == null) {
+            _connectionState.value = ConnectionState.ERROR
+            Log.e(tag, "WebSocket opened without a configured authentication token; closing fail-closed.")
+            webSocket.close(1008, "Authentication token is not configured")
+            scope.launch {
+                _errorEvents.emit(
+                    WsError(code = "auth_token_missing", message = "Configure a JARVIS gateway authentication token in Settings.")
+                )
+            }
+            return
         }
+
+        _connectionState.value = ConnectionState.AUTHENTICATING
+        sendAuth(token)
     }
 
     override fun onMessage(webSocket: WebSocket, text: String) {
-        Log.d(tag, "Received WebSocket message: $text")
         scope.launch {
             try {
                 val jsonObject: JsonObject = JsonParser.parseString(text).asJsonObject
                 val msgType = if (jsonObject.has("type")) jsonObject.get("type").asString else ""
+                Log.d(tag, "Received WebSocket message type=$msgType")
 
                 when (msgType) {
                     "auth_success" -> {
@@ -214,7 +233,7 @@ class JarvisWebSocketClient(
                     "voice_response" -> {
                         val voiceResp = gson.fromJson(jsonObject, WsVoiceResponse::class.java)
                         val respId = voiceResp.voiceTurnId ?: voiceResp.requestId ?: "unknown"
-                        Log.i(tag, "VOICE_STATE: VOICE_RESPONSE_RECEIVED $respId | status='${voiceResp.status}' | text='${voiceResp.text}'")
+                        Log.i(tag, "VOICE_STATE: VOICE_RESPONSE_RECEIVED $respId | status='${voiceResp.status}' | text_length=${voiceResp.text.length}")
                         _voiceResponses.emit(voiceResp)
                     }
                     "skill_request" -> {
@@ -267,20 +286,20 @@ class JarvisWebSocketClient(
                     }
                 }
             } catch (e: Exception) {
-                Log.e(tag, "Error parsing WebSocket message payload: ${e.message}", e)
+                Log.e(tag, "Error parsing WebSocket message payload (${e.javaClass.simpleName})")
                 _errorEvents.emit(WsError(code = "parse_error", message = e.message ?: "Invalid JSON"))
             }
         }
     }
 
     override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-        Log.i(tag, "WebSocket closing: $code / $reason")
+        Log.i(tag, "WebSocket closing: code=$code")
         webSocket.close(1000, null)
         _connectionState.value = ConnectionState.DISCONNECTED
     }
 
     override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-        Log.i(tag, "WebSocket closed: $code / $reason")
+        Log.i(tag, "WebSocket closed: code=$code")
         _connectionState.value = ConnectionState.DISCONNECTED
         if (!isManualDisconnect) {
             scheduleReconnect()
@@ -288,7 +307,7 @@ class JarvisWebSocketClient(
     }
 
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-        Log.e(tag, "WebSocket failure: ${t.message}", t)
+        Log.e(tag, "WebSocket failure (${t.javaClass.simpleName})")
         _connectionState.value = ConnectionState.ERROR
         if (!isManualDisconnect) {
             scheduleReconnect()
@@ -304,6 +323,10 @@ class JarvisWebSocketClient(
             val delaySeconds = min(2 * (1 shl (reconnectAttempts - 1)), 16)
             Log.i(tag, "Scheduling reconnection attempt #$reconnectAttempts in ${delaySeconds}s...")
             delay(delaySeconds * 1000L)
+            if (isManualDisconnect || _connectionState.value != ConnectionState.RECONNECTING) {
+                return@launch
+            }
+            _connectionState.value = ConnectionState.DISCONNECTED
             connect()
         }
     }

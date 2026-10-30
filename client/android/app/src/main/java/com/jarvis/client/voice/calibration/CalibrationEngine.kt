@@ -250,7 +250,7 @@ class CalibrationEngine(
                 )
 
                 spotter = KeywordSpotter(assetManager = null, config = kwsConfig)
-                Log.i(tag, "Sherpa KeywordSpotter initialized successfully for CalibrationEngine (User: $activeUserId, Phrase: '${activeProfile.phrase}')")
+                Log.i(tag, "Sherpa KeywordSpotter initialized successfully for CalibrationEngine")
                 true
             } catch (t: Throwable) {
                 Log.e(tag, "Failed to initialize Sherpa KeywordSpotter for calibration: ${t.javaClass.name} - ${t.message}", t)

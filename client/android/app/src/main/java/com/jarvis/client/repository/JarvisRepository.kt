@@ -107,7 +107,7 @@ class JarvisRepository(
             scope.launch {
                 recognizer.transcriptionResults.collect { recognizedText ->
                     if (!com.jarvis.client.voice.JarvisVoiceService.isRunning.value) {
-                        Log.i(tag, "Received manual voice transcription: '$recognizedText' -> Sending via WebSocket")
+                        Log.i(tag, "Received manual voice transcription (text_length=${recognizedText.length}); sending via WebSocket")
                         sendMessage(recognizedText)
                     }
                 }
@@ -263,7 +263,7 @@ class JarvisRepository(
             val result = apiClient.registerDevice(req)
             result.onSuccess {
                 lastRegisteredCapabilities = capabilities
-                Log.i(tag, "Device registered successfully with backend: ${it.deviceId} (${it.name}), capabilities=$capabilities")
+                Log.i(tag, "Device registered successfully with backend; capabilities_count=${capabilities.size}")
                 heartbeatManager.startHeartbeat()
             }.onFailure {
                 Log.w(tag, "Device registration failed: ${it.message}")

@@ -57,9 +57,21 @@ class PolicyKernel:
 
     def __init__(self, confirmation_ttl_sec: float = 60.0):
         self.confirmation_ttl = confirmation_ttl_sec
+        self.max_pending_confirmations = 1024
         self._pending_confirmations: Dict[str, PendingConfirmation] = {}
         self._prohibited_extensions = [".bat", ".cmd", ".ps1", ".vbs", ".exe", ".sh", ".dll", ".reg"]
         self._safe_git_commands = ["status", "diff", "branch", "checkout", "log", "show", "rev-parse"]
+
+    def _purge_expired_confirmations(self, now: Optional[float] = None) -> None:
+        """Remove expired confirmation records before accepting new pending work."""
+        current_time = time.time() if now is None else now
+        expired_tokens = [
+            token
+            for token, pending in self._pending_confirmations.items()
+            if current_time > pending.expires_at
+        ]
+        for token in expired_tokens:
+            self._pending_confirmations.pop(token, None)
 
     def evaluate(
         self,
@@ -74,6 +86,8 @@ class PolicyKernel:
         low_query = raw_query.lower().strip()
         low_action = action.lower().strip()
         low_domain = domain.lower().strip()
+        now = time.time()
+        self._purge_expired_confirmations(now)
 
         # -------------------------------------------------------------
         # 1. PROHIBITED: Arbitrary shell execution (whoami, ipconfig, cmd, powershell)
@@ -86,7 +100,7 @@ class PolicyKernel:
             or any(w in low_query for w in ["cmd /c", "rmdir /s", "del /f", "format c:"])
         )
         if is_shell_cmd:
-            logger.warning("[SafetyKernel] PROHIBITED: Arbitrary shell command attempt: domain='%s', action='%s', query='%s'", domain, action, raw_query)
+            logger.warning("[SafetyKernel] PROHIBITED: Arbitrary shell command attempt: domain='%s', action='%s'", domain, action)
             return SafetyDecision(
                 level=PolicyLevel.PROHIBITED,
                 allowed=False,
@@ -119,7 +133,6 @@ class PolicyKernel:
         if is_external_side_effect and not parameters.get("confirmed", False):
             import uuid
             token = f"auth_ext_{uuid.uuid4().hex[:12]}"
-            now = time.time()
             self._pending_confirmations[token] = PendingConfirmation(
                 token=token,
                 action_domain=domain,
@@ -150,9 +163,15 @@ class PolicyKernel:
             or any(w in low_query for w in ["whatsapp", "whats app", "send an email", "send email", "call +", "call 987"])
         )
         if is_comms and not parameters.get("confirmed", False):
+            if len(self._pending_confirmations) >= self.max_pending_confirmations:
+                return SafetyDecision(
+                    level=PolicyLevel.PRIVILEGED_CONFIRMATION if is_comms else PolicyLevel.CONFIRMATION_REQUIRED,
+                    allowed=False,
+                    reason="Pending confirmation capacity reached; retry after existing confirmations expire.",
+                    risk_score=0.7,
+                )
             import uuid
             token = f"auth_comms_{uuid.uuid4().hex[:12]}"
-            now = time.time()
             self._pending_confirmations[token] = PendingConfirmation(
                 token=token,
                 action_domain=domain,
@@ -175,7 +194,59 @@ class PolicyKernel:
             )
 
         # -------------------------------------------------------------
-        # 5. CONFIRMATION REQUIRED: Destructive Filesystem (Delete file, Delete folder)
+        # 5. CONFIRMATION REQUIRED: Remote device command dispatch
+        # -------------------------------------------------------------
+        # Device-mesh mutations can change trust or execute actions on another
+        # device. Require a one-time confirmation token for these operations.
+        remote_device_mutations = {
+            "mesh.route_to_device",
+            "mesh.register_device",
+            "mesh.revoke_device",
+            "mesh.set_device_trust",
+            "mesh.sync_state",
+        }
+        is_remote_device_mutation = (
+            low_domain == "mesh" and low_action in remote_device_mutations
+        )
+        if is_remote_device_mutation and not parameters.get("confirmed", False):
+            if len(self._pending_confirmations) >= self.max_pending_confirmations:
+                return SafetyDecision(
+                    level=PolicyLevel.PRIVILEGED_CONFIRMATION if is_comms else PolicyLevel.CONFIRMATION_REQUIRED,
+                    allowed=False,
+                    reason="Pending confirmation capacity reached; retry after existing confirmations expire.",
+                    risk_score=0.7,
+                )
+            import uuid
+            token = f"auth_mesh_{uuid.uuid4().hex[:12]}"
+            self._pending_confirmations[token] = PendingConfirmation(
+                token=token,
+                action_domain=domain,
+                action_name=action,
+                parameters=dict(parameters),
+                created_at=now,
+                expires_at=now + self.confirmation_ttl,
+                request_id=request_id,
+                is_privileged=False,
+            )
+            prompt = (
+                f"Remote device operation '{action}' requires explicit confirmation. "
+                f"Confirm to proceed (TTL {int(self.confirmation_ttl)}s)."
+            )
+            logger.info(
+                "[SafetyKernel] Staged remote device command for confirmation (request_id=%s)",
+                request_id,
+            )
+            return SafetyDecision(
+                level=PolicyLevel.CONFIRMATION_REQUIRED,
+                allowed=False,
+                reason="Pending explicit confirmation for remote device operation",
+                confirmation_token=token,
+                confirmation_prompt=prompt,
+                risk_score=0.7,
+            )
+
+        # -------------------------------------------------------------
+        # 6. CONFIRMATION REQUIRED: Destructive Filesystem (Delete file, Delete folder)
         # -------------------------------------------------------------
         is_destructive = (
             low_action in ["delete", "delete_file", "delete_folder", "rmdir", "drop_table", "drop_database"]
@@ -183,9 +254,15 @@ class PolicyKernel:
             or any(w in low_query for w in ["delete a file", "delete that file", "delete file", "delete folder", "delete a folder", "delete directory", "drop table", "drop database"])
         )
         if is_destructive and not (parameters.get("confirmed", False) or parameters.get("user_confirmed", False)):
+            if len(self._pending_confirmations) >= self.max_pending_confirmations:
+                return SafetyDecision(
+                    level=PolicyLevel.CONFIRMATION_REQUIRED,
+                    allowed=False,
+                    reason="Pending confirmation capacity reached; retry after existing confirmations expire.",
+                    risk_score=0.7,
+                )
             import uuid
             token = f"auth_del_{uuid.uuid4().hex[:12]}"
-            now = time.time()
             self._pending_confirmations[token] = PendingConfirmation(
                 token=token,
                 action_domain=domain,
@@ -208,7 +285,7 @@ class PolicyKernel:
             )
 
         # -------------------------------------------------------------
-        # 6. SAFE AUTOMATIC: All benign local actions
+        # 7. SAFE AUTOMATIC: All benign local actions
         # -------------------------------------------------------------
         return SafetyDecision(
             level=PolicyLevel.SAFE_AUTOMATIC,

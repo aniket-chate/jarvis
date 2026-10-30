@@ -61,6 +61,17 @@ class PolicyKernel:
         self._prohibited_extensions = [".bat", ".cmd", ".ps1", ".vbs", ".exe", ".sh", ".dll", ".reg"]
         self._safe_git_commands = ["status", "diff", "branch", "checkout", "log", "show", "rev-parse"]
 
+    def _purge_expired_confirmations(self, now: Optional[float] = None) -> None:
+        """Remove expired confirmation records before accepting new pending work."""
+        current_time = time.time() if now is None else now
+        expired_tokens = [
+            token
+            for token, pending in self._pending_confirmations.items()
+            if current_time > pending.expires_at
+        ]
+        for token in expired_tokens:
+            self._pending_confirmations.pop(token, None)
+
     def evaluate(
         self,
         domain: str,
@@ -74,6 +85,7 @@ class PolicyKernel:
         low_query = raw_query.lower().strip()
         low_action = action.lower().strip()
         low_domain = domain.lower().strip()
+        self._purge_expired_confirmations()
 
         # -------------------------------------------------------------
         # 1. PROHIBITED: Arbitrary shell execution (whoami, ipconfig, cmd, powershell)

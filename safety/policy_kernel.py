@@ -175,7 +175,47 @@ class PolicyKernel:
             )
 
         # -------------------------------------------------------------
-        # 5. CONFIRMATION REQUIRED: Destructive Filesystem (Delete file, Delete folder)
+        # 5. CONFIRMATION REQUIRED: Remote device command dispatch
+        # -------------------------------------------------------------
+        # A trusted device route can trigger UI actions, notifications, or other
+        # side effects on another device. Require a one-time confirmation token
+        # before any mesh.route_to_device operation is dispatched.
+        is_remote_device_route = (
+            low_domain == "mesh" and low_action == "mesh.route_to_device"
+        )
+        if is_remote_device_route and not parameters.get("confirmed", False):
+            import uuid
+            token = f"auth_mesh_{uuid.uuid4().hex[:12]}"
+            now = time.time()
+            self._pending_confirmations[token] = PendingConfirmation(
+                token=token,
+                action_domain=domain,
+                action_name=action,
+                parameters=dict(parameters),
+                created_at=now,
+                expires_at=now + self.confirmation_ttl,
+                request_id=request_id,
+                is_privileged=False,
+            )
+            prompt = (
+                f"Remote device command '{action}' requires explicit confirmation. "
+                f"Confirm to proceed (TTL {int(self.confirmation_ttl)}s)."
+            )
+            logger.info(
+                "[SafetyKernel] Staged remote device command for confirmation (request_id=%s)",
+                request_id,
+            )
+            return SafetyDecision(
+                level=PolicyLevel.CONFIRMATION_REQUIRED,
+                allowed=False,
+                reason="Pending explicit confirmation for remote device command",
+                confirmation_token=token,
+                confirmation_prompt=prompt,
+                risk_score=0.7,
+            )
+
+        # -------------------------------------------------------------
+        # 6. CONFIRMATION REQUIRED: Destructive Filesystem (Delete file, Delete folder)
         # -------------------------------------------------------------
         is_destructive = (
             low_action in ["delete", "delete_file", "delete_folder", "rmdir", "drop_table", "drop_database"]
@@ -208,7 +248,7 @@ class PolicyKernel:
             )
 
         # -------------------------------------------------------------
-        # 6. SAFE AUTOMATIC: All benign local actions
+        # 7. SAFE AUTOMATIC: All benign local actions
         # -------------------------------------------------------------
         return SafetyDecision(
             level=PolicyLevel.SAFE_AUTOMATIC,

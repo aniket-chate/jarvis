@@ -400,7 +400,7 @@ class JarvisVoiceService : Service() {
                     transitionTo(ServiceVoiceState.TTS, MicOwner.NONE, "TTS vocalizing fallback response")
                 }
 
-                updateNotification("Jarvis Speaking", text)
+                updateNotification("Jarvis Speaking", "JARVIS is responding.")
 
                 val curTurnId = pendingVoiceTurnId
                 val curActionId = pendingActionId

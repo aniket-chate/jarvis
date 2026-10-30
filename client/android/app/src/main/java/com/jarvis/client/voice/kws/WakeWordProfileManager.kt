@@ -107,7 +107,7 @@ class WakeWordProfileManager(private val context: Context) {
                     }
                 }
             } catch (e: Exception) {
-                Log.w(tag, "Failed to parse KWS profile for $userId, recreating default", e)
+                Log.w(tag, "Failed to parse KWS profile; recreating default")
             }
         }
         return createDefaultProfile(userId)
@@ -190,7 +190,7 @@ class WakeWordProfileManager(private val context: Context) {
                 tempFile.renameTo(targetFile)
             } else false
         } catch (e: Exception) {
-            Log.e(tag, "Error saving draft profile for $safeId", e)
+            Log.e(tag, "Error saving draft KWS profile")
             if (tempFile.exists()) tempFile.delete()
             false
         }
@@ -204,7 +204,7 @@ class WakeWordProfileManager(private val context: Context) {
                     return gson.fromJson(reader, WakeWordProfile::class.java)
                 }
             } catch (e: Exception) {
-                Log.w(tag, "Failed to load draft profile for $userId", e)
+                Log.w(tag, "Failed to load draft KWS profile")
             }
         }
         return null
@@ -289,7 +289,7 @@ class WakeWordProfileManager(private val context: Context) {
                 false
             }
         } catch (e: Exception) {
-            Log.e(tag, "Error saving KWS profile for ${profile.userId}", e)
+            Log.e(tag, "Error saving KWS profile")
             if (tempFile.exists()) tempFile.delete()
             false
         }
@@ -311,7 +311,7 @@ class WakeWordProfileManager(private val context: Context) {
                 tempFile.renameTo(kwFile)
             }
         } catch (e: Exception) {
-            Log.e(tag, "Error writing keywords.txt for ${profile.userId}", e)
+            Log.e(tag, "Error writing KWS keywords file")
             if (tempFile.exists()) tempFile.delete()
         }
         return kwFile
@@ -378,7 +378,7 @@ class WakeWordProfileManager(private val context: Context) {
         // 3. Clean up draft file
         deleteDraft(safeId)
 
-        Log.i(tag, "Successfully activated wake-word profile '${activatedProfile.phrase}' for user '$safeId'")
+        Log.i(tag, "Successfully activated wake-word profile")
         return ProfileActivationResult(true, activatedProfile, null)
     }
 

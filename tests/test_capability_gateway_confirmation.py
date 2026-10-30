@@ -41,6 +41,28 @@ def route_request(parameters, action="mesh.route_to_device"):
     }
 
 
+def test_remote_device_route_never_stages_caller_supplied_biometric_embedding(api_client):
+    client, kernel = api_client
+    request_id = "req-mesh-forged-biometric"
+    response = client.post(
+        "/api/v1/capabilities/execute",
+        headers={"Authorization": "Bearer unit-test-gateway-token-with-sufficient-length"},
+        json=route_request(
+            {
+                "request_id": request_id,
+                "target_device_id": "android_test_device",
+                "payload": {"type": "skill_request", "skill_id": "ui_observe"},
+                "face_embedding": [0.1] * 128,
+            }
+        ),
+    )
+
+    assert response.status_code == 403
+    token = response.json()["detail"]["confirmation_token"]
+    pending = kernel._pending_confirmations[token]
+    assert "face_embedding" not in pending.parameters
+
+
 def test_remote_device_route_rejects_forged_confirmation_flags(api_client):
     client, kernel = api_client
     request_id = "req-mesh-forged-approval"

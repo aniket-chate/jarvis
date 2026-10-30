@@ -251,12 +251,12 @@ class JarvisVoiceService : Service() {
 
                     Log.i(
                         tag,
-                        "CONFIRMATION_RECOGNIZED text_length=${trimmed.length} voice_turn_id=$turnId pending_action=$actionId is_approval=$isApproval is_denial=$isDenial timestamp=$now"
+                        "CONFIRMATION_RECOGNIZED text_length=${trimmed.length} is_approval=$isApproval is_denial=$isDenial timestamp=$now"
                     )
 
                     val dispatchText = if (isApproval) "yes" else if (isDenial) "no" else trimmed
                     transitionTo(ServiceVoiceState.EXECUTING, MicOwner.NONE, "Voice confirmation recognized")
-                    updateNotification("Processing Confirmation", "Dispatching: \"$dispatchText\"")
+                    updateNotification("Processing Confirmation", "Processing confirmation response.")
 
                     isAwaitingVoiceConfirmation = false
                     confirmationRetryCount = 0
@@ -265,7 +265,7 @@ class JarvisVoiceService : Service() {
 
                     Log.i(
                         tag,
-                        "CONFIRMATION_SENT voice_turn_id=$turnId pending_action=$actionId timestamp=$now"
+                        "CONFIRMATION_SENT timestamp=$now"
                     )
 
                     repository.sendVoiceTurn(
@@ -291,7 +291,7 @@ class JarvisVoiceService : Service() {
                 )
 
                 transitionTo(ServiceVoiceState.EXECUTING, MicOwner.NONE, "Voice command recognized")
-                updateNotification("Processing...", "Processing: \"$cleanedCommand\"")
+                updateNotification("Processing...", "Processing voice command.")
 
                 repository.sendVoiceTurn(
                     text = cleanedCommand,
@@ -328,7 +328,7 @@ class JarvisVoiceService : Service() {
                     transitionTo(ServiceVoiceState.TTS, MicOwner.NONE, "TTS vocalizing response")
                 }
 
-                updateNotification("Jarvis Speaking", text)
+                updateNotification("Jarvis Speaking", "JARVIS is responding.")
 
                 val curTurnId = pendingVoiceTurnId
                 val curActionId = pendingActionId
@@ -538,10 +538,9 @@ class JarvisVoiceService : Service() {
             val newProfile = getActiveWakeProfile()
             Log.i(
                 tag,
-                "Detector reload outcome: $reloaded | " +
-                "Active Profile: '${newProfile.phrase}' (User: ${newProfile.userId})"
+                "Detector reload outcome: $reloaded"
             )
-            recoverToStandby("Reloaded profile '${newProfile.phrase}'")
+            recoverToStandby("Reloaded active wake-word profile")
         }
     }
 

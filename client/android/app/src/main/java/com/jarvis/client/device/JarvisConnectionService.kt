@@ -17,8 +17,9 @@ import android.content.pm.ServiceInfo
 /**
  * Keeps the JARVIS device-mesh connection alive when the app UI is not visible.
  *
- * The user explicitly starts/stops this service. Android shows a persistent notification
- * while it is active. It reuses the application's single Repository/WebSocket instance.
+ * The main activity starts this service to keep the device-mesh connection alive when
+ * the UI is not visible. ACTION_STOP provides an explicit shutdown path. Android shows
+ * a persistent notification while the service is active.
  */
 class JarvisConnectionService : Service() {
     private val tag = "JarvisConnectionService"
@@ -37,8 +38,7 @@ class JarvisConnectionService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
-        JarvisApp.instance.repository.start()
-        Log.i(tag, "JARVIS background connection service started.")
+        Log.i(tag, "JARVIS background connection service created.")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

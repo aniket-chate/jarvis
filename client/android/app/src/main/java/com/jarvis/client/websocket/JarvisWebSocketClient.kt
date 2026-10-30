@@ -292,13 +292,13 @@ class JarvisWebSocketClient(
     }
 
     override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-        Log.i(tag, "WebSocket closing: $code / $reason")
+        Log.i(tag, "WebSocket closing: code=$code")
         webSocket.close(1000, null)
         _connectionState.value = ConnectionState.DISCONNECTED
     }
 
     override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-        Log.i(tag, "WebSocket closed: $code / $reason")
+        Log.i(tag, "WebSocket closed: code=$code")
         _connectionState.value = ConnectionState.DISCONNECTED
         if (!isManualDisconnect) {
             scheduleReconnect()

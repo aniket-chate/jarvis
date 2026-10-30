@@ -57,6 +57,7 @@ class PolicyKernel:
 
     def __init__(self, confirmation_ttl_sec: float = 60.0):
         self.confirmation_ttl = confirmation_ttl_sec
+        self.max_pending_confirmations = 1024
         self._pending_confirmations: Dict[str, PendingConfirmation] = {}
         self._prohibited_extensions = [".bat", ".cmd", ".ps1", ".vbs", ".exe", ".sh", ".dll", ".reg"]
         self._safe_git_commands = ["status", "diff", "branch", "checkout", "log", "show", "rev-parse"]
@@ -162,6 +163,13 @@ class PolicyKernel:
             or any(w in low_query for w in ["whatsapp", "whats app", "send an email", "send email", "call +", "call 987"])
         )
         if is_comms and not parameters.get("confirmed", False):
+            if len(self._pending_confirmations) >= self.max_pending_confirmations:
+                return SafetyDecision(
+                    level=PolicyLevel.PRIVILEGED_CONFIRMATION if is_comms else PolicyLevel.CONFIRMATION_REQUIRED,
+                    allowed=False,
+                    reason="Pending confirmation capacity reached; retry after existing confirmations expire.",
+                    risk_score=0.7,
+                )
             import uuid
             token = f"auth_comms_{uuid.uuid4().hex[:12]}"
             now = time.time()
@@ -202,6 +210,13 @@ class PolicyKernel:
             low_domain == "mesh" and low_action in remote_device_mutations
         )
         if is_remote_device_mutation and not parameters.get("confirmed", False):
+            if len(self._pending_confirmations) >= self.max_pending_confirmations:
+                return SafetyDecision(
+                    level=PolicyLevel.PRIVILEGED_CONFIRMATION if is_comms else PolicyLevel.CONFIRMATION_REQUIRED,
+                    allowed=False,
+                    reason="Pending confirmation capacity reached; retry after existing confirmations expire.",
+                    risk_score=0.7,
+                )
             import uuid
             token = f"auth_mesh_{uuid.uuid4().hex[:12]}"
             now = time.time()

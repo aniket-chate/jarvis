@@ -84,6 +84,11 @@ jobs:
             -Pandroid.testInstrumentationRunnerArguments.authToken=ci-sandbox-token-2026-jarvis-device-mesh-test
             -Pandroid.testInstrumentationRunnerArguments.deviceName="JARVIS Sandbox Android"
 
+      - name: Verify release build uses the hardened manifest
+        run: |
+          cd "$GITHUB_WORKSPACE/client/android"
+          bash ./gradlew assembleRelease --stacktrace
+
       - name: Dump gateway log on failure
         if: failure()
         run: cat /tmp/jarvis-gateway.log

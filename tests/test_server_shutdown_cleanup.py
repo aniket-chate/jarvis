@@ -3,7 +3,12 @@
 import asyncio
 import importlib
 import sys
+from pathlib import Path
 from types import SimpleNamespace
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def test_server_shutdown_stops_loaded_scheduler_and_owned_processes(monkeypatch):

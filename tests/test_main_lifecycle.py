@@ -90,3 +90,31 @@ def test_demo_scenario_c_never_reuses_stored_biometrics_or_sends_email():
     assert ".send_email(" not in scenario_c
     assert "face_embedding" not in scenario_c
     assert "draft_email(" in scenario_c
+
+
+
+def test_check_secrets_command_does_not_initialize_runtime(monkeypatch):
+    import main
+
+    calls = []
+    monkeypatch.setattr(sys, "argv", ["main.py", "--check-secrets"])
+    monkeypatch.setattr(main.settings, "check_secrets", lambda: calls.append("checked"))
+    monkeypatch.setattr(main, "init_all_layers", lambda: pytest.fail("check-secrets must not initialize runtime layers"))
+
+    main.main()
+
+    assert calls == ["checked"]
+
+
+def test_scenario_entrypoint_always_runs_shutdown(monkeypatch):
+    import main
+
+    shutdown_calls = []
+    monkeypatch.setattr(sys, "argv", ["main.py", "--scenario", "a"])
+    monkeypatch.setattr(main.asyncio, "run", lambda _coroutine: (_ for _ in ()).throw(RuntimeError("scenario failed")))
+    monkeypatch.setattr(main, "shutdown_all_layers", lambda: shutdown_calls.append(True))
+
+    with pytest.raises(RuntimeError, match="scenario failed"):
+        main.main()
+
+    assert shutdown_calls == [True]

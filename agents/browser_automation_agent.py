@@ -77,61 +77,19 @@ class BrowserAutomationAgent:
         return False
 
     def _get_chrome_user_data_dir(self) -> Path:
-        """Resolves Chrome User Data directory with full recursive profile synchronization (Local State, IndexedDB, LevelDB, Cookies)."""
+        """Resolve JARVIS's isolated persistent profile without copying personal Chrome data.
+
+        User Chrome cookies, passwords, DPAPI material, history, and session databases
+        must remain in the user's original profile. Connecting to an existing Chrome
+        session is supported only through an explicitly configured CDP endpoint.
+        """
         configured_profile = self._managed_profile_dir.strip()
         automation_dir = (
             Path(os.path.expandvars(configured_profile)).expanduser()
             if configured_profile
             else settings.project_root / "workspace" / "browser_profile"
         )
-        real_user_data = Path(os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")).expanduser()
         automation_dir.mkdir(parents=True, exist_ok=True)
-        target_default = automation_dir / "Default"
-        target_default.mkdir(parents=True, exist_ok=True)
-
-        # Synchronize essential profile session state, DPAPI master key, cookies, and logins
-        if real_user_data.exists():
-            real_default = real_user_data / "Default"
-            import shutil
-
-            # 1. Sync root Local State (CRITICAL: Contains DPAPI encrypted key for cookies/passwords)
-            local_state = real_user_data / "Local State"
-            if local_state.exists():
-                try:
-                    shutil.copy2(local_state, automation_dir / "Local State")
-                    logger.info("[BrowserAgent] Synchronized root Local State DPAPI key file.")
-                except Exception as ls_err:
-                    logger.debug("[BrowserAgent] Local State copy note: %s", ls_err)
-
-            # 2. Sync primary profile state files
-            for item in ["Preferences", "Login Data", "Web Data", "Favicons", "History", "Secure Preferences"]:
-                src = real_default / item
-                dst = target_default / item
-                if src.exists():
-                    try:
-                        shutil.copy2(src, dst)
-                    except Exception:
-                        pass
-
-            # 3. Recursive sync for IndexedDB (WhatsApp Web & Google Session tokens), Local Storage (leveldb), Network, Sessions
-            def _sync_folder_recursive(src_dir: Path, dst_dir: Path):
-                if not (src_dir.exists() and src_dir.is_dir()):
-                    return
-                for root, dirs, files in os.walk(src_dir):
-                    rel = Path(root).relative_to(src_dir)
-                    dest_sub = dst_dir / rel
-                    dest_sub.mkdir(parents=True, exist_ok=True)
-                    for f in files:
-                        try:
-                            shutil.copy2(Path(root) / f, dest_sub / f)
-                        except Exception:
-                            pass
-
-            for folder in ["Local Storage", "IndexedDB", "Network", "Sessions", "Session Storage"]:
-                _sync_folder_recursive(real_default / folder, target_default / folder)
-
-            logger.info("[BrowserAgent] Completed full recursive profile synchronization to %s", automation_dir)
-
         return automation_dir
 
     def _get_persistent_context(self, headless: bool = False):

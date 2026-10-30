@@ -134,9 +134,10 @@ signal.signal(signal.SIGINT, handle_signals)
 signal.signal(signal.SIGTERM, handle_signals)
 
 
-async def run_scenario(scenario_id: str):
+async def run_scenario(scenario_id: str, *, initialize: bool = True):
     """Runs one of the 3 full-system integration scenarios."""
-    require_layers_initialized()
+    if initialize:
+        require_layers_initialized()
     scenario = scenario_id.lower()
 
     if scenario == "a":
@@ -217,8 +218,9 @@ def main():
         finally:
             shutdown_all_layers()
     elif args.scenario:
+        require_layers_initialized()
         try:
-            asyncio.run(run_scenario(args.scenario))
+            asyncio.run(run_scenario(args.scenario, initialize=False))
         finally:
             shutdown_all_layers()
     elif args.start or args.cli:

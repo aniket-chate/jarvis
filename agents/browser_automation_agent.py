@@ -220,7 +220,7 @@ class BrowserAutomationAgent:
                                 ctypes.windll.user32.SetForegroundWindow(hwnd)
                                 ctypes.windll.user32.keybd_event(0x12, 0, 2, 0)
                             except Exception as ex:
-                                logger.debug("[BrowserAgent] Could not bring window '%s' to front: %s", title, ex)
+                                logger.debug("[BrowserAgent] Could not bring browser window to front (%s)", type(ex).__name__)
                 return True
 
             hdesk = None
@@ -444,7 +444,7 @@ class BrowserAutomationAgent:
 
             first_video = page.locator("ytd-video-renderer #video-title").first
             video_title = first_video.inner_text(timeout=5000)
-            logger.info("[BrowserAgent FastPath] Found video: '%s', clicking to play...", video_title)
+            logger.info("[BrowserAgent FastPath] Found a video result (title_length=%d); clicking to play...", len(video_title))
             first_video.click(timeout=5000)
 
             # Wait for video watch page
@@ -1276,7 +1276,7 @@ class BrowserAutomationAgent:
         time.sleep(3.0)
         current_url = page.url
         current_title = page.title()
-        logger.info("[BrowserAgent ChainedSearch] Step 3: Result state confirmed: URL=%s, Title=%s", current_url, current_title)
+        logger.info("[BrowserAgent ChainedSearch] Step 3: Result state confirmed (url_present=%s, title_length=%d)", bool(current_url), len(current_title))
 
         # Step 7: Proof screenshot
         page.screenshot(path=str(screenshot_dest))
@@ -1418,7 +1418,7 @@ class BrowserAutomationAgent:
         screenshot_name = screenshot_filename or f"whatsapp_msg_{int(time.time())}.png"
         screenshot_dest = SCREENSHOTS_DIR / screenshot_name
 
-        logger.info("[BrowserAgent WhatsApp] Opening WhatsApp Web to message '%s'...", recipient)
+        logger.info("[BrowserAgent WhatsApp] Opening WhatsApp Web for a message workflow")
         try:
             page = self._get_or_create_active_page(headless=False)
             self._active_page = page
@@ -1513,7 +1513,7 @@ class BrowserAutomationAgent:
                     time.sleep(2.0)
                     page.screenshot(path=str(screenshot_dest))
 
-                    logger.info("[BrowserAgent WhatsApp] Successfully typed and sent message to '%s'", recipient)
+                    logger.info("[BrowserAgent WhatsApp] Message workflow completed successfully")
                     return {
                         "success": True,
                         "action": "whatsapp_send",

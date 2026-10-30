@@ -145,6 +145,19 @@ async def startup_warmup_gate():
     event_bus.subscribe("alarm_triggered", _on_alarm_event)
 
 
+@app.on_event("shutdown")
+async def shutdown_owned_runtime_resources():
+    """Stop JARVIS-owned background workers and subprocesses on API shutdown."""
+    import sys
+    scheduler_module = sys.modules.get("agents.scheduler_agent")
+    scheduler = getattr(scheduler_module, "scheduler_agent", None) if scheduler_module else None
+    if scheduler is not None:
+        scheduler.shutdown()
+
+    from utils.process_registry import terminate_registered_processes
+    terminate_registered_processes(timeout_seconds=3.0)
+
+
 # -------------------------------------------------------------------------
 # Security & Token Authentication
 # -------------------------------------------------------------------------
